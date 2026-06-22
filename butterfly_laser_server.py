@@ -494,6 +494,19 @@ def laser_lock_from_body(body):
     }
 
 
+def laser_acquire_from_body(body):
+    marker = body_int(body, "marker_ch1_code", body_int(body, "bias_ch1", 25000))
+    halfspan = body_int(body, "search_halfspan_code", body_int(body, "lock_halfspan", 500))
+    search_min = body_int(body, "search_min_code", body_int(body, "search_min", max(0, marker - halfspan)))
+    search_max = body_int(body, "search_max_code", body_int(body, "search_max", min(65535, marker + halfspan)))
+    return {
+        "marker_ch1_code": marker,
+        "search_min": search_min,
+        "search_max": search_max,
+        "threshold": body_int(body, "acquire_threshold", body_int(body, "locked_threshold", 20)),
+    }
+
+
 class ButterflyHandler(BaseHTTPRequestHandler):
     server_version = "ButterflyLaserServer/1.0"
 
@@ -759,16 +772,51 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                 elif parsed.path == "/api/laser/lock-clear":
                     self.server.system.laser.clear_fault()
                     self.reply_json({"ok": True, "laser": self.server.system.laser.status()})
-                elif parsed.path in (
-                    "/api/laser/acquire-template",
-                    "/api/laser/acquire-arm",
-                    "/api/laser/acquire-cancel",
-                ):
-                    self.reply_json({
-                        "ok": False,
-                        "error": "board-matched acquire is not supported by this bitstream yet",
-                        "laser": self.server.system.laser.status(),
-                    }, status=501)
+                elif parsed.path == "/api/laser/acquire-template":
+                    if not self.server.system.laser.supports_board_acquire():
+                        self.reply_json({
+                            "ok": False,
+                            "error": "current laser bitstream does not support board acquire",
+                            "laser": self.server.system.laser.status(),
+                        }, status=501)
+                    else:
+                        acquire = laser_acquire_from_body(body)
+                        lock_params = laser_lock_from_body(body)
+                        lock_params["bias_ch1"] = acquire["marker_ch1_code"]
+                        lock_params["ch1_min"] = acquire["search_min"]
+                        lock_params["ch1_max"] = acquire["search_max"]
+                        self.server.system.laser.configure_safety(**laser_safety_from_body(body))
+                        self.server.system.laser.write(
+                            "CH0_STATIC_CODE",
+                            require_u16("ch0", body.get("ch0", self.server.system.laser.read("CH0_STATIC_CODE") & 0xFFFF)),
+                        )
+                        self.server.system.laser.configure_lock(**lock_params)
+                        self.server.system.laser.configure_acquire(
+                            search_min=acquire["search_min"],
+                            search_max=acquire["search_max"],
+                            threshold=acquire["threshold"],
+                        )
+                        self.reply_json({"ok": True, "laser": self.server.system.laser.status()})
+                elif parsed.path == "/api/laser/acquire-arm":
+                    if not self.server.system.laser.supports_board_acquire():
+                        self.reply_json({
+                            "ok": False,
+                            "error": "current laser bitstream does not support board acquire",
+                            "laser": self.server.system.laser.status(),
+                        }, status=501)
+                    else:
+                        self.server.system.laser.arm_acquire()
+                        self.reply_json({"ok": True, "laser": self.server.system.laser.status()})
+                elif parsed.path == "/api/laser/acquire-cancel":
+                    if not self.server.system.laser.supports_board_acquire():
+                        self.reply_json({
+                            "ok": False,
+                            "error": "current laser bitstream does not support board acquire",
+                            "laser": self.server.system.laser.status(),
+                        }, status=501)
+                    else:
+                        self.server.system.laser.cancel_acquire()
+                        self.reply_json({"ok": True, "laser": self.server.system.laser.status()})
                 elif parsed.path == "/api/laser/protection":
                     self.server.system.laser.configure_safety(**laser_safety_from_body(body))
                     self.reply_json({"ok": True, "laser": self.server.system.laser.status()})

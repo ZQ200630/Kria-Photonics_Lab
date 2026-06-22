@@ -163,6 +163,14 @@ LASER_REG = {
     "LOCK_INTEGRAL": 0xBC,
     "LOCK_OUTPUT_CH1_CODE": 0xC0,
     "LOCK_COUNTERS": 0xC4,
+    "VERSION": 0xFC,
+    "ACQUIRE_CONTROL": 0x100,
+    "ACQUIRE_SEARCH_RANGE": 0x104,
+    "ACQUIRE_THRESHOLD": 0x108,
+    "ACQUIRE_STATUS": 0x10C,
+    "ACQUIRE_MATCH_CODE": 0x110,
+    "ACQUIRE_MATCH_ADC": 0x114,
+    "ACQUIRE_MATCH_ERROR": 0x118,
 }
 
 LASER_CTRL_ENABLE = 1 << 0
@@ -174,6 +182,10 @@ LASER_CTRL_LASER_ARM = 1 << 8
 LASER_CTRL_FAULT_CLEAR = 1 << 9
 LASER_CTRL_WATCHDOG_KICK = 1 << 10
 LASER_CTRL_EMERGENCY_STOP = 1 << 11
+LASER_MIN_BOARD_ACQUIRE_VERSION = 0x00020000
+LASER_ACQ_ENABLE = 1 << 0
+LASER_ACQ_ARM = 1 << 1
+LASER_ACQ_CANCEL = 1 << 2
 
 MODE_IDLE = 0
 MODE_STATIC = 1
@@ -623,6 +635,32 @@ class LaserCurrentController:
         offset = LASER_REG[name_or_offset] if isinstance(name_or_offset, str) else name_or_offset
         self.regs.write32(offset, value)
 
+    def supports_board_acquire(self):
+        return self.read("VERSION") >= LASER_MIN_BOARD_ACQUIRE_VERSION
+
+    def require_board_acquire(self):
+        if not self.supports_board_acquire():
+            raise RuntimeError("current laser bitstream does not support board acquire")
+
+    def configure_acquire(self, search_min, search_max, threshold=20):
+        self.require_board_acquire()
+        search_min = require_u16("search_min", search_min)
+        search_max = require_u16("search_max", search_max)
+        threshold = require_u16("threshold", threshold)
+        if search_max < search_min:
+            raise ValueError("search_max must be >= search_min")
+        self.write("ACQUIRE_SEARCH_RANGE", (search_max << 16) | search_min)
+        self.write("ACQUIRE_THRESHOLD", threshold)
+        self.write("ACQUIRE_CONTROL", LASER_ACQ_ENABLE)
+
+    def arm_acquire(self):
+        self.require_board_acquire()
+        self.write("ACQUIRE_CONTROL", LASER_ACQ_ENABLE | LASER_ACQ_ARM)
+
+    def cancel_acquire(self):
+        self.require_board_acquire()
+        self.write("ACQUIRE_CONTROL", LASER_ACQ_CANCEL)
+
     def clear_fault(self):
         self.write("CTRL", LASER_CTRL_FAULT_CLEAR)
         time.sleep(0.02)
@@ -865,10 +903,21 @@ class LaserCurrentController:
         lock_counters = self.read("LOCK_COUNTERS")
         lock_bias = self.read("LOCK_BIAS_CH1_CODE") & 0xFFFF
         lock_output = self.read("LOCK_OUTPUT_CH1_CODE") & 0xFFFF
+        version = self.read("VERSION")
+        acquire_supported = version >= LASER_MIN_BOARD_ACQUIRE_VERSION
+        acquire_control = self.read("ACQUIRE_CONTROL") if acquire_supported else 0
+        acquire_search = self.read("ACQUIRE_SEARCH_RANGE") if acquire_supported else 0
+        acquire_threshold = self.read("ACQUIRE_THRESHOLD") if acquire_supported else 0
+        acquire_status = self.read("ACQUIRE_STATUS") if acquire_supported else 0
+        acquire_match_code = self.read("ACQUIRE_MATCH_CODE") if acquire_supported else 0
+        acquire_match_adc = self.read("ACQUIRE_MATCH_ADC") if acquire_supported else 0
+        acquire_match_error = self.read("ACQUIRE_MATCH_ERROR") if acquire_supported else 0
         fast_index = scan & 0xFFFF
         slow_index = (scan >> 16) & 0xFFFF
         return {
             "base_hex": f"0x{self.regs.base:08X}",
+            "version": version,
+            "version_hex": f"0x{version:08X}",
             "control": control,
             "control_hex": f"0x{control:08X}",
             "status": status,
@@ -972,6 +1021,23 @@ class LaserCurrentController:
                 "output_ch1_current_mA": ch1_code_to_ma(lock_output),
                 "loss_counter": (lock_counters >> 16) & 0xFFFF,
                 "locked_counter": lock_counters & 0xFFFF,
+            },
+            "acquire": {
+                "supported": acquire_supported,
+                "control": acquire_control,
+                "control_hex": f"0x{acquire_control:08X}",
+                "enabled": bool(acquire_control & LASER_ACQ_ENABLE),
+                "search_min": acquire_search & 0xFFFF,
+                "search_max": (acquire_search >> 16) & 0xFFFF,
+                "threshold": acquire_threshold & 0xFFFF,
+                "status": acquire_status,
+                "status_hex": f"0x{acquire_status:08X}",
+                "active": bool(acquire_status & (1 << 0)),
+                "matched": bool(acquire_status & (1 << 1)),
+                "cancelled": bool(acquire_status & (1 << 2)),
+                "match_code": acquire_match_code & 0xFFFF,
+                "match_adc": acquire_match_adc & 0xFFFF,
+                "match_error": s32(acquire_match_error),
             },
             "frame_index": self.read("FRAME_INDEX"),
             "last_fb_adc": self.read("LAST_FB_ADC") & 0xFFFF,

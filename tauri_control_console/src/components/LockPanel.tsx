@@ -82,6 +82,7 @@ export default function LockPanel({ state, client, command }: PanelProps) {
   const lock = laser?.lock;
   const laserStatus = classifyLaserStatus(laser);
   const monitoringOn = laserStatus.mode === "scan";
+  const boardAcquireSupported = Boolean(laser?.acquire?.supported);
 
   const lockHalfspan =
     typeof lock?.ch1_min_internal === "number" && typeof lock?.ch1_max_internal === "number"
@@ -331,6 +332,37 @@ export default function LockPanel({ state, client, command }: PanelProps) {
     releaseDrafts();
   };
 
+  const uploadAcquireTemplate = async () => {
+    if (!selectedAcquireTemplate) return;
+    await client.acquireTemplate({
+      ...lockBody({
+        target_adc: selectedAcquireTemplate.targetAdc,
+        bias_ch1: selectedAcquireTemplate.markerCh1Code,
+        polarity_invert: selectedAcquireTemplate.polarityInvert,
+      }),
+      marker_ch1_code: selectedAcquireTemplate.markerCh1Code,
+      search_min_code: selectedAcquireTemplate.searchMinCode,
+      search_max_code: selectedAcquireTemplate.searchMaxCode,
+      acquire_threshold: numberFromInput(lockedThreshold.value),
+      template_points: selectedAcquireTemplate.points,
+    });
+    releaseDrafts();
+  };
+
+  const armBoardAcquire = async () => {
+    if (!selectedAcquireTemplate) return;
+    await client.acquireArm({});
+    if (!monitoringOn) {
+      await startMonitoring();
+    }
+    releaseDrafts();
+  };
+
+  const cancelBoardAcquire = async () => {
+    await client.acquireCancel();
+    releaseDrafts();
+  };
+
   return (
     <section className="panel lock-panel">
       <div className="panel-title-row">
@@ -519,7 +551,9 @@ export default function LockPanel({ state, client, command }: PanelProps) {
               <h3>Board-Matched Acquire</h3>
               <p>Prepared for future HDL support. The current direct marker lock path is unchanged.</p>
             </div>
-            <span className="feature-pill pending">Waiting for HDL</span>
+            <span className={`feature-pill ${boardAcquireSupported ? "ready" : "pending"}`}>
+              {boardAcquireSupported ? "Hardware Ready" : "Waiting for HDL"}
+            </span>
           </div>
 
           <div className="readouts lock-readouts">
@@ -564,13 +598,25 @@ export default function LockPanel({ state, client, command }: PanelProps) {
           </div>
 
           <div className="actions">
-            <button className="command" disabled>
+            <button
+              className="command"
+              disabled={!boardAcquireSupported || !selectedAcquireTemplate}
+              onClick={() => command("Upload Board Acquire Template", uploadAcquireTemplate)}
+            >
               Upload Template
             </button>
-            <button className="command primary" disabled>
+            <button
+              className="command primary"
+              disabled={!boardAcquireSupported || !selectedAcquireTemplate}
+              onClick={() => command("Arm Board Match", armBoardAcquire)}
+            >
               Arm Board Match
             </button>
-            <button className="command" disabled>
+            <button
+              className="command"
+              disabled={!boardAcquireSupported}
+              onClick={() => command("Cancel Board Acquire", cancelBoardAcquire)}
+            >
               Cancel Acquire
             </button>
           </div>

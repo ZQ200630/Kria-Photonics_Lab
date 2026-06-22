@@ -113,7 +113,24 @@ export type LaserLockStatus = {
   locked_counter?: number;
 };
 
+export type LaserAcquireStatus = {
+  supported?: boolean;
+  enabled?: boolean;
+  active?: boolean;
+  matched?: boolean;
+  cancelled?: boolean;
+  search_min?: number;
+  search_max?: number;
+  threshold?: number;
+  status_hex?: string;
+  match_code?: number;
+  match_adc?: number;
+  match_error?: number;
+};
+
 export type LaserStatus = {
+  version?: number;
+  version_hex?: string;
   control?: number;
   control_hex?: string;
   status_hex?: string;
@@ -126,6 +143,7 @@ export type LaserStatus = {
   fine_scan_setpoint?: LaserFineScanSetpoint;
   safety?: LaserSafety;
   lock?: LaserLockStatus;
+  acquire?: LaserAcquireStatus;
   last_fb_adc?: number;
 };
 

@@ -212,6 +212,13 @@ class DefaultParameterTests(unittest.TestCase):
         self.assertIn("slv_reg[37] <= 32'd655;", rtl)
         self.assertIn("slv_reg[39] <= 32'd10;", rtl)
 
+    def test_laser_rtl_exposes_versioned_board_acquire_registers(self):
+        rtl = LASER_AXI.read_text(encoding="utf-8")
+        self.assertIn("C_S_AXI_ADDR_WIDTH = 10", rtl)
+        self.assertIn("LASER_CURRENT_CTRL_VERSION = 32'h0002_0000", rtl)
+        self.assertIn("ACQUIRE_CONTROL", rtl)
+        self.assertIn("acquire_arm_pulse", rtl)
+
 
 class LegacyBackupTests(unittest.TestCase):
     def test_legacy_gui_backup_files_exist(self):

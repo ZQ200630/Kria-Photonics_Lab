@@ -550,6 +550,12 @@ textarea {
   background: #fefce8;
 }
 
+.feature-pill.ready {
+  color: #166534;
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
 .acquire-summary {
   display: flex;
   flex-wrap: wrap;
