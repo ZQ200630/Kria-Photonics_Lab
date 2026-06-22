@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.superpowers/
+
+tauri_control_console/node_modules/
+tauri_control_console/dist/
+tauri_control_console/src-tauri/target/
+
+*.log
+*.jou
+*.pb
+xsim.dir/

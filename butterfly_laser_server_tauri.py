@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""
+Tauri/SSE HTTP JSON server for the Butterfly Laser Driver.
+
+Run on the board:
+  sudo python3 butterfly_laser_server_tauri.py --host 0.0.0.0 --port 8080
+
+This server is intended for a trusted lab network. It exposes direct hardware
+control and does not implement authentication.
+"""
+
+import json
+import signal
+import threading
+import time
+from http.server import ThreadingHTTPServer
+from urllib.parse import urlparse
+
+from butterfly_laser_control import ButterflyLaserSystem, parse_int
+from butterfly_laser_server import (
+    DEFAULT_ADA_BASE,
+    DEFAULT_ADA_BUF0_BASE,
+    DEFAULT_ADA_BUF1_BASE,
+    DEFAULT_BUFFER_SPAN,
+    DEFAULT_LASER_BASE,
+    DEFAULT_SETTINGS,
+    DEFAULT_SPAN,
+    DEFAULT_TEC_BASE,
+    ButterflyHandler,
+    build_parser as build_legacy_parser,
+    load_settings,
+    server_status,
+    tec_ramp_from_settings,
+)
+
+
+def format_sse(event, payload):
+    data = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    return f"event: {event}\ndata: {data}\n\n"
+
+
+def spectrum_key(spectrum):
+    return (
+        int(spectrum.get("frame_counter", -1)),
+        int(spectrum.get("buffer_id", -1)),
+        int(spectrum.get("count", -1)),
+    )
+
+
+def fault_signature(status):
+    tec = status.get("tec", {})
+    laser = status.get("laser", {})
+    ada = status.get("ada4355", {})
+    return (
+        tec.get("status_hex", ""),
+        tec.get("main_error_status_hex", ""),
+        laser.get("status_hex", ""),
+        laser.get("fault_status_hex", ""),
+        laser.get("lock", {}).get("status_hex", ""),
+        ada.get("status_hex", ""),
+        ada.get("read_status_hex", ""),
+    )
+
+
+class ButterflyTauriHandler(ButterflyHandler):
+    server_version = "ButterflyLaserTauriServer/1.0"
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/events":
+            self.handle_events()
+            return
+        super().do_GET()
+
+    def handle_events(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+        self.close_connection = True
+
+        last_spectrum_key = None
+        last_fault_signature = None
+        last_heartbeat = 0.0
+
+        while not self.server.stop_event.is_set():
+            now = time.time()
+            try:
+                with self.server.lock:
+                    status = server_status(self.server)
+                self.write_event("status", {"timestamp": now, "status": status})
+
+                current_fault_signature = fault_signature(status)
+                if current_fault_signature != last_fault_signature:
+                    last_fault_signature = current_fault_signature
+                    self.write_event(
+                        "fault",
+                        {
+                            "timestamp": now,
+                            "signature": current_fault_signature,
+                            "status": status,
+                        },
+                    )
+
+                try:
+                    with self.server.lock:
+                        spectrum = self.server.system.ada.read_spectrum(
+                            count=self.server.sse_spectrum_points,
+                            release=True,
+                        )
+                except RuntimeError as exc:
+                    if "no readable ADA4355 spectrum buffer" not in str(exc):
+                        raise
+                else:
+                    current_spectrum_key = spectrum_key(spectrum)
+                    if current_spectrum_key != last_spectrum_key:
+                        last_spectrum_key = current_spectrum_key
+                        self.write_event("spectrum", {"timestamp": now, "spectrum": spectrum})
+
+                if now - last_heartbeat >= self.server.sse_heartbeat_interval:
+                    last_heartbeat = now
+                    self.write_event("heartbeat", {"timestamp": now})
+
+                time.sleep(self.server.sse_status_interval)
+            except (BrokenPipeError, ConnectionResetError):
+                break
+            except Exception as exc:
+                try:
+                    self.write_event("error", {"timestamp": time.time(), "error": str(exc)})
+                except Exception:
+                    pass
+                time.sleep(self.server.sse_status_interval)
+
+    def write_event(self, event, payload):
+        data = format_sse(event, payload).encode("utf-8")
+        self.wfile.write(data)
+        self.wfile.flush()
+
+
+def build_parser():
+    parser = build_legacy_parser()
+    parser.description = "Tauri/SSE HTTP server for Butterfly Laser Driver"
+    parser.add_argument("--sse-status-hz", type=float, default=10.0, help="SSE status event rate")
+    parser.add_argument("--sse-heartbeat-s", type=float, default=2.0, help="SSE heartbeat interval")
+    parser.add_argument("--sse-spectrum-points", type=int, default=16384, help="Max points per SSE spectrum event")
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
+    system = ButterflyLaserSystem(
+        args.tec_base,
+        args.laser_base,
+        args.span,
+        args.ada_base,
+        args.ada_buf0_base,
+        args.ada_buf1_base,
+        args.buffer_span,
+    )
+    settings = load_settings(args.settings)
+    httpd = ThreadingHTTPServer((args.host, args.port), ButterflyTauriHandler)
+    httpd.system = system
+    httpd.lock = threading.RLock()
+    httpd.verbose = args.verbose
+    httpd.settings = settings
+    httpd.settings_path = args.settings
+    httpd.tec_ramp = tec_ramp_from_settings(system.tec, httpd.lock, settings)
+    httpd.stop_event = threading.Event()
+    httpd.sse_status_interval = 1.0 / max(float(args.sse_status_hz), 0.1)
+    httpd.sse_heartbeat_interval = max(float(args.sse_heartbeat_s), 0.2)
+    httpd.sse_spectrum_points = max(1, min(int(args.sse_spectrum_points), 16384))
+    httpd.daemon_threads = True
+    httpd.block_on_close = False
+
+    def request_stop(signum, _frame):
+        name = signal.Signals(signum).name
+        print(f"\n{name} received, shutting down Tauri server...", flush=True)
+        httpd.stop_event.set()
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
+
+    print(
+        f"Listening on http://{args.host}:{args.port} "
+        f"tec=0x{parse_int(args.tec_base):08X} laser=0x{parse_int(args.laser_base):08X} "
+        f"ada=0x{parse_int(args.ada_base):08X} settings={args.settings} sse=on",
+        flush=True,
+    )
+    try:
+        httpd.serve_forever(poll_interval=0.2)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        httpd.stop_event.set()
+        httpd.tec_ramp.stop()
+        httpd.server_close()
+        system.close()
+        print("Tauri server stopped.", flush=True)
+
+
+if __name__ == "__main__":
+    main()

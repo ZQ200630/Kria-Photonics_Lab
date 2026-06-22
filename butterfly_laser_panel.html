@@ -1,0 +1,1487 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Butterfly Laser Driver Console</title>
+  <style>
+    :root {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #eef2f7;
+      color: #172033;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: #172033;
+      color: #f8fafc;
+      padding: 12px 18px;
+      display: grid;
+      grid-template-columns: auto minmax(280px, 1fr) auto auto auto;
+      gap: 10px;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.25);
+    }
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    main {
+      padding: 16px;
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+    input, select {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 7px 8px;
+      font-size: 13px;
+      background: #fff;
+      color: #172033;
+    }
+    input[type="checkbox"] {
+      width: auto;
+      margin-right: 6px;
+    }
+    label {
+      display: block;
+      color: #526074;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    button {
+      border: 1px solid #2563eb;
+      border-radius: 4px;
+      background: #2563eb;
+      color: #fff;
+      padding: 8px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      min-height: 34px;
+    }
+    button.secondary {
+      background: #fff;
+      color: #172033;
+      border-color: #94a3b8;
+    }
+    button.danger {
+      background: #dc2626;
+      border-color: #dc2626;
+    }
+    button.warn {
+      background: #b45309;
+      border-color: #b45309;
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin: 0 0 14px;
+      flex-wrap: wrap;
+    }
+    .tabs button {
+      background: #fff;
+      color: #172033;
+      border-color: #cbd5e1;
+    }
+    .tabs button.active {
+      background: #2563eb;
+      color: white;
+      border-color: #2563eb;
+    }
+    .tab { display: none; }
+    .tab.active { display: block; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+    }
+    .wide-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 14px;
+    }
+    section, .panel {
+      background: #fff;
+      border: 1px solid #d7dee8;
+      border-radius: 6px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+    }
+    h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: #334155;
+    }
+    .metric {
+      border: 1px solid #dfe6ef;
+      background: #f8fafc;
+      border-radius: 5px;
+      padding: 10px;
+      min-height: 72px;
+    }
+    .metric b {
+      display: block;
+      color: #64748b;
+      font-size: 12px;
+      margin-bottom: 7px;
+    }
+    .metric span {
+      font-family: Consolas, Menlo, monospace;
+      font-size: 17px;
+      font-weight: 700;
+      word-break: break-word;
+    }
+    .ok { color: #047857; }
+    .bad { color: #b91c1c; }
+    .idle { color: #475569; }
+    .led {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 6px;
+      background: #94a3b8;
+    }
+    .led.on { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15); }
+    .led.fault { background: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15); }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      align-items: end;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    canvas {
+      width: 100%;
+      height: 360px;
+      display: block;
+      border: 1px solid #d7dee8;
+      border-radius: 5px;
+      background: #fff;
+    }
+    pre {
+      margin: 0;
+      overflow: auto;
+      max-height: 520px;
+      background: #0f172a;
+      color: #dbeafe;
+      padding: 12px;
+      border-radius: 5px;
+      font-size: 12px;
+    }
+    .small {
+      font-size: 12px;
+      color: #64748b;
+    }
+    .split {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
+    }
+    .compact-row {
+      display: flex;
+      gap: 10px;
+      align-items: end;
+      flex-wrap: wrap;
+    }
+    .compact-row > div {
+      min-width: 140px;
+    }
+    .advanced-filter {
+      display: none;
+    }
+    @media (max-width: 900px) {
+      header { grid-template-columns: 1fr; }
+      .wide-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Butterfly Laser Driver</h1>
+    <input id="backend" value="http://192.168.8.236:8080" aria-label="Backend URL">
+    <select id="refreshMs" aria-label="Refresh interval">
+      <option value="200">0.2 s</option>
+      <option value="500" selected>0.5 s</option>
+      <option value="1000">1 s</option>
+      <option value="2000">2 s</option>
+    </select>
+    <button id="autoBtn" onclick="toggleAuto()">Auto Refresh: On</button>
+    <button class="danger" onclick="stopAll()">Stop All</button>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <button class="active" onclick="showTab('overview', this)">Overview</button>
+      <button onclick="showTab('tec', this)">TEC / PID</button>
+      <button onclick="showTab('laser', this)">Laser Current</button>
+      <button onclick="showTab('ada', this)">Photodiode / Spectrum</button>
+      <button onclick="showTab('debug', this)">Registers / Debug</button>
+    </div>
+
+    <div id="overview" class="tab active">
+      <section>
+        <h2>Live Status</h2>
+        <div class="grid">
+          <div class="metric"><b>Connection</b><span id="connState">-</span></div>
+          <div class="metric"><b>TEC Temperature</b><span id="tecTemp">-</span></div>
+          <div class="metric"><b>TEC Target / Error</b><span id="tecTarget">-</span></div>
+          <div class="metric"><b>TEC State</b><span id="tecState">-</span></div>
+          <div class="metric"><b>Laser State</b><span id="laserState">-</span></div>
+          <div class="metric"><b>PD Monitor</b><span id="adaMonitor">-</span></div>
+          <div class="metric"><b>Spectrum Frame</b><span id="adaFrame">-</span></div>
+          <div class="metric"><b>Laser Actual Codes</b><span id="laserActual">-</span></div>
+          <div class="metric"><b>Laser Target Codes</b><span id="laserTarget">-</span></div>
+          <div class="metric"><b>Fault Summary</b><span id="faultSummary">-</span></div>
+        </div>
+      </section>
+
+      <div class="wide-grid">
+        <section>
+          <h2>Live Trend</h2>
+          <canvas id="trend" width="1200" height="360"></canvas>
+          <div class="actions">
+            <button class="secondary" onclick="clearHistory()">Clear Trend</button>
+            <button class="secondary" onclick="downloadCsv()">Export CSV</button>
+            <button class="secondary" onclick="togglePause()" id="pauseBtn">Pause Trend</button>
+          </div>
+          <p class="small">Blue: filtered temperature, gray: target, red: error, green: active TEC DAC code scaled to the plot. Photodiode data is shown in the dedicated photodiode trend.</p>
+        </section>
+        <section>
+          <h2>Fast Actions</h2>
+          <div class="form-grid">
+            <div><label>TEC Target C</label><input id="quickTecTarget" value="31.0"></div>
+            <div><label>Laser CH0</label><input id="quickCh0" value="5000"></div>
+            <div><label>Laser CH1</label><input id="quickCh1" value="0"></div>
+          </div>
+          <div class="actions">
+            <button onclick="tecStart()">Start TEC</button>
+            <button onclick="tecTarget('quickTecTarget')">Set TEC Target</button>
+            <button onclick="laserOn('quickCh0','quickCh1')">Laser On</button>
+            <button class="secondary" onclick="refreshStatus()">Refresh Once</button>
+            <button class="danger" onclick="laserEstop()">Laser E-Stop</button>
+          </div>
+          <h3>Recent Event</h3>
+          <pre id="lastEvent">{}</pre>
+        </section>
+      </div>
+
+      <section>
+        <h2>Settings Memory</h2>
+        <div class="grid">
+          <div class="metric"><b>Settings File</b><span id="settingsPath">-</span></div>
+          <div class="metric"><b>Saved Profile</b><span id="settingsState">not loaded</span></div>
+        </div>
+        <div class="actions">
+          <button onclick="saveSettings()">Save Current Panel Settings</button>
+          <button class="secondary" onclick="loadSettings()">Load Saved Settings To Panel</button>
+          <button class="secondary" onclick="applySavedSettings()">Apply Saved Settings To Hardware</button>
+          <button class="secondary" onclick="downloadSettings()">Export Settings JSON</button>
+        </div>
+        <p class="small">Settings are saved on the board as a JSON file. Loading restores the panel fields; applying writes target/PID/protection parameters but does not start laser output.</p>
+      </section>
+    </div>
+
+    <div id="tec" class="tab">
+      <div class="split">
+        <section>
+          <h2>TEC Control</h2>
+          <div class="form-grid">
+            <div><label>Target Celsius</label><input id="tecTargetInput" value="31.0"></div>
+            <div><label>Manual DAC Code</label><input id="tecManualDac" value="0x800"></div>
+            <div><label>Enable TEC in Open Loop</label><select id="tecOpenEnable"><option value="false">false</option><option value="true">true</option></select></div>
+          </div>
+          <div class="actions">
+            <button onclick="tecStart()">Start Closed Loop</button>
+            <button class="secondary" onclick="tecTarget('tecTargetInput')">Set Target</button>
+            <button class="secondary" onclick="tecOpenLoop()">Start Open Loop</button>
+            <button class="secondary" onclick="tecClearFault()">Clear Fault</button>
+            <button class="danger" onclick="tecStop()">Stop TEC</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>TEC Readback</h2>
+          <div class="grid">
+            <div class="metric"><b>Status</b><span id="tecReadStatus">-</span></div>
+            <div class="metric"><b>ADC Raw CH0</b><span id="tecAdcRaw">-</span></div>
+            <div class="metric"><b>PID Terms</b><span id="tecPidTerms">-</span></div>
+            <div class="metric"><b>PID Output</b><span id="tecPidOutput">-</span></div>
+          </div>
+        </section>
+      </div>
+
+      <section>
+        <h2>TEC PID Parameters</h2>
+        <div class="form-grid">
+          <div><label>KP Float</label><input id="pidKp" value="0.5"></div>
+          <div><label>KI Float</label><input id="pidKi" value="0.001"></div>
+          <div><label>KD Float</label><input id="pidKd" value="0"></div>
+          <div><label>Integral Limit</label><input id="pidIlim" value="300000"></div>
+          <div><label>Max Step</label><input id="pidStep" value="10"></div>
+          <div><label>DAC Bias</label><input id="pidBias" value="0x800"></div>
+          <div><label>DAC Min</label><input id="pidDacMin" value="1800"></div>
+          <div><label>DAC Max</label><input id="pidDacMax" value="2150"></div>
+          <div><label>DAC Safe</label><input id="pidDacSafe" value="0x800"></div>
+        </div>
+        <div class="actions">
+          <button onclick="applyTecPid()">Apply PID / DAC Limits</button>
+          <button class="secondary" onclick="loadTecPidDefaults()">Load Validated Defaults</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>TEC Protection / Timing</h2>
+        <div class="form-grid">
+          <div><label>Temp Min C</label><input id="tecTempMin" value="20.0"></div>
+          <div><label>Temp Max C</label><input id="tecTempMax" value="40.0"></div>
+          <div><label>Filter Alpha</label><input id="tecAlpha" value="65535"></div>
+          <div><label>RDY Timeout Cycles</label><input id="tecRdyTimeout" value="5000000"></div>
+          <div><label>SPI Clock Div</label><input id="tecSpiDiv" value="10"></div>
+        </div>
+        <div class="actions">
+          <button onclick="applyTecProtection()">Apply TEC Protection</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="laser" class="tab">
+      <section>
+        <h2>Laser Output</h2>
+        <div class="grid">
+          <div class="metric"><b>Output Mode</b><span id="laserOutputMode">-</span></div>
+          <div class="metric"><b>Actual Current</b><span id="laserActualCurrent">-</span></div>
+          <div class="metric"><b>Target Current</b><span id="laserTargetCurrent">-</span></div>
+          <div class="metric"><b>Lock Status</b><span id="laserLockStatus">-</span></div>
+        </div>
+        <div class="actions">
+          <button onclick="laserOn()">Laser On</button>
+          <button class="warn" onclick="laserOff()">Laser Off</button>
+          <button class="secondary" onclick="laserClearFault()">Clear Fault</button>
+          <button class="danger" onclick="laserEstop()">Emergency Stop</button>
+        </div>
+        <p class="small">Laser On enters static hold using the static setpoint below. Laser Off ramps both channels to zero. Emergency Stop disables immediately.</p>
+      </section>
+
+      <section>
+        <h2>Static Setpoint</h2>
+        <div class="form-grid">
+          <div><label>CH0 Static Code</label><input id="staticCh0" value="5000"></div>
+          <div><label>CH1 Static Code</label><input id="staticCh1" value="0"></div>
+        </div>
+        <div class="actions">
+          <button onclick="laserSetStatic()">Set Static</button>
+        </div>
+        <p class="small">Set Static updates the static target. If the laser is already on, it leaves scan mode and ramps to this static target without turning the laser off.</p>
+      </section>
+
+      <section>
+        <h2>Fine Scan</h2>
+        <div class="form-grid">
+          <div><label>CH0 Static</label><input id="scanCh0" value="26000"></div>
+          <div><label>CH1 Start</label><input id="scanStart" value="20000"></div>
+          <div><label>CH1 Stop</label><input id="scanStop" value="30000"></div>
+          <div><label>CH1 Step</label><input id="scanStep" value="10"></div>
+          <div><label>Dwell Ticks</label><input id="scanDwell" value="100"></div>
+          <div><label>Settle Ticks</label><input id="scanSettle" value="100"></div>
+          <div><label>Frames</label><input id="scanFrames" value="1"></div>
+          <div><label><input id="scanContinuous" type="checkbox" checked>Continuous Scan</label></div>
+        </div>
+        <div class="actions">
+          <button onclick="laserFineScan()">Start Fine Scan</button>
+          <button class="secondary" onclick="laserStopScan()">Stop Scan / Hold Start</button>
+        </div>
+        <p class="small">Scan drives CH1 start to stop during the saved forward frame, then ramps back to start without saving the return. Completed scans hold CH1 at start and keep the laser enabled.</p>
+      </section>
+
+      <section>
+        <h2>Side-Fringe Lock</h2>
+        <div class="grid">
+          <div class="metric"><b>Lock Error</b><span id="laserLockError">-</span></div>
+          <div class="metric"><b>Lock Output</b><span id="laserLockOutput">-</span></div>
+          <div class="metric"><b>Click Lock</b><span id="lockClickStatus">disarmed</span></div>
+        </div>
+        <div class="form-grid" style="margin-top: 12px;">
+          <div><label>CH0 Coarse Code</label><input id="lockCh0" value="5000"></div>
+          <div><label>Target ADC Code</label><input id="lockTargetAdc" value="42000"></div>
+          <div><label>CH1 Bias Code</label><input id="lockBiasCh1" value="3000" oninput="setLockRangeFromBias()"></div>
+          <div><label>CH1 Range +/- Code</label><input id="lockRangeHalfspan" value="500" oninput="setLockRangeFromBias()"></div>
+          <div><label>CH1 Lock Min</label><input id="lockCh1Min" value="2500" readonly></div>
+          <div><label>CH1 Lock Max</label><input id="lockCh1Max" value="3500" readonly></div>
+          <div><label>KP</label><input id="lockKp" value="0.5"></div>
+          <div><label>KI</label><input id="lockKi" value="0.01"></div>
+          <div><label>Max Step</label><input id="lockMaxStep" value="10"></div>
+          <div><label><input id="lockPolarityInvert" type="checkbox">Invert Polarity</label></div>
+          <div><label>Locked Threshold</label><input id="lockLockedThreshold" value="20"></div>
+          <div><label>Loss Threshold</label><input id="lockLossThreshold" value="500"></div>
+          <div><label>Locked Count</label><input id="lockLockedCount" value="50"></div>
+          <div><label>Loss Count</label><input id="lockLossCount" value="10"></div>
+        </div>
+        <div class="actions">
+          <button onclick="laserLockStart()">Start Lock</button>
+          <label><input id="lockClickToLockArm" type="checkbox" onchange="setClickToLockArmed(checked('lockClickToLockArm'))">Arm Click-to-Lock</label>
+          <button class="secondary" onclick="laserLockHold()">Hold Current</button>
+          <button class="secondary" onclick="laserLockClear()">Clear Lock Lost</button>
+        </div>
+        <p class="small">Click a point on Latest Spectrum to fill Target ADC and CH1 Bias. If Click-to-Lock is armed, the next spectrum click starts lock and then disarms automatically.</p>
+      </section>
+
+      <section>
+        <h2>Laser Protection / Timing / Estimate</h2>
+        <div class="form-grid">
+          <div><label>CH0 Min</label><input id="laserCh0Min" value="0"></div>
+          <div><label>CH0 Max</label><input id="laserCh0Max" value="40000"></div>
+          <div><label>CH1 Min</label><input id="laserCh1Min" value="0"></div>
+          <div><label>CH1 Max</label><input id="laserCh1Max" value="50000"></div>
+          <div><label>CH0 Soft Step</label><input id="laserCh0Step" value="8"></div>
+          <div><label>CH1 Soft Step</label><input id="laserCh1Step" value="8"></div>
+          <div><label>Ramp Interval</label><input id="laserRamp" value="1000"></div>
+          <div><label>DAC Timeout</label><input id="laserDacTimeout" value="1000000"></div>
+          <div><label>Watchdog Timeout</label><input id="laserWatchdog" value="0"></div>
+          <div><label>Enable Delay</label><input id="laserEnableDelay" value="0"></div>
+          <div><label>Current Limit Code</label><input id="laserCurrentLimit" value="0"></div>
+          <div><label>CH0 Gain Coeff</label><input id="laserCh0Gain" value="0"></div>
+          <div><label>CH1 Gain Coeff</label><input id="laserCh1Gain" value="0"></div>
+          <div><label>Current Offset</label><input id="laserCurrentOffset" value="0"></div>
+        </div>
+        <div class="actions">
+          <button onclick="applyLaserProtection()">Apply Laser Protection</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="ada" class="tab">
+      <div class="split">
+        <section>
+          <h2>ADA4355 Monitor / Capture</h2>
+          <div class="grid">
+            <div class="metric"><b>Status</b><span id="adaStatus">-</span></div>
+            <div class="metric"><b>Monitor</b><span id="adaMonitorDetail">-</span></div>
+            <div class="metric"><b>Latest Frame</b><span id="adaFrameDetail">-</span></div>
+            <div class="metric"><b>Capture Errors</b><span id="adaErrors">-</span></div>
+            <div class="metric"><b>ADC Filter</b><span id="adaFilterDetail">-</span></div>
+          </div>
+          <div class="form-grid" style="margin-top: 12px;">
+            <div><label>Monitor Rate Hz</label><input id="adaMonitorHz" value="100000"></div>
+            <div><label>Sample Delay</label><input id="adaSampleDelay" value="0"></div>
+            <div><label>Sample Window</label><input id="adaSampleWindow" value="1024"></div>
+            <div><label>Max Points</label><input id="adaMaxPoints" value="16384"></div>
+            <div><label>Frame Decim</label><input id="adaFrameDecim" value="1000"></div>
+            <div><label>Spectrum Points</label><input id="adaSpectrumPoints" value="16384"></div>
+            <div><label>Raw Length</label><input id="adaRawLength" value="16384"></div>
+            <div><label>Raw Decim</label><input id="adaRawDecim" value="1"></div>
+          </div>
+          <h3>ADC Filter</h3>
+          <div class="form-grid">
+            <div><label>Glitch Threshold</label><input id="adaGlitchThreshold" value="3000"></div>
+            <div><label>LP Shift</label><input id="adaLpShift" value="13"></div>
+            <div><label>Filter Enable</label><input id="adaFilterEnable" type="checkbox" checked></div>
+            <div class="advanced-filter"><label>Glitch Reject</label><input id="adaGlitchEnable" type="checkbox"></div>
+            <div class="advanced-filter"><label>Spectrum Filtered</label><input id="adaSpectrumFiltered" type="checkbox" checked></div>
+            <div class="advanced-filter"><label>Monitor Filtered</label><input id="adaMonitorFiltered" type="checkbox" checked></div>
+            <div class="advanced-filter"><label>Raw Snapshot Filtered</label><input id="adaRawFiltered" type="checkbox"></div>
+          </div>
+          <div class="actions">
+            <button onclick="adaStart()">Start ADA Capture</button>
+            <button class="secondary" onclick="adaMonitorRate()">Set Monitor Rate</button>
+            <button class="secondary" onclick="adaCaptureConfig()">Apply Capture Config</button>
+            <button class="secondary" onclick="adaFilterConfig()">Apply ADC Filter</button>
+            <button class="secondary" onclick="adaReadSpectrum()">Read Latest Spectrum</button>
+            <button class="secondary" onclick="downloadSpectrumCsv()">Export Spectrum CSV</button>
+            <button class="secondary" onclick="adaRawCapture()">Capture Raw ADC</button>
+            <button class="secondary" onclick="downloadRawCsv()">Export Raw CSV</button>
+            <button class="secondary" onclick="adaClear()">Clear ADA Counters</button>
+            <button class="warn" onclick="adaStop()">Stop ADA</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Photodiode Monitor Trend</h2>
+          <canvas id="pdTrend" width="900" height="360"></canvas>
+          <p class="small">Photodiode monitor shows the filtered ADA4355 ADC code.</p>
+        </section>
+      </div>
+
+      <section>
+        <h2>Latest Spectrum</h2>
+        <div class="compact-row" style="margin-bottom: 10px;">
+          <div><label><input id="liveSpectrumEnable" type="checkbox" checked>Live Spectrum</label></div>
+          <div><label>Live Refresh ms</label><input id="liveSpectrumMs" value="200"></div>
+          <button class="secondary" onclick="restartLiveSpectrum()">Apply Live Refresh</button>
+        </div>
+        <canvas id="spectrumPlot" width="1200" height="420"></canvas>
+        <p id="spectrumMeta" class="small">Latest spectrum shows filtered relative intensity only. Raw ADC data is available through the raw snapshot.</p>
+      </section>
+
+      <section>
+        <h2>Raw 125 MHz ADC Snapshot</h2>
+        <canvas id="rawPlot" width="1200" height="360"></canvas>
+        <p class="small">Raw snapshot uses buffer0. Length 16384 at decim 1 captures about 131 us at 125 MHz.</p>
+      </section>
+    </div>
+
+    <div id="debug" class="tab">
+      <section>
+        <h2>Raw Register Access</h2>
+        <div class="form-grid">
+          <div><label>Block</label><select id="rawBlock"><option value="tec">tec</option><option value="laser">laser</option><option value="ada">ada</option></select></div>
+          <div><label>Offset</label><input id="rawOffset" value="0x04"></div>
+          <div><label>Value</label><input id="rawValue" value="0x00000000"></div>
+        </div>
+        <div class="actions">
+          <button class="secondary" onclick="rawRead()">Read</button>
+          <button class="secondary" onclick="rawWrite()">Write</button>
+          <button class="secondary" onclick="dumpRegisters()">Dump All Registers</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>JSON</h2>
+        <pre id="jsonOut">{}</pre>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const history = [];
+    let latestSpectrum = null;
+    let latestRaw = null;
+    let autoRefresh = true;
+    let pauseTrend = false;
+    let timer = null;
+    let spectrumTimer = null;
+    let liveSpectrum = true;
+    let lastStatus = null;
+    let lastSpectrumFrameKey = null;
+
+    function byId(id) { return document.getElementById(id); }
+    function baseUrl() { return byId('backend').value.replace(/\/$/, ''); }
+    function val(id) { return byId(id).value; }
+    function checked(id) { return byId(id).checked; }
+    function flags(list) { return list && list.length ? list.join(', ') : 'none'; }
+    function toNumText(x, digits = 3) {
+      return Number.isFinite(x) ? x.toFixed(digits) : '-';
+    }
+    function parseInputNumber(id, fallback = 0) {
+      const text = String(val(id) || '').trim();
+      if (!text) return fallback;
+      const n = text.startsWith('0x') || text.startsWith('0X') ? parseInt(text, 16) : Number(text);
+      return Number.isFinite(n) ? n : fallback;
+    }
+    function ch0CurrentMa(code) { return Number(code) * 100.0 / 65535.0; }
+    function ch1CurrentMa(code) { return Number(code) * 10.0 / 65535.0; }
+    function laserModeText(laser) {
+      const flagsList = laser.status_flags || [];
+      const lockFlags = (laser.lock && laser.lock.status_flags) || [];
+      if (flagsList.includes('fault_latched')) return 'Fault';
+      if (lockFlags.includes('lock_lost')) return 'Lock Lost / Hold';
+      if (lockFlags.includes('locked')) return 'Locked';
+      if (lockFlags.includes('acquiring') || lockFlags.includes('control_enabled') || flagsList.includes('lock_active')) return 'Locking';
+      if (flagsList.includes('scan_active') || flagsList.includes('frame_active')) return 'Scanning';
+      if (flagsList.includes('busy') || flagsList.includes('ramping')) return 'Ramping / Returning';
+      if (!flagsList.includes('laser_enable')) return 'Off';
+      return 'Static Hold';
+    }
+    function spectrumAxisMeta() {
+      const ch0 = parseInputNumber('scanCh0');
+      const start = parseInputNumber('scanStart');
+      const stop = parseInputNumber('scanStop');
+      const points = latestSpectrum && latestSpectrum.points ? latestSpectrum.points.length : 0;
+      const durationMs = latestSpectrum ? Number(latestSpectrum.duration_ms || 0) : 0;
+      return {
+        ch0_code: ch0,
+        ch1_start_code: start,
+        ch1_stop_code: stop,
+        ch0_current_ma: ch0CurrentMa(ch0),
+        ch1_start_ma: ch1CurrentMa(start),
+        ch1_stop_ma: ch1CurrentMa(stop),
+        duration_ms: durationMs,
+        dt_us: points > 1 ? durationMs * 1000.0 / (points - 1) : 0
+      };
+    }
+    function drawXAxis(ctx, w, h, leftLabel, midLabel, rightLabel) {
+      const y = h - 24;
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(55, y);
+      ctx.lineTo(w - 18, y);
+      ctx.stroke();
+      ctx.fillStyle = '#64748b';
+      ctx.font = '11px Arial';
+      ctx.fillText(leftLabel, 55, h - 7);
+      if (midLabel) ctx.fillText(midLabel, Math.max(58, w / 2 - 70), h - 7);
+      const tw = ctx.measureText(rightLabel).width;
+      ctx.fillText(rightLabel, w - 18 - tw, h - 7);
+    }
+    function showTab(id, button) {
+      document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tabs button').forEach(el => el.classList.remove('active'));
+      byId(id).classList.add('active');
+      button.classList.add('active');
+      drawTrend();
+      drawPdTrend();
+      drawSpectrum();
+      drawRaw();
+    }
+    async function apiGet(path) {
+      const res = await fetch(baseUrl() + path);
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.error || res.statusText);
+      return data;
+    }
+    async function apiPost(path, body = {}) {
+      const res = await fetch(baseUrl() + path, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.error || res.statusText);
+      return data;
+    }
+    function showJson(obj) {
+      byId('jsonOut').textContent = JSON.stringify(obj, null, 2);
+      byId('lastEvent').textContent = JSON.stringify(obj, null, 2);
+    }
+    function led(flag, fault = false) {
+      return `<span class="led ${fault ? 'fault' : flag ? 'on' : ''}"></span>`;
+    }
+    function updateStatusCards(payload) {
+      const status = payload.status || payload;
+      const tec = status.tec;
+      const laser = status.laser;
+      const ada = status.ada4355;
+      if (!tec || !laser) return;
+      lastStatus = status;
+      const now = new Date();
+      byId('connState').innerHTML = `${led(true)}${now.toLocaleTimeString()}`;
+      byId('tecTemp').textContent = `${toNumText(tec.temperature_filtered_celsius)} C`;
+      byId('tecTarget').textContent = `${toNumText(tec.target_celsius)} C / ${toNumText(tec.error_celsius)} C`;
+      byId('tecState').innerHTML =
+        `${led(tec.status_flags.includes('tec_enabled'), tec.status_flags.includes('fault_latched'))}` +
+        `${tec.status_hex} ${flags(tec.status_flags)}`;
+      const laserActive =
+        laser.status_flags.includes('laser_enable') ||
+        laser.status_flags.includes('scan_active') ||
+        laser.status_flags.includes('frame_active') ||
+        laser.status_flags.includes('busy') ||
+        laser.status_flags.includes('ramping');
+      byId('laserState').innerHTML =
+        `${led(laserActive, laser.status_flags.includes('fault_latched'))}` +
+        `${laser.status_hex} ${flags(laser.status_flags)}`;
+      if (ada) {
+        const pdAvg = Number(ada.monitor_avg);
+        byId('adaMonitor').textContent =
+          `ADC ${pdAvg} (0x${pdAvg.toString(16).toUpperCase().padStart(4, '0')})`;
+        byId('adaFrame').textContent =
+          `buf ${ada.read_buffer_id}, pts ${ada.read_points_written}, frames ${ada.total_frame_counter}`;
+        byId('adaStatus').textContent = `${ada.status_hex} ${flags(ada.status_flags)}`;
+        byId('adaMonitorDetail').textContent =
+          `avg ${ada.monitor_avg}, min ${ada.monitor_min}, max ${ada.monitor_max}, ` +
+          `count ${ada.monitor_counter}`;
+        byId('adaFrameDetail').textContent =
+          `buf ${ada.read_buffer_id}, frame ${ada.read_frame_counter}, slow ${ada.read_slow_index}, ` +
+          `pts ${ada.read_points_written}, captured ${ada.captured_count}, max ${ada.read_max_fast_index}`;
+        byId('adaErrors').textContent =
+          `dropped ${ada.dropped_frame_counter}, overrun ${ada.point_overrun_counter}`;
+        if (ada.filter) {
+          byId('adaFilterDetail').textContent =
+            `filtered ${ada.filter.filtered_adc_last}, glitches ${ada.filter.glitch_reject_counter}, ` +
+            `thr ${ada.filter.glitch_threshold}, shift ${ada.filter.lp_shift}, ctrl ${ada.filter.control_hex}`;
+        }
+      }
+      byId('laserActual').textContent =
+        `CH0 ${laser.actual.ch0_internal} (${laser.actual.ch0_raw_dac_hex}), ` +
+        `CH1 ${laser.actual.ch1_internal} (${laser.actual.ch1_raw_dac_hex})`;
+      byId('laserTarget').textContent =
+        `CH0 ${laser.target.ch0_internal} (${laser.target.ch0_raw_dac_hex}), ` +
+        `CH1 ${laser.target.ch1_internal} (${laser.target.ch1_raw_dac_hex})`;
+      byId('laserOutputMode').textContent = laserModeText(laser);
+      byId('laserActualCurrent').textContent =
+        `CH0 ${toNumText(laser.actual.ch0_current_mA, 4)} mA, ` +
+        `CH1 ${toNumText(laser.actual.ch1_current_mA, 4)} mA`;
+      byId('laserTargetCurrent').textContent =
+        `CH0 ${toNumText(laser.target.ch0_current_mA, 4)} mA, ` +
+        `CH1 ${toNumText(laser.target.ch1_current_mA, 4)} mA`;
+      if (laser.lock) {
+        byId('laserLockStatus').textContent = `${laser.lock.status_hex} ${flags(laser.lock.status_flags)}`;
+        byId('laserLockError').textContent =
+          `err ${laser.lock.error}, last ADC ${laser.last_fb_adc}, target ${laser.lock.target_adc}`;
+        byId('laserLockOutput').textContent =
+          `CH1 ${laser.lock.output_ch1_internal} (${toNumText(laser.lock.output_ch1_current_mA, 4)} mA)`;
+      }
+      byId('faultSummary').innerHTML =
+        `<span class="${tec.error_flags.length || laser.fault_flags.length ? 'bad' : 'ok'}">` +
+        `TEC ${tec.main_error_status_hex}: ${flags(tec.error_flags)} | ` +
+        `Laser ${laser.fault_status_hex}: ${flags(laser.fault_flags)}</span>`;
+      byId('tecReadStatus').textContent = `${tec.status_hex} ${flags(tec.status_flags)}`;
+      byId('tecAdcRaw').textContent = `${tec.adc_raw_ch0_hex}`;
+      byId('tecPidTerms').textContent =
+        `P ${tec.pid.p_term}, I ${tec.pid.i_term}, D ${tec.pid.d_term}`;
+      byId('tecPidOutput').textContent =
+        `out 0x${tec.pid.output_code.toString(16).toUpperCase()}, active 0x${tec.active_dac_code.toString(16).toUpperCase()}, int ${tec.pid.integral}`;
+
+      if (!pauseTrend) {
+        history.push({
+          t: Date.now(),
+          temp: tec.temperature_filtered_celsius,
+          target: tec.target_celsius,
+          err: tec.error_celsius,
+          dac: tec.active_dac_code,
+          pd: ada ? ada.monitor_avg : null
+        });
+        while (history.length > 2000) history.shift();
+        drawTrend();
+        drawPdTrend();
+      }
+    }
+    function drawTrend() {
+      const c = byId('trend');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      const w = c.width, h = c.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 6; i++) {
+        const y = 30 + i * ((h - 55) / 6);
+        ctx.beginPath(); ctx.moveTo(45, y); ctx.lineTo(w - 20, y); ctx.stroke();
+      }
+      ctx.fillStyle = '#64748b';
+      ctx.font = '12px Arial';
+      ctx.fillText('Temperature C', 50, 18);
+      if (history.length < 2) return;
+      const temps = history.flatMap(p => [p.temp, p.target]).filter(Number.isFinite);
+      let minT = Math.min(...temps) - 0.2;
+      let maxT = Math.max(...temps) + 0.2;
+      if (maxT - minT < 0.5) { minT -= 0.25; maxT += 0.25; }
+      const t0 = history[0].t;
+      const t1 = history[history.length - 1].t;
+      const xOf = p => 45 + ((p.t - t0) / Math.max(1, t1 - t0)) * (w - 65);
+      const yTemp = v => 30 + (maxT - v) / (maxT - minT) * (h - 55);
+      const yErr = v => h / 2 - v * 180;
+      const yDac = v => 30 + (1 - (v / 4095)) * (h - 55);
+      function path(color, getter, yfn, width = 2) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        history.forEach((p, i) => {
+          const x = xOf(p);
+          const y = yfn(getter(p));
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+      path('#2563eb', p => p.temp, yTemp, 2.5);
+      path('#64748b', p => p.target, yTemp, 1.8);
+      path('#dc2626', p => p.err, yErr, 1.5);
+      path('#16a34a', p => p.dac, yDac, 1.2);
+      ctx.fillStyle = '#172033';
+      ctx.fillText(`${maxT.toFixed(2)} C`, 4, 35);
+      ctx.fillText(`${minT.toFixed(2)} C`, 4, h - 25);
+      ctx.fillStyle = '#2563eb'; ctx.fillText('temp', w - 170, 18);
+      ctx.fillStyle = '#64748b'; ctx.fillText('target', w - 130, 18);
+      ctx.fillStyle = '#dc2626'; ctx.fillText('error', w - 78, 18);
+      ctx.fillStyle = '#16a34a'; ctx.fillText('dac', w - 35, 18);
+      const elapsedMs = t1 - t0;
+      drawXAxis(
+        ctx,
+        w,
+        h,
+        `idx 0 / 0.000 s`,
+        `idx ${Math.floor((history.length - 1) / 2)} / ${(elapsedMs / 2000).toFixed(3)} s`,
+        `idx ${history.length - 1} / ${(elapsedMs / 1000).toFixed(3)} s`
+      );
+    }
+    function drawPdTrend() {
+      const c = byId('pdTrend');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      const w = c.width, h = c.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+      for (let i = 0; i <= 5; i++) {
+        const y = 28 + i * ((h - 52) / 5);
+        ctx.beginPath(); ctx.moveTo(50, y); ctx.lineTo(w - 18, y); ctx.stroke();
+      }
+      const points = history.filter(p => Number.isFinite(p.pd));
+      if (points.length < 2) return;
+      const vals = points.map(p => p.pd);
+      let minV = Math.min(...vals), maxV = Math.max(...vals);
+      if (maxV === minV) { maxV += 1; minV -= 1; }
+      const t0 = points[0].t, t1 = points[points.length - 1].t;
+      const xOf = p => 50 + ((p.t - t0) / Math.max(1, t1 - t0)) * (w - 70);
+      function draw(color, getter, min, max) {
+        ctx.strokeStyle = color; ctx.lineWidth = 2;
+        ctx.beginPath();
+        points.forEach((p, i) => {
+          const x = xOf(p);
+          const y = 28 + (max - getter(p)) / Math.max(1, max - min) * (h - 52);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+      draw('#2563eb', p => p.pd, minV, maxV);
+      ctx.fillStyle = '#172033'; ctx.font = '12px Arial';
+      ctx.fillText(`ADC ${Math.round(maxV)}`, 4, 32);
+      ctx.fillText(`ADC ${Math.round(minV)}`, 4, h - 18);
+      ctx.fillStyle = '#2563eb'; ctx.fillText('PD ADC code', w - 95, 18);
+      const elapsedMs = t1 - t0;
+      drawXAxis(
+        ctx,
+        w,
+        h,
+        `idx 0 / 0.000 s`,
+        `idx ${Math.floor((points.length - 1) / 2)} / ${(elapsedMs / 2000).toFixed(3)} s`,
+        `idx ${points.length - 1} / ${(elapsedMs / 1000).toFixed(3)} s`
+      );
+    }
+    function drawSpectrum() {
+      const c = byId('spectrumPlot');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      const w = c.width, h = c.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+      for (let i = 0; i <= 6; i++) {
+        const y = 30 + i * ((h - 60) / 6);
+        ctx.beginPath(); ctx.moveTo(55, y); ctx.lineTo(w - 18, y); ctx.stroke();
+      }
+      const data = latestSpectrum && latestSpectrum.points;
+      if (!data || data.length < 2) {
+        ctx.fillStyle = '#64748b'; ctx.font = '13px Arial';
+        ctx.fillText('No spectrum loaded', 60, 60);
+        return;
+      }
+      const vals = data.map(Number);
+      const inv = vals.map(v => 65535 - v);
+      const meta = spectrumAxisMeta();
+      let minV = Math.min(...vals), maxV = Math.max(...vals);
+      let minI = Math.min(...inv), maxI = Math.max(...inv);
+      if (maxV === minV) { maxV += 1; minV -= 1; }
+      if (maxI === minI) { maxI += 1; minI -= 1; }
+      const xOf = i => 55 + (i / Math.max(1, vals.length - 1)) * (w - 78);
+      function plot(color, array, min, max, width) {
+        ctx.strokeStyle = color; ctx.lineWidth = width;
+        ctx.beginPath();
+        array.forEach((v, i) => {
+          const x = xOf(i);
+          const y = 30 + (max - v) / Math.max(1, max - min) * (h - 60);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+      plot('#7c3aed', inv, minI, maxI, 1.8);
+      ctx.fillStyle = '#172033'; ctx.font = '12px Arial';
+      ctx.fillText(
+        `frame ${latestSpectrum.frame_counter}, points ${vals.length}, ` +
+        `duration ${toNumText(meta.duration_ms, 2)} ms, dt ${toNumText(meta.dt_us, 3)} us`,
+        60,
+        18
+      );
+      ctx.fillText(
+        `CH0 ${toNumText(meta.ch0_current_ma, 3)} mA, CH1 ${toNumText(meta.ch1_start_ma, 3)} -> ${toNumText(meta.ch1_stop_ma, 3)} mA`,
+        60,
+        34
+      );
+      ctx.fillStyle = '#7c3aed'; ctx.fillText('relative intensity', w - 120, 18);
+      ctx.fillStyle = '#64748b';
+      ctx.fillText(`${Math.round(maxI)}`, 8, 34);
+      ctx.fillText(`${Math.round(minI)}`, 8, h - 28);
+      drawXAxis(
+        ctx,
+        w,
+        h,
+        'idx 0 / 0.000 ms',
+        `idx ${Math.floor((vals.length - 1) / 2)} / ${toNumText(meta.duration_ms / 2, 3)} ms`,
+        `idx ${vals.length - 1} / ${toNumText(meta.duration_ms, 3)} ms`
+      );
+      byId('spectrumMeta').textContent =
+        `t = 0 to ${toNumText(meta.duration_ms, 3)} ms; ` +
+        `CH0 ${meta.ch0_code} code = ${toNumText(meta.ch0_current_ma, 4)} mA; ` +
+        `CH1 ${meta.ch1_start_code} to ${meta.ch1_stop_code} code = ` +
+        `${toNumText(meta.ch1_start_ma, 4)} to ${toNumText(meta.ch1_stop_ma, 4)} mA.`;
+    }
+    function setClickToLockArmed(armed) {
+      setField('lockClickToLockArm', armed);
+      const status = byId('lockClickStatus');
+      if (status) status.textContent = armed ? 'armed: click spectrum' : 'disarmed';
+    }
+    function setLockRangeFromBias() {
+      const bias = parseInputNumber('lockBiasCh1');
+      const halfspan = Math.max(1, parseInputNumber('lockRangeHalfspan', 500));
+      const lo = Math.max(0, bias - halfspan);
+      const hi = Math.min(65535, bias + halfspan);
+      setField('lockCh1Min', lo);
+      setField('lockCh1Max', hi);
+      if (parseInputNumber('laserCh1Min') > lo) setField('laserCh1Min', lo);
+      if (parseInputNumber('laserCh1Max') < hi) setField('laserCh1Max', hi);
+    }
+    function selectLockPointFromSpectrum(event) {
+      if (!latestSpectrum || !latestSpectrum.points || latestSpectrum.points.length < 2) return;
+      const canvas = byId('spectrumPlot');
+      const rect = canvas.getBoundingClientRect();
+      const x = (event.clientX - rect.left) * (canvas.width / rect.width);
+      const left = 55;
+      const right = canvas.width - 23;
+      const frac = Math.min(1, Math.max(0, (x - left) / Math.max(1, right - left)));
+      const index = Math.round(frac * (latestSpectrum.points.length - 1));
+      const adc = Number(latestSpectrum.points[index]);
+      if (!Number.isFinite(adc)) return;
+      const start = parseInputNumber('scanStart');
+      const stop = parseInputNumber('scanStop');
+      const bias = Math.round(start + frac * (stop - start));
+      const defaultRange = Math.max(50, Math.round(Math.abs(stop - start) * 0.05));
+      const range = Math.max(1, parseInputNumber('lockRangeHalfspan', defaultRange));
+      const i0 = Math.max(0, index - 8);
+      const i1 = Math.min(latestSpectrum.points.length - 1, index + 8);
+      const slope = Number(latestSpectrum.points[i1]) - Number(latestSpectrum.points[i0]);
+
+      setField('lockCh0', val('scanCh0'));
+      setField('lockTargetAdc', adc);
+      setField('lockBiasCh1', bias);
+      setField('lockRangeHalfspan', range);
+      setLockRangeFromBias();
+      setField('lockPolarityInvert', slope < 0);
+      byId('spectrumMeta').textContent =
+        `Selected lock point idx ${index}: ADC ${adc}, CH1 bias ${bias} code ` +
+        `(${toNumText(ch1CurrentMa(bias), 4)} mA), slope ${slope < 0 ? 'negative' : 'positive'}.`;
+      if (checked('lockClickToLockArm')) {
+        setClickToLockArmed(false);
+        const status = byId('lockClickStatus');
+        if (status) status.textContent = `locking from idx ${index}`;
+        laserLockStart();
+      } else {
+        const status = byId('lockClickStatus');
+        if (status) status.textContent = `selected idx ${index}`;
+      }
+    }
+    function drawRaw() {
+      const c = byId('rawPlot');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      const w = c.width, h = c.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+      for (let i = 0; i <= 5; i++) {
+        const y = 28 + i * ((h - 52) / 5);
+        ctx.beginPath(); ctx.moveTo(55, y); ctx.lineTo(w - 18, y); ctx.stroke();
+      }
+      const data = latestRaw && latestRaw.samples;
+      if (!data || data.length < 2) {
+        ctx.fillStyle = '#64748b'; ctx.font = '13px Arial';
+        ctx.fillText('No raw snapshot loaded', 60, 60);
+        return;
+      }
+      const vals = data.map(Number);
+      let minV = Math.min(...vals), maxV = Math.max(...vals);
+      if (maxV === minV) { maxV += 1; minV -= 1; }
+      const xOf = i => 55 + (i / Math.max(1, vals.length - 1)) * (w - 78);
+      ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      vals.forEach((v, i) => {
+        const x = xOf(i);
+        const y = 28 + (maxV - v) / Math.max(1, maxV - minV) * (h - 52);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.fillStyle = '#172033'; ctx.font = '12px Arial';
+      ctx.fillText(`raw samples ${vals.length}, decim ${latestRaw.decim}`, 60, 18);
+      ctx.fillText(`${Math.round(maxV)}`, 8, 32);
+      ctx.fillText(`${Math.round(minV)}`, 8, h - 18);
+      const rawDtUs = Number(latestRaw.decim || 1) / 125.0;
+      const rawEndUs = rawDtUs * Math.max(0, vals.length - 1);
+      drawXAxis(
+        ctx,
+        w,
+        h,
+        'idx 0 / 0.000 us',
+        `idx ${Math.floor((vals.length - 1) / 2)} / ${toNumText(rawEndUs / 2, 3)} us`,
+        `idx ${vals.length - 1} / ${toNumText(rawEndUs, 3)} us`
+      );
+    }
+    async function run(action) {
+      try {
+        const data = await action();
+        showJson(data);
+        updateStatusCards(data);
+      } catch (err) {
+        byId('connState').innerHTML = `${led(false, true)}error`;
+        showJson({ok: false, error: String(err)});
+      }
+    }
+    function refreshStatus() { return run(() => apiGet('/api/status')); }
+    function scheduleRefresh() {
+      if (timer) clearInterval(timer);
+      if (autoRefresh) timer = setInterval(refreshStatus, Number(val('refreshMs')));
+    }
+    function scheduleLiveSpectrum() {
+      if (spectrumTimer) clearInterval(spectrumTimer);
+      liveSpectrum = checked('liveSpectrumEnable');
+      if (liveSpectrum) {
+        const interval = Math.max(100, parseInputNumber('liveSpectrumMs', 200));
+        spectrumTimer = setInterval(pollSpectrumQuietly, interval);
+      }
+    }
+    function restartLiveSpectrum() {
+      scheduleLiveSpectrum();
+      pollSpectrumQuietly();
+    }
+    async function pollSpectrumQuietly() {
+      if (!checked('liveSpectrumEnable')) return;
+      try {
+        const data = await apiGet(`/api/ada/spectrum?points=${encodeURIComponent(val('adaSpectrumPoints'))}`);
+        const spectrum = data.spectrum;
+        const key = `${spectrum.frame_counter}:${spectrum.buffer_id}:${spectrum.count}`;
+        if (key !== lastSpectrumFrameKey) {
+          lastSpectrumFrameKey = key;
+          latestSpectrum = spectrum;
+          drawSpectrum();
+        }
+      } catch (_) {
+        // No completed frame yet. Keep the last plotted frame.
+      }
+    }
+    function toggleAuto() {
+      autoRefresh = !autoRefresh;
+      byId('autoBtn').textContent = `Auto Refresh: ${autoRefresh ? 'On' : 'Off'}`;
+      scheduleRefresh();
+    }
+    byId('refreshMs').addEventListener('change', scheduleRefresh);
+    byId('liveSpectrumEnable').addEventListener('change', scheduleLiveSpectrum);
+    function togglePause() {
+      pauseTrend = !pauseTrend;
+      byId('pauseBtn').textContent = pauseTrend ? 'Resume Trend' : 'Pause Trend';
+    }
+    function clearHistory() { history.length = 0; drawTrend(); }
+    function downloadCsv() {
+      const rows = ['time_ms,temp_c,target_c,error_c,tec_dac,pd_adc'];
+      history.forEach(p => rows.push(`${p.t},${p.temp},${p.target},${p.err},${p.dac},${p.pd ?? ''}`));
+      const blob = new Blob([rows.join('\n')], {type: 'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'butterfly_laser_trend.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function tecStart() { run(() => apiPost('/api/tec/start', {celsius: val('quickTecTarget') || val('tecTargetInput'), reset: true})); }
+    function tecTarget(id) { run(() => apiPost('/api/tec/target', {celsius: val(id)})); }
+    function tecOpenLoop() { run(() => apiPost('/api/tec/open-loop', {dac: val('tecManualDac'), enable_tec: val('tecOpenEnable') === 'true'})); }
+    function tecStop() { run(() => apiPost('/api/tec/stop')); }
+    function tecClearFault() { run(() => apiPost('/api/tec/clear-fault')); }
+    function loadTecPidDefaults() {
+      byId('pidKp').value = '0.5';
+      byId('pidKi').value = '0.001';
+      byId('pidKd').value = '0';
+      byId('pidIlim').value = '300000';
+      byId('pidStep').value = '10';
+      byId('pidBias').value = '0x800';
+      byId('pidDacMin').value = '1800';
+      byId('pidDacMax').value = '2150';
+      byId('pidDacSafe').value = '0x800';
+    }
+    function applyTecPid() {
+      run(() => apiPost('/api/tec/pid', {
+        kp: val('pidKp'),
+        ki: val('pidKi'),
+        kd: val('pidKd'),
+        integral_limit: val('pidIlim'),
+        max_step: val('pidStep'),
+        dac_bias: val('pidBias'),
+        dac_min: val('pidDacMin'),
+        dac_max: val('pidDacMax'),
+        dac_safe: val('pidDacSafe')
+      }));
+    }
+    function applyTecProtection() {
+      run(() => apiPost('/api/tec/protection', {
+        temp_min_celsius: val('tecTempMin'),
+        temp_max_celsius: val('tecTempMax'),
+        alpha: val('tecAlpha'),
+        rdy_timeout: val('tecRdyTimeout'),
+        spi_clk_div: val('tecSpiDiv')
+      }));
+    }
+    function laserSafety() {
+      return {
+        ch0_min: val('laserCh0Min'),
+        ch0_max: val('laserCh0Max'),
+        ch1_min: val('laserCh1Min'),
+        ch1_max: val('laserCh1Max'),
+        ch0_soft_step: val('laserCh0Step'),
+        ch1_soft_step: val('laserCh1Step'),
+        ramp_interval: val('laserRamp'),
+        dac_timeout: val('laserDacTimeout'),
+        watchdog_timeout: val('laserWatchdog'),
+        enable_delay: val('laserEnableDelay'),
+        current_limit: val('laserCurrentLimit'),
+        ch0_gain: val('laserCh0Gain'),
+        ch1_gain: val('laserCh1Gain'),
+        current_offset: val('laserCurrentOffset')
+      };
+    }
+    function applyLaserProtection() { run(() => apiPost('/api/laser/protection', laserSafety())); }
+    function laserOn(ch0Id = 'staticCh0', ch1Id = 'staticCh1') {
+      run(() => apiPost('/api/laser/on', Object.assign({ch0: val(ch0Id), ch1: val(ch1Id)}, laserSafety())));
+    }
+    function laserOff() { run(() => apiPost('/api/laser/off')); }
+    function laserSetStatic() {
+      run(() => apiPost('/api/laser/static-setpoint', Object.assign({ch0: val('staticCh0'), ch1: val('staticCh1')}, laserSafety())));
+    }
+    function laserFineScan() {
+      byId('scanContinuous').checked = true;
+      byId('liveSpectrumEnable').checked = true;
+      scheduleLiveSpectrum();
+      run(() => apiPost('/api/laser/fine-scan', Object.assign({
+        ch0: val('scanCh0'),
+        start: val('scanStart'),
+        stop: val('scanStop'),
+        step: val('scanStep'),
+        dwell: val('scanDwell'),
+        settle: val('scanSettle'),
+        frames: val('scanFrames'),
+        continuous: checked('scanContinuous')
+      }, laserSafety())));
+    }
+    function laserStopScan() { run(() => apiPost('/api/laser/stop-scan', laserSafety())); }
+    function laserLockPayload() {
+      return {
+        ch0: val('lockCh0'),
+        target_adc: val('lockTargetAdc'),
+        bias_ch1: val('lockBiasCh1'),
+        lock_ch1_min: val('lockCh1Min'),
+        lock_ch1_max: val('lockCh1Max'),
+        lock_kp: val('lockKp'),
+        lock_ki: val('lockKi'),
+        polarity_invert: checked('lockPolarityInvert'),
+        lock_max_step: val('lockMaxStep'),
+        locked_threshold: val('lockLockedThreshold'),
+        loss_threshold: val('lockLossThreshold'),
+        locked_count: val('lockLockedCount'),
+        loss_count: val('lockLossCount')
+      };
+    }
+    function laserLockStart() {
+      run(() => apiPost('/api/laser/lock-start', Object.assign(laserLockPayload(), laserSafety())));
+    }
+    function laserLockHold() { run(() => apiPost('/api/laser/lock-hold')); }
+    function laserLockClear() { run(() => apiPost('/api/laser/lock-clear')); }
+    function laserStop() { laserOff(); }
+    function laserEstop() { run(() => apiPost('/api/laser/estop')); }
+    function laserClearFault() { run(() => apiPost('/api/laser/clear-fault')); }
+    function adaStart() { run(() => apiPost('/api/ada/start', {clear_counters: false})); }
+    function adaStop() { run(() => apiPost('/api/ada/stop')); }
+    function adaClear() { run(() => apiPost('/api/ada/clear')); }
+    function adaMonitorRate() { run(() => apiPost('/api/ada/monitor-rate', {hz: val('adaMonitorHz')})); }
+    function adaCaptureConfig() {
+      run(() => apiPost('/api/ada/capture-config', {
+        sample_delay: val('adaSampleDelay'),
+        sample_window: val('adaSampleWindow'),
+        max_points: val('adaMaxPoints'),
+        frame_decim: val('adaFrameDecim')
+      }));
+    }
+    function adaFilterConfig() {
+      run(() => apiPost('/api/ada/filter', {
+        threshold: val('adaGlitchThreshold'),
+        lp_shift: val('adaLpShift'),
+        enable: true,
+        glitch_reject: false,
+        raw_filtered: false,
+        spectrum_filtered: true,
+        monitor_filtered: true
+      }));
+    }
+    async function adaReadSpectrum() {
+      await run(async () => {
+        const data = await apiGet(`/api/ada/spectrum?points=${encodeURIComponent(val('adaSpectrumPoints'))}`);
+        latestSpectrum = data.spectrum;
+        lastSpectrumFrameKey = `${latestSpectrum.frame_counter}:${latestSpectrum.buffer_id}:${latestSpectrum.count}`;
+        drawSpectrum();
+        return data;
+      });
+    }
+    async function adaRawCapture() {
+      await run(async () => {
+        const data = await apiPost('/api/ada/raw-capture', {
+          length: val('adaRawLength'),
+          decim: val('adaRawDecim'),
+          timeout: 2.0
+        });
+        latestRaw = data.raw;
+        drawRaw();
+        return data;
+      });
+    }
+    function downloadSpectrumCsv() {
+      if (!latestSpectrum || !latestSpectrum.points) return;
+      const meta = spectrumAxisMeta();
+      const rows = [
+        'frame,slow_index,index,time_ms,ch0_current_mA,ch1_current_mA,adc_code,relative_intensity_code'
+      ];
+      latestSpectrum.points.forEach((v, i) => {
+        const frac = latestSpectrum.points.length > 1 ? i / (latestSpectrum.points.length - 1) : 0;
+        const timeMs = frac * meta.duration_ms;
+        const ch1Ma = meta.ch1_start_ma + frac * (meta.ch1_stop_ma - meta.ch1_start_ma);
+        rows.push(
+          `${latestSpectrum.frame_counter},${latestSpectrum.slow_index},${i},` +
+          `${timeMs.toFixed(6)},${meta.ch0_current_ma.toFixed(6)},${ch1Ma.toFixed(6)},${v},${65535 - v}`
+        );
+      });
+      const blob = new Blob([rows.join('\n')], {type: 'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'butterfly_spectrum.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+    function downloadRawCsv() {
+      if (!latestRaw || !latestRaw.samples) return;
+      const rows = ['sample_index,adc_raw'];
+      latestRaw.samples.forEach((v, i) => rows.push(`${i},${v}`));
+      const blob = new Blob([rows.join('\n')], {type: 'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'butterfly_raw_adc.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+    function stopAll() { run(() => apiPost('/api/stop-all')); }
+    function rawRead() {
+      run(() => apiGet(`/api/read?block=${encodeURIComponent(val('rawBlock'))}&offset=${encodeURIComponent(val('rawOffset'))}`));
+    }
+    function rawWrite() {
+      run(() => apiPost('/api/write', {block: val('rawBlock'), offset: val('rawOffset'), value: val('rawValue')}));
+    }
+    function dumpRegisters() { run(() => apiGet('/api/registers')); }
+
+    function collectSettings() {
+      return {
+        tec: {
+          target_celsius: val('tecTargetInput'),
+          manual_dac: val('tecManualDac'),
+          open_loop_enable: val('tecOpenEnable'),
+          pid: {
+            kp: val('pidKp'),
+            ki: val('pidKi'),
+            kd: val('pidKd'),
+            integral_limit: val('pidIlim'),
+            max_step: val('pidStep'),
+            dac_bias: val('pidBias'),
+            dac_min: val('pidDacMin'),
+            dac_max: val('pidDacMax'),
+            dac_safe: val('pidDacSafe')
+          },
+          protection: {
+            temp_min_celsius: val('tecTempMin'),
+            temp_max_celsius: val('tecTempMax'),
+            alpha: val('tecAlpha'),
+            rdy_timeout: val('tecRdyTimeout'),
+            spi_clk_div: val('tecSpiDiv')
+          }
+        },
+        laser: {
+          static: {
+            ch0: val('staticCh0'),
+            ch1: val('staticCh1')
+          },
+          fine_scan: {
+            ch0: val('scanCh0'),
+            start: val('scanStart'),
+            stop: val('scanStop'),
+            step: val('scanStep'),
+            dwell: val('scanDwell'),
+            settle: val('scanSettle'),
+            frames: val('scanFrames'),
+            continuous: checked('scanContinuous')
+          },
+          lock: {
+            ch0: val('lockCh0'),
+            target_adc: val('lockTargetAdc'),
+            bias_ch1: val('lockBiasCh1'),
+            range_halfspan: val('lockRangeHalfspan'),
+            ch1_min: val('lockCh1Min'),
+            ch1_max: val('lockCh1Max'),
+            kp: val('lockKp'),
+            ki: val('lockKi'),
+            polarity_invert: checked('lockPolarityInvert'),
+            max_step: val('lockMaxStep'),
+            locked_threshold: val('lockLockedThreshold'),
+            loss_threshold: val('lockLossThreshold'),
+            locked_count: val('lockLockedCount'),
+            loss_count: val('lockLossCount')
+          },
+          protection: laserSafety()
+        },
+        ada4355: {
+          monitor_rate_hz: val('adaMonitorHz'),
+          sample_delay: val('adaSampleDelay'),
+          sample_window: val('adaSampleWindow'),
+          max_points: val('adaMaxPoints'),
+          frame_decim: val('adaFrameDecim'),
+          spectrum_points: val('adaSpectrumPoints'),
+          raw_length: val('adaRawLength'),
+          raw_decim: val('adaRawDecim'),
+          filter_control:
+            (checked('adaFilterEnable') ? 1 : 0) |
+            8 |
+            16,
+          glitch_threshold: val('adaGlitchThreshold'),
+          lp_shift: val('adaLpShift')
+        }
+      };
+    }
+    function setField(id, value) {
+      if (value === undefined || value === null || !byId(id)) return;
+      if (byId(id).type === 'checkbox') byId(id).checked = Boolean(value);
+      else byId(id).value = String(value);
+    }
+    function applySettingsToPanel(settings) {
+      const tec = settings.tec || {};
+      const pid = tec.pid || {};
+      const tp = tec.protection || {};
+      const laser = settings.laser || {};
+      const ada = settings.ada4355 || {};
+      const stat = laser.static || {};
+      const scan = laser.fine_scan || {};
+      const lock = laser.lock || {};
+      const lp = laser.protection || {};
+      setField('quickTecTarget', tec.target_celsius);
+      setField('tecTargetInput', tec.target_celsius);
+      setField('tecManualDac', tec.manual_dac);
+      setField('tecOpenEnable', tec.open_loop_enable);
+      setField('pidKp', pid.kp);
+      setField('pidKi', pid.ki);
+      setField('pidKd', pid.kd);
+      setField('pidIlim', pid.integral_limit);
+      setField('pidStep', pid.max_step);
+      setField('pidBias', pid.dac_bias);
+      setField('pidDacMin', pid.dac_min);
+      setField('pidDacMax', pid.dac_max);
+      setField('pidDacSafe', pid.dac_safe);
+      setField('tecTempMin', tp.temp_min_celsius);
+      setField('tecTempMax', tp.temp_max_celsius);
+      setField('tecAlpha', tp.alpha);
+      setField('tecRdyTimeout', tp.rdy_timeout);
+      setField('tecSpiDiv', tp.spi_clk_div);
+      setField('quickCh0', stat.ch0);
+      setField('quickCh1', stat.ch1);
+      setField('staticCh0', stat.ch0);
+      setField('staticCh1', stat.ch1);
+      setField('scanCh0', scan.ch0);
+      setField('scanStart', scan.start);
+      setField('scanStop', scan.stop);
+      setField('scanStep', scan.step);
+      setField('scanDwell', scan.dwell);
+      setField('scanSettle', scan.settle);
+      setField('scanFrames', scan.frames);
+      setField('scanContinuous', scan.continuous);
+      setField('lockCh0', lock.ch0);
+      setField('lockTargetAdc', lock.target_adc);
+      setField('lockBiasCh1', lock.bias_ch1);
+      setField('lockRangeHalfspan', lock.range_halfspan);
+      setField('lockCh1Min', lock.ch1_min);
+      setField('lockCh1Max', lock.ch1_max);
+      setField('lockKp', lock.kp);
+      setField('lockKi', lock.ki);
+      setField('lockPolarityInvert', lock.polarity_invert);
+      setField('lockMaxStep', lock.max_step);
+      setField('lockLockedThreshold', lock.locked_threshold);
+      setField('lockLossThreshold', lock.loss_threshold);
+      setField('lockLockedCount', lock.locked_count);
+      setField('lockLossCount', lock.loss_count);
+      setField('laserCh0Min', lp.ch0_min);
+      setField('laserCh0Max', lp.ch0_max);
+      setField('laserCh1Min', lp.ch1_min);
+      setField('laserCh1Max', lp.ch1_max);
+      setField('laserCh0Step', lp.ch0_soft_step);
+      setField('laserCh1Step', lp.ch1_soft_step);
+      setField('laserRamp', lp.ramp_interval);
+      setField('laserDacTimeout', lp.dac_timeout);
+      setField('laserWatchdog', lp.watchdog_timeout);
+      setField('laserEnableDelay', lp.enable_delay);
+      setField('laserCurrentLimit', lp.current_limit);
+      setField('laserCh0Gain', lp.ch0_gain);
+      setField('laserCh1Gain', lp.ch1_gain);
+      setField('laserCurrentOffset', lp.current_offset);
+      setLockRangeFromBias();
+      setField('adaMonitorHz', ada.monitor_rate_hz);
+      setField('adaSampleDelay', ada.sample_delay);
+      setField('adaSampleWindow', ada.sample_window);
+      setField('adaMaxPoints', ada.max_points);
+      setField('adaFrameDecim', ada.frame_decim);
+      setField('adaSpectrumPoints', ada.spectrum_points);
+      setField('adaRawLength', ada.raw_length);
+      setField('adaRawDecim', ada.raw_decim);
+      setField('adaGlitchThreshold', ada.glitch_threshold);
+      setField('adaLpShift', ada.lp_shift);
+      if (ada.filter_control !== undefined) {
+        const ctrl = Number(ada.filter_control);
+        setField('adaFilterEnable', Boolean(ctrl & 1));
+        setField('adaGlitchEnable', false);
+        setField('adaRawFiltered', false);
+        setField('adaSpectrumFiltered', true);
+        setField('adaMonitorFiltered', true);
+      }
+      byId('settingsState').textContent = 'loaded into panel';
+    }
+    async function loadSettings() {
+      await run(async () => {
+        const data = await apiGet('/api/settings');
+        byId('settingsPath').textContent = data.path || '-';
+        applySettingsToPanel(data.settings || {});
+        return data;
+      });
+    }
+    async function saveSettings() {
+      await run(async () => {
+        const data = await apiPost('/api/settings', {settings: collectSettings()});
+        byId('settingsPath').textContent = data.path || '-';
+        byId('settingsState').textContent = 'saved';
+        return data;
+      });
+    }
+    async function applySavedSettings() {
+      await run(() => apiPost('/api/settings/apply'));
+    }
+    function downloadSettings() {
+      const blob = new Blob([JSON.stringify(collectSettings(), null, 2)], {type: 'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'butterfly_laser_settings.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    loadSettings();
+    setClickToLockArmed(false);
+    byId('spectrumPlot').addEventListener('click', selectLockPointFromSpectrum);
+    refreshStatus();
+    scheduleRefresh();
+    scheduleLiveSpectrum();
+  </script>
+</body>
+</html>
