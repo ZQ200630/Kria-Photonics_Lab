@@ -30,18 +30,47 @@ This feature must be additive.
 7. When match confidence is good enough, board immediately starts side-fringe lock at the live matched point.
 8. GUI reports acquire status: `Idle`, `Armed`, `Searching`, `Matched`, `Lock Started`, `Timeout`, or `Failed`.
 
+## Coordinate Model
+
+The GUI always displays spectra as 16384 points. That display length is not a hardware sampling contract.
+
+The board-side acquire feature must not assume that:
+
+- one GUI spectrum index equals one live ADC sample
+- the GUI display point spacing equals `fb_adc_valid` spacing
+- sweep duration is fixed
+- sweep update timing is identical between the displayed frame and the acquire scan
+
+The template coordinate system is therefore **CH1 code domain**, not display-index domain and not time domain.
+
+GUI responsibilities:
+
+- Convert the selected marker index to `marker_ch1_code` using the displayed frame metadata.
+- Convert each template point to an offset from the marker in CH1 code units.
+- Upload template values together with their code offsets, or upload fixed code-spacing metadata if the template is uniformly sampled in code.
+
+Board responsibilities:
+
+- Compare live ADC samples according to the current live CH1 code.
+- Ignore GUI index except as metadata for display/debug.
+- Remain valid if sweep speed, GUI refresh rate, or board sample rate changes, as long as the CH1 code trajectory and selected spectral feature are comparable.
+
+This decouples acquisition from elapsed time and from the 16384-point display resampling.
+
 ## Board-Side Matching Strategy
 
 First implementation should use a causal template matcher so the board can lock immediately when it reaches the target point. Avoid requiring future samples after the marker, because that would force the board to scan past the desired lock point before it can decide.
 
 Template from GUI:
 
-- Use a window ending at the selected marker, for example 64 samples before the marker plus the marker sample.
+- Use a window ending at the selected marker, for example 64 code-domain samples before the marker plus the marker sample.
 - Store relative shape rather than absolute level where possible.
+- Store the template as normalized ADC/intensity values associated with CH1 code offsets from the marker.
 - Include marker metadata:
   - marker spectrum index
+  - marker CH1 code
   - marker crossing level
-  - expected CH1 code
+  - template spacing in CH1 code units, or explicit per-point CH1 code offsets
   - slope direction
   - raw ADC target estimate
 
@@ -56,7 +85,8 @@ Stage 1, candidate gate:
 
 Stage 2, shape score:
 
-- compare recent live samples against uploaded template
+- compare recent live samples against the uploaded CH1-code-domain template
+- resample or accumulate live ADC values into the configured template code bins
 - use normalized values or first differences to reduce baseline drift sensitivity
 - accept only if score is below `max_score`
 
@@ -114,6 +144,8 @@ Configuration:
   - target raw ADC or target level
 - `ACQUIRE_EXPECTED_CODE`
   - expected CH1 code from selected marker
+- `ACQUIRE_TEMPLATE_SPACING`
+  - template point spacing in CH1 code units
 - `ACQUIRE_SEARCH_RANGE`
   - CH1 min/max
 - `ACQUIRE_THRESHOLDS`
@@ -136,6 +168,7 @@ Template storage:
 
 - Prefer a small template RAM if convenient.
 - A first version can use 64 AXI writable registers if that is faster to integrate.
+- Template points are indexed by CH1 code offset from the marker, not by GUI display index.
 
 ## Backend API
 
@@ -143,6 +176,7 @@ Add endpoints while keeping existing endpoints unchanged:
 
 - `POST /api/laser/acquire-template`
   - uploads template, target metadata, search range, thresholds
+  - includes `display_count`, `display_marker_index`, `marker_ch1_code`, `template_spacing_code`, and template values
 - `POST /api/laser/acquire-arm`
   - arms board-side matching and starts/continues scan as configured
 - `POST /api/laser/acquire-cancel`
@@ -171,6 +205,7 @@ When user clicks a highlighted marker:
   - target ADC
   - auto polarity
   - template length
+  - template spacing in CH1 code units
   - search halfspan
 
 Actions:
@@ -233,4 +268,3 @@ Phase 4, integration:
 - No Linux-side real-time matcher.
 - No replacement of direct lock.
 - No advanced full cross-correlation unless simple causal score is insufficient.
-
