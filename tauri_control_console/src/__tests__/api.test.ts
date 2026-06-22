@@ -38,4 +38,44 @@ describe("ApiClient", () => {
       }),
     );
   });
+
+  it("posts board-matched acquire template payloads", async () => {
+    const client = new ApiClient("http://board");
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    } as Response);
+
+    await client.acquireTemplate({ marker_ch1_code: 25000 });
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "http://board/api/laser/acquire-template",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ marker_ch1_code: 25000 }),
+      }),
+    );
+  });
+
+  it("posts board-matched acquire arm and cancel commands", async () => {
+    const client = new ApiClient("http://board");
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    } as Response);
+
+    await client.acquireArm({ frames: 1 });
+    await client.acquireCancel();
+
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://board/api/laser/acquire-arm",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ frames: 1 }) }),
+    );
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://board/api/laser/acquire-cancel",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({}) }),
+    );
+  });
 });

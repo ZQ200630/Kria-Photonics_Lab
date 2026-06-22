@@ -11,6 +11,7 @@ import {
   scanCodeAtSpectrumIndex,
   type LevelCrossing,
 } from "../utils/lockSpectrum";
+import { buildAcquireTemplate, type AcquireTemplate } from "../utils/acquireTemplate";
 import { makeTecRampPayload, rampEnabledInput } from "../utils/tecRamp";
 import { useSyncedInput } from "../utils/syncedInput";
 
@@ -117,6 +118,7 @@ export default function LockPanel({ state, client, command }: PanelProps) {
   const [scanStartStep, setScanStartStep] = useState("100");
   const [scanStopStep, setScanStopStep] = useState("100");
   const [threshold, setThreshold] = useState<number | undefined>(undefined);
+  const [selectedAcquireTemplate, setSelectedAcquireTemplate] = useState<AcquireTemplate | null>(null);
 
   const spectrumValues = useMemo(() => (state.lastSpectrum?.points ?? []).map((value) => Math.max(0, 0xffff - (value & 0xffff))), [state.lastSpectrum]);
   const crossings = useMemo(() => (threshold === undefined ? [] : findLevelCrossings(spectrumValues, threshold)), [spectrumValues, threshold]);
@@ -305,6 +307,16 @@ export default function LockPanel({ state, client, command }: PanelProps) {
       scanStopCode,
     );
     const nextPolarityInvert = inferPolarityInvertForMarker(spectrumValues, crossing, scanStartCode, scanStopCode);
+    setSelectedAcquireTemplate(
+      buildAcquireTemplate({
+        relativeValues: spectrumValues,
+        crossing,
+        ch1StartCode: scanStartCode,
+        ch1StopCode: scanStopCode,
+        lookbehindPoints: 64,
+        searchHalfspanCode: numberFromInput(halfspan.value),
+      }),
+    );
     targetAdc.setDraftValue(String(nextTargetAdc));
     biasCh1.setDraftValue(String(nextBiasCh1));
     polarity.setDraftValue(nextPolarityInvert ? "invert" : "normal");
@@ -497,6 +509,69 @@ export default function LockPanel({ state, client, command }: PanelProps) {
             </button>
             <button className="command" onClick={() => command("Clear Lock Fault", () => client.post("/api/laser/lock-clear"))}>
               Clear Lock Fault
+            </button>
+          </div>
+        </div>
+
+        <div className="lock-card lock-acquire-card">
+          <div className="lock-card-header">
+            <div>
+              <h3>Board-Matched Acquire</h3>
+              <p>Prepared for future HDL support. The current direct marker lock path is unchanged.</p>
+            </div>
+            <span className="feature-pill pending">Waiting for HDL</span>
+          </div>
+
+          <div className="readouts lock-readouts">
+            <div className="readout">
+              <span>Selected Marker</span>
+              <strong>{selectedAcquireTemplate ? fmtInt(selectedAcquireTemplate.displayMarkerIndex) : "--"}</strong>
+              <div className="muted">display index</div>
+            </div>
+            <div className="readout">
+              <span>Marker CH1 Code</span>
+              <strong>{selectedAcquireTemplate ? fmtInt(selectedAcquireTemplate.markerCh1Code) : "--"}</strong>
+              <div className="muted">code-domain anchor</div>
+            </div>
+            <div className="readout">
+              <span>Target ADC</span>
+              <strong>{selectedAcquireTemplate ? fmtInt(selectedAcquireTemplate.targetAdc) : "--"}</strong>
+              <div className="muted">{selectedAcquireTemplate?.polarityInvert ? "invert polarity" : "normal polarity"}</div>
+            </div>
+            <div className="readout">
+              <span>Template</span>
+              <strong>{selectedAcquireTemplate ? fmtInt(selectedAcquireTemplate.points.length) : "--"}</strong>
+              <div className="muted">
+                spacing {selectedAcquireTemplate ? fmtInt(selectedAcquireTemplate.templateSpacingCode) : "--"} code
+              </div>
+            </div>
+          </div>
+
+          <div className="acquire-summary">
+            {selectedAcquireTemplate ? (
+              <>
+                <span>
+                  Search {fmtInt(selectedAcquireTemplate.searchMinCode)} to {fmtInt(selectedAcquireTemplate.searchMaxCode)}
+                </span>
+                <span>
+                  Code offsets {fmtInt(selectedAcquireTemplate.points[0]?.codeOffset)} to{" "}
+                  {fmtInt(selectedAcquireTemplate.points[selectedAcquireTemplate.points.length - 1]?.codeOffset)}
+                </span>
+              </>
+            ) : (
+              <span>Click a green marker to build a causal template ending at that marker.</span>
+            )}
+          </div>
+
+          <div className="actions">
+            <button className="command" disabled>
+              Upload Template
+            </button>
+            <button className="command primary" disabled>
+              Arm Board Match
+            </button>
+            <button className="command" disabled>
+              Cancel Acquire
             </button>
           </div>
         </div>

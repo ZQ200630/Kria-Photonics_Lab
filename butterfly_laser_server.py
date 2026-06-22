@@ -542,6 +542,9 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                         "/api/laser/lock-params",
                         "/api/laser/lock-hold",
                         "/api/laser/lock-clear",
+                        "/api/laser/acquire-template",
+                        "/api/laser/acquire-arm",
+                        "/api/laser/acquire-cancel",
                         "/api/laser/protection",
                         "/api/ada/start",
                         "/api/ada/status",
@@ -756,6 +759,16 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                 elif parsed.path == "/api/laser/lock-clear":
                     self.server.system.laser.clear_fault()
                     self.reply_json({"ok": True, "laser": self.server.system.laser.status()})
+                elif parsed.path in (
+                    "/api/laser/acquire-template",
+                    "/api/laser/acquire-arm",
+                    "/api/laser/acquire-cancel",
+                ):
+                    self.reply_json({
+                        "ok": False,
+                        "error": "board-matched acquire is not supported by this bitstream yet",
+                        "laser": self.server.system.laser.status(),
+                    }, status=501)
                 elif parsed.path == "/api/laser/protection":
                     self.server.system.laser.configure_safety(**laser_safety_from_body(body))
                     self.reply_json({"ok": True, "laser": self.server.system.laser.status()})

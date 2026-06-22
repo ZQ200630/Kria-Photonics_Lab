@@ -51,6 +51,18 @@ export class ApiClient {
     return this.post("/api/laser/lock-params", body);
   }
 
+  acquireTemplate(body: Record<string, unknown>): Promise<{ ok: true; laser?: unknown }> {
+    return this.post("/api/laser/acquire-template", body);
+  }
+
+  acquireArm(body: Record<string, unknown>): Promise<{ ok: true; laser?: unknown }> {
+    return this.post("/api/laser/acquire-arm", body);
+  }
+
+  acquireCancel(): Promise<{ ok: true; laser?: unknown }> {
+    return this.post("/api/laser/acquire-cancel");
+  }
+
   stopAll(): Promise<{ ok: true; status: SystemStatus }> {
     return this.post("/api/stop-all");
   }

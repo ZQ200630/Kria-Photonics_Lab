@@ -530,6 +530,43 @@ textarea {
   margin-bottom: 12px;
 }
 
+.lock-acquire-card {
+  background: #f8fafc;
+}
+
+.feature-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.feature-pill.pending {
+  color: #92400e;
+  border-color: #facc15;
+  background: #fefce8;
+}
+
+.acquire-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.acquire-summary span {
+  border: 1px solid #d5dfeb;
+  border-radius: 999px;
+  padding: 5px 10px;
+  color: #475569;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .axis-controls {
   display: grid;
   grid-template-columns: auto minmax(120px, 160px) minmax(120px, 160px);
