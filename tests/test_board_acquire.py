@@ -30,6 +30,8 @@ class BoardAcquireControlTests(unittest.TestCase):
 
         laser.configure_acquire(search_min=24000, search_max=26000, threshold=25)
 
+        self.assertEqual(control.LASER_REG["ACQUIRE_CONTROL"], 0xC8)
+        self.assertEqual(control.LASER_REG["ACQUIRE_MATCH_ERROR"], 0xE0)
         self.assertIn((control.LASER_REG["ACQUIRE_SEARCH_RANGE"], (26000 << 16) | 24000), regs.writes)
         self.assertIn((control.LASER_REG["ACQUIRE_THRESHOLD"], 25), regs.writes)
         self.assertIn((control.LASER_REG["ACQUIRE_CONTROL"], control.LASER_ACQ_ENABLE), regs.writes)

@@ -4,7 +4,7 @@
 
 **Goal:** Add a hardware-supported acquire path that scans live, detects the selected side-fringe crossing inside a CH1-code search window, and immediately enters the existing side-fringe PID lock at the live CH1 code.
 
-**Architecture:** Keep the existing direct marker lock unchanged. Extend `axi_laser_current_ctrl` with a versioned acquire register window above `0x100`, add a live crossing detector in `laser_current_ctrl_core`, and make software endpoints refuse acquire on old bitstreams. Phase 2 intentionally uses target-crossing plus polarity/search-window matching; the Phase 1 code-domain template remains available for a later correlation-score matcher.
+**Architecture:** Keep the existing direct marker lock unchanged. Extend `axi_laser_current_ctrl` with a versioned acquire register window in the existing 8-bit AXI address space, add a live crossing detector in `laser_current_ctrl_core`, and make software endpoints refuse acquire on old bitstreams. Phase 2 intentionally uses target-crossing plus polarity/search-window matching; the Phase 1 code-domain template remains available for a later correlation-score matcher.
 
 **Tech Stack:** Verilog RTL for Vivado IP, Python `/dev/mem` control/server, Vitest/Tauri GUI tests, Python unittest static RTL checks, `xvlog` syntax compile.
 
@@ -73,7 +73,7 @@ Add static RTL checks to `tests/test_panel_click_to_lock.py`:
 ```python
     def test_laser_rtl_exposes_versioned_board_acquire_registers(self):
         rtl = LASER_AXI.read_text(encoding="utf-8")
-        self.assertIn("C_S_AXI_ADDR_WIDTH = 10", rtl)
+        self.assertIn("C_S_AXI_ADDR_WIDTH = 8", rtl)
         self.assertIn("LASER_CURRENT_CTRL_VERSION = 32'h0002_0000", rtl)
         self.assertIn("ACQUIRE_CONTROL", rtl)
         self.assertIn("acquire_arm_pulse", rtl)
@@ -101,13 +101,13 @@ Add:
 
 ```python
 "VERSION": 0xFC,
-"ACQUIRE_CONTROL": 0x100,
-"ACQUIRE_SEARCH_RANGE": 0x104,
-"ACQUIRE_THRESHOLD": 0x108,
-"ACQUIRE_STATUS": 0x10C,
-"ACQUIRE_MATCH_CODE": 0x110,
-"ACQUIRE_MATCH_ADC": 0x114,
-"ACQUIRE_MATCH_ERROR": 0x118,
+"ACQUIRE_CONTROL": 0xC8,
+"ACQUIRE_SEARCH_RANGE": 0xCC,
+"ACQUIRE_THRESHOLD": 0xD0,
+"ACQUIRE_STATUS": 0xD4,
+"ACQUIRE_MATCH_CODE": 0xD8,
+"ACQUIRE_MATCH_ADC": 0xDC,
+"ACQUIRE_MATCH_ERROR": 0xE0,
 ```
 
 Add constants:
@@ -172,20 +172,20 @@ Expected: PASS.
 
 - [ ] **Step 1: Widen AXI register decode**
 
-Change default laser AXI address width from 8 to 10, `OPT_MEM_ADDR_BITS` from 5 to 7, and `slv_reg [0:63]` to `slv_reg [0:255]`. Keep existing offsets unchanged. Add read-only `LASER_CURRENT_CTRL_VERSION = 32'h0002_0000` at register 63 (`0xFC`).
+Keep the default laser AXI address width at 8, `OPT_MEM_ADDR_BITS` at 5, and `slv_reg [0:63]`. Keep existing offsets unchanged. Add read-only `LASER_CURRENT_CTRL_VERSION = 32'h0002_0000` at register 63 (`0xFC`).
 
 - [ ] **Step 2: Add acquire registers**
 
 Use:
 
 ```verilog
-localparam integer REG_ACQUIRE_CONTROL      = 8'd64;
-localparam integer REG_ACQUIRE_SEARCH_RANGE = 8'd65;
-localparam integer REG_ACQUIRE_THRESHOLD    = 8'd66;
-localparam integer REG_ACQUIRE_STATUS       = 8'd67;
-localparam integer REG_ACQUIRE_MATCH_CODE   = 8'd68;
-localparam integer REG_ACQUIRE_MATCH_ADC    = 8'd69;
-localparam integer REG_ACQUIRE_MATCH_ERROR  = 8'd70;
+localparam [5:0] REG_ACQUIRE_CONTROL      = 6'd50;
+localparam [5:0] REG_ACQUIRE_SEARCH_RANGE = 6'd51;
+localparam [5:0] REG_ACQUIRE_THRESHOLD    = 6'd52;
+localparam [5:0] REG_ACQUIRE_STATUS       = 6'd53;
+localparam [5:0] REG_ACQUIRE_MATCH_CODE   = 6'd54;
+localparam [5:0] REG_ACQUIRE_MATCH_ADC    = 6'd55;
+localparam [5:0] REG_ACQUIRE_MATCH_ERROR  = 6'd56;
 ```
 
 Generate write-one pulses from `REG_ACQUIRE_CONTROL` bits 1 and 2. Store only bit 0.
@@ -229,4 +229,3 @@ PATH=/home/qian/.local/nodejs/bin:$PATH npm run build
 ```
 
 Expected: PASS.
-

@@ -214,9 +214,11 @@ class DefaultParameterTests(unittest.TestCase):
 
     def test_laser_rtl_exposes_versioned_board_acquire_registers(self):
         rtl = LASER_AXI.read_text(encoding="utf-8")
-        self.assertIn("C_S_AXI_ADDR_WIDTH = 10", rtl)
+        self.assertIn("C_S_AXI_ADDR_WIDTH = 8", rtl)
+        self.assertIn("OPT_MEM_ADDR_BITS = 5", rtl)
+        self.assertNotIn("axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS : ADDR_LSB]", rtl)
         self.assertIn("LASER_CURRENT_CTRL_VERSION = 32'h0002_0000", rtl)
-        self.assertIn("ACQUIRE_CONTROL", rtl)
+        self.assertIn("REG_ACQUIRE_CONTROL      = 6'd50", rtl)
         self.assertIn("acquire_arm_pulse", rtl)
 
 
