@@ -1174,7 +1174,7 @@ class Ada4355Capture:
         available = self.read("RAW_WRITE_COUNT")
         if count is None:
             count = available
-        count = min(require_u32("count", count), ADA_RAW_MAX_POINTS)
+        count = min(require_u32("count", count), available, ADA_RAW_MAX_POINTS)
         word_count = (count + 1) // 2
         words = self.raw_buf_regs.read_words(word_count)
         samples = []
@@ -1328,16 +1328,31 @@ class ButterflyLaserSystem:
         ada_base=DEFAULT_ADA_BASE,
         ada_buf0_base=DEFAULT_ADA_BUF0_BASE,
         ada_buf1_base=DEFAULT_ADA_BUF1_BASE,
-        ada_raw_base=DEFAULT_ADA_RAW_BASE,
         buffer_span=DEFAULT_BUFFER_SPAN,
+        ada_raw_base=DEFAULT_ADA_RAW_BASE,
         raw_buffer_span=DEFAULT_RAW_BUFFER_SPAN,
     ):
-        self.tec_regs = AxiMap(tec_base, span)
-        self.laser_regs = AxiMap(laser_base, span)
-        self.ada_regs = AxiMap(ada_base, span)
-        self.ada_buf0_regs = AxiMap(ada_buf0_base, buffer_span)
-        self.ada_buf1_regs = AxiMap(ada_buf1_base, buffer_span)
-        self.ada_raw_regs = AxiMap(ada_raw_base, raw_buffer_span)
+        opened = []
+        try:
+            self.tec_regs = AxiMap(tec_base, span)
+            opened.append(self.tec_regs)
+            self.laser_regs = AxiMap(laser_base, span)
+            opened.append(self.laser_regs)
+            self.ada_regs = AxiMap(ada_base, span)
+            opened.append(self.ada_regs)
+            self.ada_buf0_regs = AxiMap(ada_buf0_base, buffer_span)
+            opened.append(self.ada_buf0_regs)
+            self.ada_buf1_regs = AxiMap(ada_buf1_base, buffer_span)
+            opened.append(self.ada_buf1_regs)
+            self.ada_raw_regs = AxiMap(ada_raw_base, raw_buffer_span)
+            opened.append(self.ada_raw_regs)
+        except Exception:
+            for regs in reversed(opened):
+                try:
+                    regs.close()
+                except Exception:
+                    pass
+            raise
         self.tec = TecController(self.tec_regs)
         self.laser = LaserCurrentController(self.laser_regs)
         self.ada = Ada4355Capture(
@@ -1494,6 +1509,7 @@ def build_parser():
     p.add_argument("--control", type=parse_int, help="Raw FILTER_CONTROL value")
     p.add_argument("--threshold", type=parse_int, help="Glitch reject threshold in ADC codes")
     p.add_argument("--lp-shift", type=parse_int, help="IIR shift; 13 is about 2.4 kHz at 125 MHz")
+    p.add_argument("--raw-lp-shift", type=parse_int, help="Raw capture IIR shift; 13 is about 2.4 kHz at 125 MHz")
     p.add_argument("--filter", dest="enable", action="store_true", help="Enable low-pass filter")
     p.add_argument("--no-filter", dest="enable", action="store_false", help="Disable low-pass filter")
     p.add_argument("--glitch", dest="glitch_reject", action="store_true", help="Enable glitch reject")
@@ -1511,8 +1527,8 @@ def build_parser():
     p.add_argument("--out")
     p.add_argument("--no-release", action="store_true")
 
-    p = sub.add_parser("ada-raw-capture", help="Capture raw 125 MHz ADC snapshot into buffer0")
-    p.add_argument("--length", type=parse_int, default=16384)
+    p = sub.add_parser("ada-raw-capture", help="Capture raw 125 MHz ADC snapshot into dedicated raw buffer")
+    p.add_argument("--length", type=parse_int, default=ADA_RAW_MAX_POINTS)
     p.add_argument("--decim", type=parse_int, default=1)
     p.add_argument("--timeout", type=float, default=1.0)
     p.add_argument("--out")
@@ -1645,6 +1661,7 @@ def main():
                 control=args.control,
                 threshold=args.threshold,
                 lp_shift=args.lp_shift,
+                raw_lp_shift=args.raw_lp_shift,
                 enable=args.enable,
                 glitch_reject=args.glitch_reject,
                 raw_filtered=args.raw_filtered,
