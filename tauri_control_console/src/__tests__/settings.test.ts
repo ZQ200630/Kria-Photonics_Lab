@@ -71,6 +71,7 @@ describe("settingsFromStatus", () => {
         control_hex: "0x00000019",
         glitch_threshold: 3000,
         lp_shift: 13,
+        raw_lp_shift: 9,
       },
       raw: {
         length: 16384,
@@ -92,17 +93,19 @@ describe("settingsFromStatus", () => {
     expect(settings.laser.lock.max_step).toBe("3");
     expect(settings.ada4355.filter_control).toBe("0x00000019");
     expect(settings.ada4355.lp_shift).toBe("13");
+    expect(settings.ada4355.raw_lp_shift).toBe("9");
   });
 
   it("flattens settings for key-value display", () => {
     const rows = flattenSettings({
       tec: { pid: { kp: "1", ki: "0.003" } },
       laser: { fine_scan: { ch0: "26000" } },
-      ada4355: { lp_shift: "13" },
+      ada4355: { lp_shift: "13", raw_lp_shift: "9" },
     });
 
     expect(rows).toEqual([
       { key: "ada4355.lp_shift", value: "13" },
+      { key: "ada4355.raw_lp_shift", value: "9" },
       { key: "laser.fine_scan.ch0", value: "26000" },
       { key: "tec.pid.ki", value: "0.003" },
       { key: "tec.pid.kp", value: "1" },

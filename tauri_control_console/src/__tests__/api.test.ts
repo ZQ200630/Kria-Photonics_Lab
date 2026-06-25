@@ -11,6 +11,24 @@ describe("ApiClient", () => {
     expect(client.url("/api/status")).toBe("http://192.168.8.236:8080/api/status");
   });
 
+  it("requests 512K raw samples by default", async () => {
+    const client = new ApiClient("http://127.0.0.1:8080");
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, capture: {}, raw: { samples: [] } }),
+    } as Response);
+
+    await client.rawCapture();
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:8080/api/ada/raw-capture",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ length: 524288, decim: 1, timeout: 1.0 }),
+      }),
+    );
+  });
+
   it("throws backend JSON errors", async () => {
     const client = new ApiClient("http://board");
     globalThis.fetch = vi.fn().mockResolvedValue({
