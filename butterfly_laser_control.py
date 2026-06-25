@@ -7,6 +7,7 @@ Default AXI base addresses:
   ADA4355 capture controller:  0xA0100000
   ADA4355 spectrum buffer 0:   0xA01C0000
   ADA4355 spectrum buffer 1:   0xA01D0000
+  ADA4355 packed raw buffer:   0xA0200000
   Laser current controller:   0xA0120000
 
 Run on the board as root, for example:
@@ -30,8 +31,12 @@ DEFAULT_ADA_BASE = 0xA0100000
 DEFAULT_LASER_BASE = 0xA0120000
 DEFAULT_ADA_BUF0_BASE = 0xA01C0000
 DEFAULT_ADA_BUF1_BASE = 0xA01D0000
+DEFAULT_ADA_RAW_BASE = 0xA0200000
 DEFAULT_SPAN = 0x1000
 DEFAULT_BUFFER_SPAN = 0x10000
+DEFAULT_RAW_BUFFER_SPAN = 0x100000
+ADA_RAW_MAX_POINTS = 512 * 1024
+ADA_RAW_BUFFER_WORDS = ADA_RAW_MAX_POINTS // 2
 
 
 TEC_REG = {
@@ -272,6 +277,10 @@ ADA_REG = {
     "GLITCH_REJECT_COUNTER": 0x90,
     "FRAME_DECIM_N": 0x94,
     "CAPTURED_COUNT": 0x98,
+    "RAW_LP_SHIFT": 0x9C,
+    "RAW_FILTERED_ADC_LAST": 0xA0,
+    "RAW_CAPACITY_SAMPLES": 0xA4,
+    "RAW_BUFFER_WORDS": 0xA8,
 }
 
 ADA_CTRL_ENABLE = 1 << 0
@@ -1049,10 +1058,11 @@ class LaserCurrentController:
 
 
 class Ada4355Capture:
-    def __init__(self, regs, buf0_regs, buf1_regs):
+    def __init__(self, regs, buf0_regs, buf1_regs, raw_buf_regs):
         self.regs = regs
         self.buf0_regs = buf0_regs
         self.buf1_regs = buf1_regs
+        self.raw_buf_regs = raw_buf_regs
 
     def read(self, name_or_offset):
         offset = ADA_REG[name_or_offset] if isinstance(name_or_offset, str) else name_or_offset
@@ -1098,6 +1108,7 @@ class Ada4355Capture:
         control=None,
         threshold=None,
         lp_shift=None,
+        raw_lp_shift=None,
         enable=None,
         glitch_reject=None,
         raw_filtered=None,
@@ -1125,10 +1136,12 @@ class Ada4355Capture:
             self.write("GLITCH_THRESHOLD", require_range("threshold", threshold, 0, 0xFFFF))
         if lp_shift is not None:
             self.write("LP_SHIFT", require_range("lp_shift", lp_shift, 0, 31))
+        if raw_lp_shift is not None:
+            self.write("RAW_LP_SHIFT", require_range("raw_lp_shift", raw_lp_shift, 0, 31))
         return self.status()
 
-    def capture_raw(self, length=16384, decim=1, timeout=1.0, release_existing=True):
-        length = require_range("length", length, 1, 16384)
+    def capture_raw(self, length=ADA_RAW_MAX_POINTS, decim=1, timeout=1.0, release_existing=True):
+        length = require_range("length", length, 1, ADA_RAW_MAX_POINTS)
         decim = require_u32("decim", decim)
         if decim == 0:
             decim = 1
@@ -1161,14 +1174,22 @@ class Ada4355Capture:
         available = self.read("RAW_WRITE_COUNT")
         if count is None:
             count = available
-        count = min(require_u32("count", count), 16384)
-        words = self.buf0_regs.read_words(count)
-        samples = [word & 0xFFFF for word in words]
+        count = min(require_u32("count", count), ADA_RAW_MAX_POINTS)
+        word_count = (count + 1) // 2
+        words = self.raw_buf_regs.read_words(word_count)
+        samples = []
+        for word in words:
+            samples.append(word & 0xFFFF)
+            if len(samples) < count:
+                samples.append((word >> 16) & 0xFFFF)
+        raw_status = self.read("RAW_STATUS")
         return {
             "count": count,
             "samples": samples,
-            "raw_status": self.read("RAW_STATUS"),
-            "raw_status_hex": f"0x{self.read('RAW_STATUS'):08X}",
+            "storage": "packed_u16_le",
+            "word_count": word_count,
+            "raw_status": raw_status,
+            "raw_status_hex": f"0x{raw_status:08X}",
             "raw_write_count": available,
             "decim": self.read("RAW_DECIM"),
         }
@@ -1233,6 +1254,7 @@ class Ada4355Capture:
             "base_hex": f"0x{self.regs.base:08X}",
             "buf0_base_hex": f"0x{self.buf0_regs.base:08X}",
             "buf1_base_hex": f"0x{self.buf1_regs.base:08X}",
+            "raw_base_hex": f"0x{self.raw_buf_regs.base:08X}",
             "version": self.read("VERSION"),
             "version_hex": f"0x{self.read('VERSION'):08X}",
             "status": status,
@@ -1256,7 +1278,9 @@ class Ada4355Capture:
                 "monitor_use_filtered": bool(filter_control & ADA_FILTER_MONITOR_USE_FILTERED),
                 "glitch_threshold": self.read("GLITCH_THRESHOLD"),
                 "lp_shift": self.read("LP_SHIFT"),
+                "raw_lp_shift": self.read("RAW_LP_SHIFT"),
                 "filtered_adc_last": filtered_adc,
+                "raw_filtered_adc_last": self.read("RAW_FILTERED_ADC_LAST") & 0xFFFF,
                 "glitch_reject_counter": self.read("GLITCH_REJECT_COUNTER"),
             },
             "relative_intensity_code": max(0, 0xFFFF - avg),
@@ -1285,6 +1309,9 @@ class Ada4355Capture:
                 "length": self.read("RAW_LENGTH"),
                 "decim": self.read("RAW_DECIM"),
                 "write_count": self.read("RAW_WRITE_COUNT"),
+                "capacity_samples": self.read("RAW_CAPACITY_SAMPLES"),
+                "buffer_words": self.read("RAW_BUFFER_WORDS"),
+                "storage": "packed_u16_le",
             },
         }
 
@@ -1301,16 +1328,24 @@ class ButterflyLaserSystem:
         ada_base=DEFAULT_ADA_BASE,
         ada_buf0_base=DEFAULT_ADA_BUF0_BASE,
         ada_buf1_base=DEFAULT_ADA_BUF1_BASE,
+        ada_raw_base=DEFAULT_ADA_RAW_BASE,
         buffer_span=DEFAULT_BUFFER_SPAN,
+        raw_buffer_span=DEFAULT_RAW_BUFFER_SPAN,
     ):
         self.tec_regs = AxiMap(tec_base, span)
         self.laser_regs = AxiMap(laser_base, span)
         self.ada_regs = AxiMap(ada_base, span)
         self.ada_buf0_regs = AxiMap(ada_buf0_base, buffer_span)
         self.ada_buf1_regs = AxiMap(ada_buf1_base, buffer_span)
+        self.ada_raw_regs = AxiMap(ada_raw_base, raw_buffer_span)
         self.tec = TecController(self.tec_regs)
         self.laser = LaserCurrentController(self.laser_regs)
-        self.ada = Ada4355Capture(self.ada_regs, self.ada_buf0_regs, self.ada_buf1_regs)
+        self.ada = Ada4355Capture(
+            self.ada_regs,
+            self.ada_buf0_regs,
+            self.ada_buf1_regs,
+            self.ada_raw_regs,
+        )
 
     def close(self):
         self.tec_regs.close()
@@ -1318,6 +1353,7 @@ class ButterflyLaserSystem:
         self.ada_regs.close()
         self.ada_buf0_regs.close()
         self.ada_buf1_regs.close()
+        self.ada_raw_regs.close()
 
     def status(self):
         return {
@@ -1387,8 +1423,10 @@ def add_base_args(parser):
     parser.add_argument("--ada-base", default=hex(DEFAULT_ADA_BASE), help="ADA4355 capture AXI base address")
     parser.add_argument("--ada-buf0-base", default=hex(DEFAULT_ADA_BUF0_BASE), help="ADA4355 spectrum buffer 0 base address")
     parser.add_argument("--ada-buf1-base", default=hex(DEFAULT_ADA_BUF1_BASE), help="ADA4355 spectrum buffer 1 base address")
+    parser.add_argument("--ada-raw-base", default=hex(DEFAULT_ADA_RAW_BASE), help="ADA4355 packed raw buffer base address")
     parser.add_argument("--span", default=hex(DEFAULT_SPAN), help="/dev/mem mapping span")
     parser.add_argument("--buffer-span", default=hex(DEFAULT_BUFFER_SPAN), help="ADA4355 spectrum buffer mapping span")
+    parser.add_argument("--raw-buffer-span", default=hex(DEFAULT_RAW_BUFFER_SPAN), help="ADA4355 packed raw buffer mapping span")
     parser.add_argument("--json", action="store_true", help="Print JSON output")
 
 
@@ -1561,13 +1599,15 @@ def build_parser():
 def main():
     args = build_parser().parse_args()
     system = ButterflyLaserSystem(
-        args.tec_base,
-        args.laser_base,
-        args.span,
-        args.ada_base,
-        args.ada_buf0_base,
-        args.ada_buf1_base,
-        args.buffer_span,
+        tec_base=args.tec_base,
+        laser_base=args.laser_base,
+        span=args.span,
+        ada_base=args.ada_base,
+        ada_buf0_base=args.ada_buf0_base,
+        ada_buf1_base=args.ada_buf1_base,
+        ada_raw_base=args.ada_raw_base,
+        buffer_span=args.buffer_span,
+        raw_buffer_span=args.raw_buffer_span,
     )
     try:
         result = None
