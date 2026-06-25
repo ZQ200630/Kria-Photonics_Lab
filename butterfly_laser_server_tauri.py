@@ -203,13 +203,15 @@ def build_parser():
 def main():
     args = build_parser().parse_args()
     system = ButterflyLaserSystem(
-        args.tec_base,
-        args.laser_base,
-        args.span,
-        args.ada_base,
-        args.ada_buf0_base,
-        args.ada_buf1_base,
-        args.buffer_span,
+        tec_base=args.tec_base,
+        laser_base=args.laser_base,
+        span=args.span,
+        ada_base=args.ada_base,
+        ada_buf0_base=args.ada_buf0_base,
+        ada_buf1_base=args.ada_buf1_base,
+        buffer_span=args.buffer_span,
+        ada_raw_base=args.ada_raw_base,
+        raw_buffer_span=args.raw_buffer_span,
     )
     settings = load_settings(args.settings)
     httpd = ThreadingHTTPServer((args.host, args.port), ButterflyTauriHandler)

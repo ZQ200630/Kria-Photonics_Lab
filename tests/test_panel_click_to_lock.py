@@ -94,6 +94,7 @@ class DefaultParameterTests(unittest.TestCase):
         self.assertEqual(settings["laser"]["protection"]["ch1_max"], "40000")
         self.assertEqual(settings["ada4355"]["monitor_rate_hz"], "100000")
         self.assertEqual(settings["ada4355"]["lp_shift"], "13")
+        self.assertEqual(settings["ada4355"]["raw_lp_shift"], "13")
         self.assertEqual(settings["laser"]["lock"]["kp"], "0.5")
         self.assertEqual(settings["laser"]["lock"]["ki"], "0.01")
         self.assertEqual(settings["laser"]["lock"]["range_halfspan"], "5000")
@@ -159,6 +160,7 @@ class DefaultParameterTests(unittest.TestCase):
         self.assertEqual(settings["laser"]["lock"]["loss_threshold"], "10000")
         self.assertEqual(settings["ada4355"]["monitor_rate_hz"], "100000")
         self.assertEqual(settings["ada4355"]["lp_shift"], "13")
+        self.assertEqual(settings["ada4355"]["raw_lp_shift"], "13")
 
     def test_saved_schema_v2_with_legacy_defaults_is_migrated(self):
         import butterfly_laser_server as server
@@ -245,6 +247,8 @@ class DefaultParameterTests(unittest.TestCase):
         class FakeAda:
             def __init__(self):
                 self.monitor_rate = None
+                self.capture = None
+                self.filter = None
 
             def set_monitor_rate_hz(self, value):
                 self.monitor_rate = value
@@ -270,6 +274,10 @@ class DefaultParameterTests(unittest.TestCase):
         self.assertEqual(system.laser.safety["ch0_max"], 40000)
         self.assertEqual(system.laser.lock["integral_limit"], 500000)
         self.assertEqual(system.ada.monitor_rate, 100000.0)
+        self.assertEqual(system.ada.capture["max_points"], 16384)
+        self.assertEqual(system.ada.capture["frame_decim"], 1000)
+        self.assertEqual(system.ada.filter["lp_shift"], 13)
+        self.assertEqual(system.ada.filter["raw_lp_shift"], 13)
         self.assertFalse(system.tec.started)
         self.assertFalse(system.laser.started)
 

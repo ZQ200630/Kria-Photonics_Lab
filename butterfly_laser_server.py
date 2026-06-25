@@ -22,8 +22,10 @@ from butterfly_laser_control import (
     DEFAULT_ADA_BASE,
     DEFAULT_ADA_BUF0_BASE,
     DEFAULT_ADA_BUF1_BASE,
+    DEFAULT_ADA_RAW_BASE,
     DEFAULT_BUFFER_SPAN,
     DEFAULT_LASER_BASE,
+    DEFAULT_RAW_BUFFER_SPAN,
     DEFAULT_SPAN,
     DEFAULT_TEC_BASE,
     ButterflyLaserSystem,
@@ -33,7 +35,7 @@ from butterfly_laser_control import (
 )
 
 
-SETTINGS_SCHEMA_VERSION = 5
+SETTINGS_SCHEMA_VERSION = 6
 
 
 DEFAULT_SETTINGS = {
@@ -131,6 +133,7 @@ DEFAULT_SETTINGS = {
         "filter_control": "0x19",
         "glitch_threshold": "3000",
         "lp_shift": "13",
+        "raw_lp_shift": "13",
     },
 }
 
@@ -442,6 +445,7 @@ def apply_saved_settings(system, settings):
             control=body_int(ada, "filter_control") if "filter_control" in ada else None,
             threshold=body_int(ada, "glitch_threshold") if "glitch_threshold" in ada else None,
             lp_shift=body_int(ada, "lp_shift") if "lp_shift" in ada else None,
+            raw_lp_shift=body_int(ada, "raw_lp_shift") if "raw_lp_shift" in ada else None,
         )
 
 
@@ -905,6 +909,7 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                         control=body_int(body, "control") if "control" in body else None,
                         threshold=body_int(body, "threshold") if "threshold" in body else None,
                         lp_shift=body_int(body, "lp_shift") if "lp_shift" in body else None,
+                        raw_lp_shift=body_int(body, "raw_lp_shift") if "raw_lp_shift" in body else None,
                         enable=bool_body(body, "enable") if "enable" in body else None,
                         glitch_reject=bool_body(body, "glitch_reject") if "glitch_reject" in body else None,
                         raw_filtered=bool_body(body, "raw_filtered") if "raw_filtered" in body else None,
@@ -1006,8 +1011,10 @@ def build_parser():
     parser.add_argument("--ada-base", default=hex(DEFAULT_ADA_BASE), help="ADA4355 capture AXI base address")
     parser.add_argument("--ada-buf0-base", default=hex(DEFAULT_ADA_BUF0_BASE), help="ADA4355 spectrum buffer 0 base address")
     parser.add_argument("--ada-buf1-base", default=hex(DEFAULT_ADA_BUF1_BASE), help="ADA4355 spectrum buffer 1 base address")
+    parser.add_argument("--ada-raw-base", default=hex(DEFAULT_ADA_RAW_BASE), help="ADA4355 raw ADC packed buffer base address")
     parser.add_argument("--span", default=hex(DEFAULT_SPAN), help="/dev/mem mapping span")
     parser.add_argument("--buffer-span", default=hex(DEFAULT_BUFFER_SPAN), help="ADA4355 spectrum buffer mapping span")
+    parser.add_argument("--raw-buffer-span", default=hex(DEFAULT_RAW_BUFFER_SPAN), help="ADA4355 raw ADC buffer mapping span")
     parser.add_argument("--host", default="0.0.0.0", help="Listen address")
     parser.add_argument("--port", type=int, default=8080, help="Listen port")
     parser.add_argument(
@@ -1022,13 +1029,15 @@ def build_parser():
 def main():
     args = build_parser().parse_args()
     system = ButterflyLaserSystem(
-        args.tec_base,
-        args.laser_base,
-        args.span,
-        args.ada_base,
-        args.ada_buf0_base,
-        args.ada_buf1_base,
-        args.buffer_span,
+        tec_base=args.tec_base,
+        laser_base=args.laser_base,
+        span=args.span,
+        ada_base=args.ada_base,
+        ada_buf0_base=args.ada_buf0_base,
+        ada_buf1_base=args.ada_buf1_base,
+        buffer_span=args.buffer_span,
+        ada_raw_base=args.ada_raw_base,
+        raw_buffer_span=args.raw_buffer_span,
     )
     settings = load_settings(args.settings)
     httpd = ThreadingHTTPServer((args.host, args.port), ButterflyHandler)
