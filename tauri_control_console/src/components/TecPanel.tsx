@@ -36,12 +36,12 @@ function Field({ label, input }: { label: string; input: ReturnType<typeof useSy
   );
 }
 
-export default function TecPanel({ state, client, command, compact = false }: PanelProps) {
+export default function TecPanel({ state, client, command, active = true, compact = false }: PanelProps) {
   const tec = state.lastStatus?.tec;
   const targetReadback = tec?.ramp?.active ? tec.ramp.target_celsius : tec?.target_celsius;
   const target = useSyncedInput(inputNumber(targetReadback, 3), "31.0");
-  const kp = useSyncedInput(inputNumber(tec?.pid?.kp, 6), "0.5");
-  const ki = useSyncedInput(inputNumber(tec?.pid?.ki, 8), "0.001");
+  const kp = useSyncedInput(inputNumber(tec?.pid?.kp, 6), "1");
+  const ki = useSyncedInput(inputNumber(tec?.pid?.ki, 8), "0.003");
   const kd = useSyncedInput(inputNumber(tec?.pid?.kd, 6), "0");
   const integralLimit = useSyncedInput(inputInt(tec?.pid?.integral_limit), "300000");
   const maxStep = useSyncedInput(inputInt(tec?.pid?.max_step), "10");
@@ -146,7 +146,7 @@ export default function TecPanel({ state, client, command, compact = false }: Pa
             </div>
           </div>
 
-          <PlotCanvas values={values} color="#2563eb" label="Temperature C" xLabel="latest 600 status samples" height={300} />
+          <PlotCanvas values={values} color="#2563eb" label="Temperature C" xLabel="latest 600 status samples" height={300} active={active} />
 
           <div className="tec-stats-strip">
             <Metric label="Window Max" value={`${fmtNumber(stats.max, 3)} C`} />

@@ -1,20 +1,144 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { RawCapture } from "../api/types";
 import type { PanelProps } from "./types";
 import PlotCanvas from "./PlotCanvas";
-import { downloadText, samplesCsv } from "../utils/csv";
-import { fmtInt, fmtNumber, inputInt, inputNumber, parseNumber } from "../utils/format";
+import { samplesCsv } from "../utils/csv";
+import { fmtInt, inputInt, inputNumber, parseNumber } from "../utils/format";
+import { saveExperimentBundle } from "../utils/saveText";
 import { useSyncedInput } from "../utils/syncedInput";
+import {
+  DEFAULT_TZ_OHM,
+  adcCodeToInputCurrentMicroamp,
+  formatMicroamp,
+  inputCurrentMicroampToAdcCode,
+} from "../utils/ada4355";
+import { safeRunName } from "../utils/lockRecording";
 
-export default function AdaPanel({ state, client, command, compact = false }: PanelProps) {
+function numberFromInput(value: string): number {
+  const parsed = parseNumber(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function timestampSlug(date = new Date()): string {
+  return date.toISOString().replace(/[:.]/g, "-");
+}
+
+function rawFilterReadback(filter: Record<string, unknown> | undefined): boolean | undefined {
+  return typeof filter?.raw_use_filtered === "boolean" ? filter.raw_use_filtered : undefined;
+}
+
+export default function AdaPanel({
+  state,
+  client,
+  command,
+  active = true,
+  compact = false,
+  tzOhm = DEFAULT_TZ_OHM,
+  tzOhmText = String(DEFAULT_TZ_OHM),
+  setTzOhmText,
+  pdCurrentOffsetMicroamp = 0,
+}: PanelProps) {
   const ada = state.lastStatus?.ada4355;
   const monitorHz = useSyncedInput(inputNumber(ada?.monitor_rate_hz, 0), "100000");
   const threshold = useSyncedInput(inputInt(ada?.filter?.glitch_threshold), "3000");
   const lpShift = useSyncedInput(inputInt(ada?.filter?.lp_shift), "13");
   const rawLength = useSyncedInput(inputInt(ada?.raw?.length), "16384");
   const rawDecim = useSyncedInput(inputInt(ada?.raw?.decim), "1");
+  const rawFilterStatus = rawFilterReadback(ada?.filter);
+  const [rawFilterEnabled, setRawFilterEnabled] = useState(rawFilterStatus ?? false);
+  const [rawFilterDirty, setRawFilterDirty] = useState(false);
+  const [rawName, setRawName] = useState("raw_adc");
+  const [rawMessage, setRawMessage] = useState("No raw ADC capture yet.");
   const [raw, setRaw] = useState<RawCapture | null>(null);
+  const [rawAutoY, setRawAutoY] = useState(true);
+  const [rawYMin, setRawYMin] = useState("");
+  const [rawYMax, setRawYMax] = useState("");
   const rawValues = useMemo(() => raw?.samples ?? [], [raw]);
+  const rawCurrentValues = useMemo(
+    () => rawValues.map((value) => adcCodeToInputCurrentMicroamp(value & 0xffff, tzOhm, pdCurrentOffsetMicroamp)),
+    [pdCurrentOffsetMicroamp, rawValues, tzOhm],
+  );
+  const rawYRange = rawAutoY
+    ? undefined
+    : {
+        min: Number(rawYMin),
+        max: Number(rawYMax),
+      };
+  const releaseDrafts = () => {
+    monitorHz.release();
+    threshold.release();
+    lpShift.release();
+    rawLength.release();
+    rawDecim.release();
+  };
+  const updateParameters = async () => {
+    await client.post("/api/ada/monitor-rate", { hz: numberFromInput(monitorHz.value) });
+    await client.post("/api/ada/capture-config", {
+      max_points: numberFromInput(rawLength.value),
+      frame_decim: Math.max(1, numberFromInput(rawDecim.value)),
+    });
+    await client.post("/api/ada/filter", {
+      threshold: numberFromInput(threshold.value),
+      lp_shift: numberFromInput(lpShift.value),
+      enable: true,
+      glitch_reject: true,
+      raw_filtered: rawFilterEnabled,
+      spectrum_filtered: true,
+      monitor_filtered: true,
+    });
+    releaseDrafts();
+  };
+  const captureRaw = async () => {
+    const response = await client.rawCapture(numberFromInput(rawLength.value), Math.max(1, numberFromInput(rawDecim.value)));
+    setRaw(response.raw);
+    setRawMessage(`Captured ${response.raw.count ?? response.raw.samples.length} raw ADC samples.`);
+  };
+  const saveRaw = async () => {
+    if (!raw) throw new Error("No raw ADC capture available.");
+    const decim = Math.max(1, raw.decim ?? numberFromInput(rawDecim.value));
+    const sampleRateHz = 125000000 / decim;
+    const savedPath = await saveExperimentBundle({
+      category: "Raw",
+      runName: safeRunName(rawName, "raw_adc"),
+      eventName: `${timestampSlug()}_raw_adc`,
+      files: [
+        {
+          path: "metadata.json",
+          contents: `${JSON.stringify(
+            {
+              event: "raw_adc",
+              saved_at: new Date().toISOString(),
+              raw_name: rawName,
+              raw_filter_enabled: rawFilterEnabled,
+              count: raw.count,
+              decim,
+              sample_rate_hz: sampleRateHz,
+              raw_status: raw.raw_status,
+              raw_status_hex: raw.raw_status_hex,
+              raw_write_count: raw.raw_write_count,
+              requested_length: numberFromInput(rawLength.value),
+              monitor_rate_hz: numberFromInput(monitorHz.value),
+              glitch_threshold: numberFromInput(threshold.value),
+              lp_shift: numberFromInput(lpShift.value),
+              tz_ohm: tzOhm,
+              pd_current_offset_uA: pdCurrentOffsetMicroamp,
+              ada4355_status: ada,
+            },
+            null,
+            2,
+          )}\n`,
+        },
+        { path: "raw_adc.csv", contents: samplesCsv(raw.samples, sampleRateHz, tzOhm, pdCurrentOffsetMicroamp) },
+      ],
+    });
+    setRawMessage(`Saved raw ADC to ${savedPath}`);
+  };
+
+  useEffect(() => {
+    if (!rawFilterDirty && rawFilterStatus !== undefined) {
+      setRawFilterEnabled(rawFilterStatus);
+    }
+  }, [rawFilterDirty, rawFilterStatus]);
 
   return (
     <section className="panel">
@@ -23,7 +147,9 @@ export default function AdaPanel({ state, client, command, compact = false }: Pa
         <div className="readout">
           <span>PD Monitor ADC Code</span>
           <strong>{fmtInt(ada?.monitor_avg)}</strong>
-          <div className="muted">min {fmtInt(ada?.monitor_min)} max {fmtInt(ada?.monitor_max)}</div>
+          <div className="muted">
+            min {fmtInt(ada?.monitor_min)} max {fmtInt(ada?.monitor_max)} count {fmtInt(ada?.monitor_counter)}
+          </div>
         </div>
         <div className="readout">
           <span>Frame Counter</span>
@@ -33,7 +159,9 @@ export default function AdaPanel({ state, client, command, compact = false }: Pa
         <div className="readout">
           <span>Filter</span>
           <strong>LP shift {String(ada?.filter?.lp_shift ?? "--")}</strong>
-          <div className="muted">threshold {String(ada?.filter?.glitch_threshold ?? "--")}</div>
+          <div className="muted">
+            threshold {String(ada?.filter?.glitch_threshold ?? "--")} raw {rawFilterEnabled ? "filtered" : "unfiltered"}
+          </div>
         </div>
       </div>
 
@@ -60,62 +188,83 @@ export default function AdaPanel({ state, client, command, compact = false }: Pa
               Raw Decim
               <input {...rawDecim.bind} />
             </label>
+            <label>
+              Tz Ohm
+              <input value={tzOhmText} onChange={(event) => setTzOhmText?.(event.target.value)} />
+            </label>
           </div>
-          <PlotCanvas values={rawValues} color="#2563eb" label="raw ADC snapshot" xLabel={`samples ${raw?.count ?? 0}, decim ${raw?.decim ?? rawDecim.value}`} height={280} />
+          <div className="actions ada-parameter-actions">
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={rawFilterEnabled}
+                onChange={(event) => {
+                  setRawFilterDirty(true);
+                  setRawFilterEnabled(event.target.checked);
+                }}
+              />
+              Raw Filter
+            </label>
+            <button className="command primary" onClick={() => command("Update ADA Parameters", updateParameters)}>
+              Update Parameters
+            </button>
+          </div>
+          <PlotCanvas
+            values={rawCurrentValues}
+            color="#2563eb"
+            label="input current"
+            xLabel={`samples ${raw?.count ?? 0}, decim ${raw?.decim ?? rawDecim.value}`}
+            height={280}
+            yRange={rawYRange}
+            yTickFormatter={(value) => `${formatMicroamp(value)} uA`}
+            rightAxisLabel="ADC code"
+            rightTickFormatter={(value) => String(inputCurrentMicroampToAdcCode(value, tzOhm, pdCurrentOffsetMicroamp))}
+            active={active}
+          />
+          <div className="axis-controls below-plot">
+            <label className="checkbox-field">
+              <input type="checkbox" checked={rawAutoY} onChange={(event) => setRawAutoY(event.target.checked)} />
+              Auto Raw Y
+            </label>
+            <label>
+              Raw Y Min uA
+              <input value={rawYMin} disabled={rawAutoY} onChange={(event) => setRawYMin(event.target.value)} placeholder="auto" />
+            </label>
+            <label>
+              Raw Y Max uA
+              <input value={rawYMax} disabled={rawAutoY} onChange={(event) => setRawYMax(event.target.value)} placeholder="auto" />
+            </label>
+          </div>
+          <div className="ada-raw-recorder">
+            <label>
+              Raw Name
+              <input value={rawName} onChange={(event) => setRawName(event.target.value)} />
+            </label>
+            <button className="command" onClick={() => command("Capture Raw ADC", captureRaw)}>
+              Capture Raw ADC
+            </button>
+            <button className="command primary" disabled={!raw} onClick={() => command("Save Raw ADC", saveRaw)}>
+              Save Raw
+            </button>
+            <span className={`recording-status ${raw ? "active" : ""}`}>{rawMessage}</span>
+          </div>
         </>
       )}
 
-      <div className="actions">
-        <button className="command primary" onClick={() => command("Start ADA", () => client.post("/api/ada/start", { clear_counters: false }))}>
-          Start ADA
-        </button>
-        <button className="command" onClick={() => command("Clear ADA Counters", () => client.post("/api/ada/clear"))}>
-          Clear ADA
-        </button>
-        <button className="command" onClick={() => command("Set Monitor Rate", () => client.post("/api/ada/monitor-rate", { hz: Number(monitorHz.value) }))}>
-          Set Monitor Rate
-        </button>
-        <button
-          className="command"
-          onClick={() =>
-            command("Apply ADA Filter", () =>
-              client.post("/api/ada/filter", {
-                threshold: parseNumber(threshold.value),
-                lp_shift: parseNumber(lpShift.value),
-                enable: true,
-                glitch_reject: true,
-                raw_filtered: true,
-                spectrum_filtered: true,
-                monitor_filtered: true,
-              }),
-            )
-          }
-        >
-          Apply Filter
-        </button>
-        <button
-          className="command"
-          onClick={() =>
-            command("Capture Raw ADC", async () => {
-              const response = await client.rawCapture(parseNumber(rawLength.value), parseNumber(rawDecim.value));
-              setRaw(response.raw);
-            })
-          }
-        >
-          Capture Raw ADC
-        </button>
-        <button
-          className="command"
-          onClick={() => {
-            if (raw) downloadText("raw-adc-snapshot.csv", samplesCsv(raw.samples, 125000000 / Math.max(1, raw.decim ?? 1)));
-          }}
-        >
-          Export Raw CSV
-        </button>
-        <button className="command danger" onClick={() => command("Stop ADA", () => client.post("/api/ada/stop"))}>
-          Stop ADA
-        </button>
-      </div>
+      {compact && (
+        <div className="actions">
+          <button className="command primary" onClick={() => command("Update ADA Parameters", updateParameters)}>
+            Update Parameters
+          </button>
+          <button className="command" onClick={() => command("Capture Raw ADC", captureRaw)}>
+            Capture Raw ADC
+          </button>
+          <button className="command" disabled={!raw} onClick={() => command("Save Raw ADC", saveRaw)}>
+            Save Raw
+          </button>
+          <span className={`recording-status ${raw ? "active" : ""}`}>{rawMessage}</span>
+        </div>
+      )}
     </section>
   );
 }

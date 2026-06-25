@@ -33,7 +33,7 @@ from butterfly_laser_control import (
 )
 
 
-SETTINGS_SCHEMA_VERSION = 4
+SETTINGS_SCHEMA_VERSION = 5
 
 
 DEFAULT_SETTINGS = {
@@ -43,8 +43,8 @@ DEFAULT_SETTINGS = {
         "manual_dac": "0x800",
         "open_loop_enable": "false",
         "pid": {
-            "kp": "0.5",
-            "ki": "0.001",
+            "kp": "1",
+            "ki": "0.003",
             "kd": "0",
             "integral_limit": "300000",
             "max_step": "10",
@@ -84,17 +84,17 @@ DEFAULT_SETTINGS = {
         "lock": {
             "ch0": "5000",
             "target_adc": "42000",
-            "bias_ch1": "3000",
-            "range_halfspan": "500",
-            "ch1_min": "2500",
-            "ch1_max": "3500",
+            "bias_ch1": "25000",
+            "range_halfspan": "5000",
+            "ch1_min": "20000",
+            "ch1_max": "30000",
             "kp": "0.5",
             "ki": "0.01",
             "polarity_invert": False,
-            "integral_limit": "100000",
-            "max_step": "10",
-            "locked_threshold": "20",
-            "loss_threshold": "500",
+            "integral_limit": "500000",
+            "max_step": "3",
+            "locked_threshold": "1000",
+            "loss_threshold": "10000",
             "locked_count": "50",
             "loss_count": "10",
             "sat_count": "100",
@@ -106,7 +106,7 @@ DEFAULT_SETTINGS = {
             "ch0_min": "0",
             "ch0_max": "40000",
             "ch1_min": "0",
-            "ch1_max": "50000",
+            "ch1_max": "40000",
             "ch0_soft_step": "8",
             "ch1_soft_step": "8",
             "ramp_interval": "1000",
@@ -137,7 +137,9 @@ DEFAULT_SETTINGS = {
 
 LEGACY_DEFAULT_REPLACEMENTS = (
     (("tec", "pid", "kp"), "0.05", "0.5"),
+    (("tec", "pid", "kp"), "0.5", "1"),
     (("tec", "pid", "ki"), "0.00025", "0.001"),
+    (("tec", "pid", "ki"), "0.001", "0.003"),
     (("tec", "pid", "integral_limit"), "80000", "300000"),
     (("tec", "pid", "integral_limit"), "500000", "300000"),
     (("tec", "pid", "dac_min"), "0x740", "1800"),
@@ -154,9 +156,18 @@ LEGACY_DEFAULT_REPLACEMENTS = (
     (("laser", "fine_scan", "settle"), "1000", "100"),
     (("laser", "protection", "ch0_max"), "20000", "40000"),
     (("laser", "protection", "ch1_max"), "10000", "50000"),
+    (("laser", "protection", "ch1_max"), "50000", "40000"),
+    (("laser", "lock", "bias_ch1"), "3000", "25000"),
+    (("laser", "lock", "range_halfspan"), "500", "5000"),
+    (("laser", "lock", "ch1_min"), "2500", "20000"),
+    (("laser", "lock", "ch1_max"), "3500", "30000"),
     (("laser", "lock", "kp"), "0.05", "0.5"),
     (("laser", "lock", "ki"), "0", "0.01"),
     (("laser", "lock", "max_step"), "2", "10"),
+    (("laser", "lock", "max_step"), "10", "3"),
+    (("laser", "lock", "integral_limit"), "100000", "500000"),
+    (("laser", "lock", "locked_threshold"), "20", "1000"),
+    (("laser", "lock", "loss_threshold"), "500", "10000"),
     (("ada4355", "monitor_rate_hz"), "1000", "100000"),
     (("ada4355", "lp_shift"), "11", "13"),
 )
@@ -203,10 +214,15 @@ def migrate_settings(settings):
 
 def load_settings(path):
     if not os.path.exists(path):
-        return deep_merge(DEFAULT_SETTINGS, {})
+        settings = deep_merge(DEFAULT_SETTINGS, {})
+        save_settings(path, settings)
+        return settings
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return deep_merge(DEFAULT_SETTINGS, migrate_settings(data))
+    settings = deep_merge(DEFAULT_SETTINGS, migrate_settings(data))
+    if data != settings:
+        save_settings(path, settings)
+    return settings
 
 
 def save_settings(path, settings):
@@ -397,15 +413,15 @@ def apply_saved_settings(system, settings):
         system.laser.configure_lock(
             target_adc=body_int(lock, "target_adc", 42000),
             bias_ch1=body_int(lock, "bias_ch1", 3000),
-            ch1_min=body_int(lock, "ch1_min", 1000),
-            ch1_max=body_int(lock, "ch1_max", 5000),
+            ch1_min=body_int(lock, "ch1_min", 20000),
+            ch1_max=body_int(lock, "ch1_max", 30000),
             kp=float(lock.get("kp", 0.5)),
             ki=float(lock.get("ki", 0.01)),
             polarity_invert=bool_body(lock, "polarity_invert", False),
-            integral_limit=body_int(lock, "integral_limit", 100000),
-            max_step=body_int(lock, "max_step", 10),
-            locked_threshold=body_int(lock, "locked_threshold", 20),
-            loss_threshold=body_int(lock, "loss_threshold", 500),
+            integral_limit=body_int(lock, "integral_limit", 500000),
+            max_step=body_int(lock, "max_step", 3),
+            locked_threshold=body_int(lock, "locked_threshold", 1000),
+            loss_threshold=body_int(lock, "loss_threshold", 10000),
             locked_count=body_int(lock, "locked_count", 50),
             loss_count=body_int(lock, "loss_count", 10),
             sat_count=body_int(lock, "sat_count", 100),
@@ -427,6 +443,15 @@ def apply_saved_settings(system, settings):
             threshold=body_int(ada, "glitch_threshold") if "glitch_threshold" in ada else None,
             lp_shift=body_int(ada, "lp_shift") if "lp_shift" in ada else None,
         )
+
+
+def initialize_pl_parameters(system, settings):
+    """Write persisted/default parameters to PL without enabling TEC or laser output."""
+    apply_saved_settings(system, settings)
+
+
+def is_tec_enabled_for_laser(tec_status):
+    return "tec_enabled" in set(tec_status.get("status_flags", []))
 
 
 def parse_body(handler):
@@ -458,7 +483,7 @@ def laser_safety_from_body(body):
         "ch0_min": body_int(body, "ch0_min", 0),
         "ch0_max": body_int(body, "ch0_max", 40000),
         "ch1_min": body_int(body, "ch1_min", 0),
-        "ch1_max": body_int(body, "ch1_max", 50000),
+        "ch1_max": body_int(body, "ch1_max", 40000),
         "ch0_soft_step": body_int(body, "ch0_soft_step", 8),
         "ch1_soft_step": body_int(body, "ch1_soft_step", 8),
         "ramp_interval": body_int(body, "ramp_interval", 1000),
@@ -475,16 +500,16 @@ def laser_safety_from_body(body):
 def laser_lock_from_body(body):
     return {
         "target_adc": body_int(body, "target_adc", 42000),
-        "bias_ch1": body_int(body, "bias_ch1", 3000),
-        "ch1_min": body_int(body, "lock_ch1_min", body_int(body, "ch1_min", 1000)),
-        "ch1_max": body_int(body, "lock_ch1_max", body_int(body, "ch1_max", 5000)),
+        "bias_ch1": body_int(body, "bias_ch1", 25000),
+        "ch1_min": body_int(body, "lock_ch1_min", body_int(body, "ch1_min", 20000)),
+        "ch1_max": body_int(body, "lock_ch1_max", body_int(body, "ch1_max", 30000)),
         "kp": float(body.get("lock_kp", body.get("kp", 0.5))),
         "ki": float(body.get("lock_ki", body.get("ki", 0.01))),
         "polarity_invert": bool_body(body, "polarity_invert", False),
-        "integral_limit": body_int(body, "lock_integral_limit", body_int(body, "integral_limit", 100000)),
-        "max_step": body_int(body, "lock_max_step", body_int(body, "max_step", 10)),
-        "locked_threshold": body_int(body, "locked_threshold", 20),
-        "loss_threshold": body_int(body, "loss_threshold", 500),
+        "integral_limit": body_int(body, "lock_integral_limit", body_int(body, "integral_limit", 500000)),
+        "max_step": body_int(body, "lock_max_step", body_int(body, "max_step", 3)),
+        "locked_threshold": body_int(body, "locked_threshold", 1000),
+        "loss_threshold": body_int(body, "loss_threshold", 10000),
         "locked_count": body_int(body, "locked_count", 50),
         "loss_count": body_int(body, "loss_count", 10),
         "sat_count": body_int(body, "sat_count", 100),
@@ -496,14 +521,14 @@ def laser_lock_from_body(body):
 
 def laser_acquire_from_body(body):
     marker = body_int(body, "marker_ch1_code", body_int(body, "bias_ch1", 25000))
-    halfspan = body_int(body, "search_halfspan_code", body_int(body, "lock_halfspan", 500))
+    halfspan = body_int(body, "search_halfspan_code", body_int(body, "lock_halfspan", 1000))
     search_min = body_int(body, "search_min_code", body_int(body, "search_min", max(0, marker - halfspan)))
     search_max = body_int(body, "search_max_code", body_int(body, "search_max", min(65535, marker + halfspan)))
     return {
         "marker_ch1_code": marker,
         "search_min": search_min,
         "search_max": search_max,
-        "threshold": body_int(body, "acquire_threshold", body_int(body, "locked_threshold", 20)),
+        "threshold": body_int(body, "acquire_threshold", body_int(body, "locked_threshold", 1000)),
     }
 
 
@@ -523,6 +548,18 @@ class ButterflyHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
         self.end_headers()
+
+    def require_tec_enabled_for_laser(self):
+        tec_status = self.server.system.tec.status()
+        if is_tec_enabled_for_laser(tec_status):
+            return True
+        self.reply_json({
+            "ok": False,
+            "error": "TEC must be enabled before laser output can be enabled",
+            "tec": tec_status,
+            "status": server_status(self.server),
+        }, status=409)
+        return False
 
     def do_GET(self):
         try:
@@ -697,18 +734,23 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                     self.reply_json({"ok": True, "tec": tec.status()})
                 elif parsed.path == "/api/tec/stop":
                     self.server.tec_ramp.stop()
+                    self.server.system.laser.stop()
                     self.server.system.tec.stop()
                     self.reply_json({"ok": True, "tec": server_status(self.server)["tec"]})
                 elif parsed.path == "/api/tec/clear-fault":
                     self.server.system.tec.clear_fault()
                     self.reply_json({"ok": True, "tec": self.server.system.tec.status()})
                 elif parsed.path == "/api/laser/static":
+                    if not self.require_tec_enabled_for_laser():
+                        return
                     ch0 = require_u16("ch0", body["ch0"])
                     ch1 = require_u16("ch1", body.get("ch1", 0))
                     self.server.system.laser.start_static(ch0, ch1, **laser_safety_from_body(body))
                     time.sleep(0.05)
                     self.reply_json({"ok": True, "laser": self.server.system.laser.status()})
                 elif parsed.path == "/api/laser/on":
+                    if not self.require_tec_enabled_for_laser():
+                        return
                     ch0 = require_u16("ch0", body.get("ch0", self.server.system.laser.read("CH0_STATIC_CODE") & 0xFFFF))
                     ch1 = require_u16("ch1", body.get("ch1", self.server.system.laser.read("CH1_STATIC_CODE") & 0xFFFF))
                     self.server.system.laser.start_static(ch0, ch1, **laser_safety_from_body(body))
@@ -726,10 +768,14 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                     if ("laser_enable" in laser_status["status_flags"] or
                             "scan_active" in laser_status["status_flags"] or
                             "busy" in laser_status["status_flags"]):
+                        if not self.require_tec_enabled_for_laser():
+                            return
                         self.server.system.laser.start_static(ch0, ch1, configure=False)
                         time.sleep(0.05)
                     self.reply_json({"ok": True, "laser": self.server.system.laser.status()})
                 elif parsed.path == "/api/laser/fine-scan":
+                    if not self.require_tec_enabled_for_laser():
+                        return
                     self.server.system.laser.start_fine_scan(
                         require_u16("ch0", body["ch0"]),
                         require_u16("start", body["start"]),
@@ -748,6 +794,8 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                     time.sleep(0.05)
                     self.reply_json({"ok": True, "laser": self.server.system.laser.status()})
                 elif parsed.path == "/api/laser/lock-start":
+                    if not self.require_tec_enabled_for_laser():
+                        return
                     self.server.system.laser.configure_safety(**laser_safety_from_body(body))
                     self.server.system.laser.start_lock(
                         require_u16("ch0", body.get("ch0", self.server.system.laser.read("CH0_STATIC_CODE") & 0xFFFF)),
@@ -783,8 +831,6 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                         acquire = laser_acquire_from_body(body)
                         lock_params = laser_lock_from_body(body)
                         lock_params["bias_ch1"] = acquire["marker_ch1_code"]
-                        lock_params["ch1_min"] = acquire["search_min"]
-                        lock_params["ch1_max"] = acquire["search_max"]
                         self.server.system.laser.configure_safety(**laser_safety_from_body(body))
                         self.server.system.laser.write(
                             "CH0_STATIC_CODE",
@@ -805,6 +851,8 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                             "laser": self.server.system.laser.status(),
                         }, status=501)
                     else:
+                        if not self.require_tec_enabled_for_laser():
+                            return
                         self.server.system.laser.arm_acquire()
                         self.reply_json({"ok": True, "laser": self.server.system.laser.status()})
                 elif parsed.path == "/api/laser/acquire-cancel":
@@ -886,7 +934,7 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                         "settings": self.server.settings,
                     })
                 elif parsed.path == "/api/settings/apply":
-                    apply_saved_settings(self.server.system, self.server.settings)
+                    initialize_pl_parameters(self.server.system, self.server.settings)
                     ramp = self.server.settings.get("tec", {}).get("ramp", {})
                     self.server.tec_ramp.configure(
                         enabled=bool_body(ramp, "enabled", True),
@@ -990,6 +1038,7 @@ def main():
     httpd.settings = settings
     httpd.settings_path = args.settings
     httpd.tec_ramp = tec_ramp_from_settings(system.tec, httpd.lock, settings)
+    initialize_pl_parameters(system, settings)
 
     httpd.daemon_threads = True
     httpd.block_on_close = False

@@ -33,4 +33,16 @@ describe("BackendEventStream", () => {
     expect(status).toHaveBeenCalledOnce();
     stream.close();
   });
+
+  it("adds SSE rate options to the event stream URL", () => {
+    vi.stubGlobal("EventSource", MockEventSource);
+    const stream = new BackendEventStream("http://board:8080/", {
+      statusHz: 50,
+      spectrumHz: 5,
+      spectrumPoints: 16384,
+    });
+    stream.connect();
+    expect(MockEventSource.last?.url).toBe("http://board:8080/api/events?status_hz=50&spectrum_hz=5&spectrum_points=16384");
+    stream.close();
+  });
 });

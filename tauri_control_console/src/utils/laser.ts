@@ -1,4 +1,4 @@
-import type { LaserStatus } from "../api/types";
+import type { LaserLockStatus, LaserStatus } from "../api/types";
 
 export const LASER_SCAN_CLOCK_HZ = 10_000_000;
 
@@ -27,6 +27,18 @@ export function laserModeEditability(mode: LaserEditableMode, hardwareMode?: Las
     scanEditable: mode === "scan",
     timingEditable: mode === "scan",
   };
+}
+
+function u16Code(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.max(0, Math.min(0xffff, Math.round(value)));
+}
+
+export function lockStopStaticCh1Code(
+  lock: Pick<LaserLockStatus, "output_ch1_internal" | "bias_ch1_internal"> | undefined,
+  fallbackCh1: number,
+): number {
+  return u16Code(lock?.output_ch1_internal) ?? u16Code(lock?.bias_ch1_internal) ?? u16Code(fallbackCh1) ?? 0;
 }
 
 export function classifyLaserStatus(laser?: Pick<LaserStatus, "status_flags" | "fault_flags">): LaserStatusSummary {

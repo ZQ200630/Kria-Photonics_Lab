@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { classifyLaserStatus, laserModeEditability, scanFrequencyHz, scanTicksForFrequency, scanPointCount } from "../utils/laser";
+import {
+  classifyLaserStatus,
+  laserModeEditability,
+  lockStopStaticCh1Code,
+  scanFrequencyHz,
+  scanTicksForFrequency,
+  scanPointCount,
+} from "../utils/laser";
 
 describe("Laser helpers", () => {
   it("classifies laser output states for overview indicators", () => {
@@ -47,5 +54,11 @@ describe("Laser helpers", () => {
     expect(laserModeEditability("lock")).toEqual({ staticEditable: false, scanEditable: false, timingEditable: false });
     expect(laserModeEditability("static", "lock")).toEqual({ staticEditable: false, scanEditable: false, timingEditable: false });
     expect(laserModeEditability("scan", "lock")).toEqual({ staticEditable: false, scanEditable: false, timingEditable: false });
+  });
+
+  it("uses the latest lock CH1 output when stopping locking into static mode", () => {
+    expect(lockStopStaticCh1Code({ output_ch1_internal: 26123, bias_ch1_internal: 25000 }, 20000)).toBe(26123);
+    expect(lockStopStaticCh1Code({ bias_ch1_internal: 25000 }, 20000)).toBe(25000);
+    expect(lockStopStaticCh1Code(undefined, 20000)).toBe(20000);
   });
 });

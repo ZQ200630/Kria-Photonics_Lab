@@ -78,4 +78,19 @@ describe("ApiClient", () => {
       expect.objectContaining({ method: "POST", body: JSON.stringify({}) }),
     );
   });
+
+  it("posts laser lock hold command", async () => {
+    const client = new ApiClient("http://board");
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    } as Response);
+
+    await client.laserLockHold();
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "http://board/api/laser/lock-hold",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({}) }),
+    );
+  });
 });

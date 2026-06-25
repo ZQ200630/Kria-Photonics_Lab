@@ -43,9 +43,31 @@ describe("indexFromCanvasX", () => {
       { index: 2, leftIndex: 1, rightIndex: 2, value: 100 },
       { index: 6, leftIndex: 5, rightIndex: 6, value: 100 },
     ];
-    const markerX = plotXFromIndex(2, 240, 10);
-    expect(findHoveredCrossingIndex(crossings, markerX + 3, 103, 240, 10, 100, 12)).toBe(0);
-    expect(findHoveredCrossingIndex(crossings, markerX + 40, 103, 240, 10, 100, 12)).toBeUndefined();
+    const width = 420;
+    const markerX = plotXFromIndex(2, width, 10);
+    expect(findHoveredCrossingIndex(crossings, markerX + 3, 103, width, 10, 100, 12)).toBe(0);
+    expect(findHoveredCrossingIndex(crossings, markerX + 40, 103, width, 10, 100, 12)).toBeUndefined();
+  });
+
+  it("limits hover marker selection to the search window and chooses the nearest crossing", () => {
+    const crossings = [
+      { index: 2, leftIndex: 1, rightIndex: 2, value: 100 },
+      { index: 6, leftIndex: 5, rightIndex: 6, value: 100 },
+      { index: 8, leftIndex: 7, rightIndex: 8, value: 100 },
+    ];
+    const nearOutsideWindowX = plotXFromIndex(2, 240, 10);
+    expect(
+      findHoveredCrossingIndex(crossings, nearOutsideWindowX, 100, 240, 10, 100, 12, {
+        searchCenterIndex: 7,
+        searchHalfspan: 1.5,
+      }),
+    ).toBe(1);
+    expect(
+      findHoveredCrossingIndex(crossings, nearOutsideWindowX, 100, 240, 10, 100, 12, {
+        searchCenterIndex: 4,
+        searchHalfspan: 0.5,
+      }),
+    ).toBeUndefined();
   });
 
   it("limits threshold dragging to the right-side handle", () => {

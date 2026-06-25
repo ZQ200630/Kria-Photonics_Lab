@@ -1,4 +1,5 @@
 import type { Spectrum } from "../api/types";
+import { DEFAULT_TZ_OHM, adcCodeToInputCurrentMicroamp } from "./ada4355";
 
 export type SpectrumRecordRow = {
   recordIndex: number;
@@ -7,6 +8,7 @@ export type SpectrumRecordRow = {
   timeMs: number;
   relativeIntensity: number;
   rawAdc: number;
+  pdCurrentMicroamp: number;
 };
 
 export type RecordedSpectrumFrame = {
@@ -24,9 +26,16 @@ export type SpectrumRecordingState = {
 export type AppendSpectrumOptions = {
   nowMs: number;
   minIntervalMs: number;
+  tzOhm?: number;
+  currentOffsetMicroamp?: number;
 };
 
-export function createSpectrumRecordRows(spectrum: Spectrum, recordIndex: number): SpectrumRecordRow[] {
+export function createSpectrumRecordRows(
+  spectrum: Spectrum,
+  recordIndex: number,
+  tzOhm = DEFAULT_TZ_OHM,
+  currentOffsetMicroamp = 0,
+): SpectrumRecordRow[] {
   const dtMs = spectrum.count > 1 ? spectrum.duration_ms / (spectrum.count - 1) : 0;
   return spectrum.points.map((word, pointIndex) => {
     const rawAdc = word & 0xffff;
@@ -37,6 +46,7 @@ export function createSpectrumRecordRows(spectrum: Spectrum, recordIndex: number
       timeMs: pointIndex * dtMs,
       relativeIntensity: Math.max(0, 0xffff - rawAdc),
       rawAdc,
+      pdCurrentMicroamp: adcCodeToInputCurrentMicroamp(rawAdc, tzOhm, currentOffsetMicroamp),
     };
   });
 }
@@ -63,7 +73,7 @@ export function appendSpectrumFrame(
       {
         recordIndex,
         frameCounter: spectrum.frame_counter,
-        rows: createSpectrumRecordRows(spectrum, recordIndex),
+        rows: createSpectrumRecordRows(spectrum, recordIndex, options.tzOhm, options.currentOffsetMicroamp),
       },
     ],
     lastFrameCounter: spectrum.frame_counter,
@@ -72,7 +82,7 @@ export function appendSpectrumFrame(
 }
 
 export function recordedSpectrumCsv(frames: RecordedSpectrumFrame[]): string {
-  const lines = ["record_index,frame_counter,point_index,time_ms,relative_intensity,raw_adc"];
+  const lines = ["record_index,frame_counter,point_index,time_ms,relative_intensity,raw_adc,pd_current_uA"];
   frames.forEach((frame) => {
     frame.rows.forEach((row) => {
       lines.push(
@@ -83,6 +93,7 @@ export function recordedSpectrumCsv(frames: RecordedSpectrumFrame[]): string {
           row.timeMs.toFixed(6),
           row.relativeIntensity,
           row.rawAdc,
+          row.pdCurrentMicroamp.toFixed(6),
         ].join(","),
       );
     });

@@ -14,7 +14,7 @@ import signal
 import threading
 import time
 from http.server import ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from butterfly_laser_control import ButterflyLaserSystem, parse_int
 from butterfly_laser_server import (
@@ -28,6 +28,7 @@ from butterfly_laser_server import (
     DEFAULT_TEC_BASE,
     ButterflyHandler,
     build_parser as build_legacy_parser,
+    initialize_pl_parameters,
     load_settings,
     server_status,
     tec_ramp_from_settings,
@@ -62,6 +63,45 @@ def fault_signature(status):
     )
 
 
+def query_float(qs, name, default, minimum=None, maximum=None):
+    values = qs.get(name)
+    if not values:
+        value = default
+    else:
+        try:
+            value = float(values[0])
+        except (TypeError, ValueError):
+            value = default
+    if minimum is not None:
+        value = max(float(minimum), value)
+    if maximum is not None:
+        value = min(float(maximum), value)
+    return value
+
+
+def query_int(qs, name, default, minimum=None, maximum=None):
+    values = qs.get(name)
+    if not values:
+        value = default
+    else:
+        try:
+            value = int(values[0])
+        except (TypeError, ValueError):
+            value = default
+    if minimum is not None:
+        value = max(int(minimum), value)
+    if maximum is not None:
+        value = min(int(maximum), value)
+    return value
+
+
+def query_bool(qs, name, default):
+    values = qs.get(name)
+    if not values:
+        return default
+    return str(values[0]).lower() not in ("0", "false", "no", "off")
+
+
 class ButterflyTauriHandler(ButterflyHandler):
     server_version = "ButterflyLaserTauriServer/1.0"
 
@@ -73,6 +113,15 @@ class ButterflyTauriHandler(ButterflyHandler):
         super().do_GET()
 
     def handle_events(self):
+        qs = parse_qs(urlparse(self.path).query)
+        status_hz = query_float(qs, "status_hz", self.server.sse_status_hz, minimum=0.1, maximum=200.0)
+        status_interval = 1.0 / status_hz
+        heartbeat_interval = query_float(qs, "heartbeat_s", self.server.sse_heartbeat_interval, minimum=0.2)
+        spectrum_enabled = query_bool(qs, "spectrum", True)
+        spectrum_hz = query_float(qs, "spectrum_hz", self.server.sse_spectrum_hz, minimum=0.0, maximum=50.0)
+        spectrum_interval = 1.0 / spectrum_hz if spectrum_enabled and spectrum_hz > 0 else None
+        spectrum_points = query_int(qs, "spectrum_points", self.server.sse_spectrum_points, minimum=1, maximum=16384)
+
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
@@ -81,6 +130,7 @@ class ButterflyTauriHandler(ButterflyHandler):
         self.close_connection = True
 
         last_spectrum_key = None
+        last_spectrum_poll = 0.0
         last_fault_signature = None
         last_heartbeat = 0.0
 
@@ -103,26 +153,28 @@ class ButterflyTauriHandler(ButterflyHandler):
                         },
                     )
 
-                try:
-                    with self.server.lock:
-                        spectrum = self.server.system.ada.read_spectrum(
-                            count=self.server.sse_spectrum_points,
-                            release=True,
-                        )
-                except RuntimeError as exc:
-                    if "no readable ADA4355 spectrum buffer" not in str(exc):
-                        raise
-                else:
-                    current_spectrum_key = spectrum_key(spectrum)
-                    if current_spectrum_key != last_spectrum_key:
-                        last_spectrum_key = current_spectrum_key
-                        self.write_event("spectrum", {"timestamp": now, "spectrum": spectrum})
+                if spectrum_interval is not None and now - last_spectrum_poll >= spectrum_interval:
+                    last_spectrum_poll = now
+                    try:
+                        with self.server.lock:
+                            spectrum = self.server.system.ada.read_spectrum(
+                                count=spectrum_points,
+                                release=True,
+                            )
+                    except RuntimeError as exc:
+                        if "no readable ADA4355 spectrum buffer" not in str(exc):
+                            raise
+                    else:
+                        current_spectrum_key = spectrum_key(spectrum)
+                        if current_spectrum_key != last_spectrum_key:
+                            last_spectrum_key = current_spectrum_key
+                            self.write_event("spectrum", {"timestamp": now, "spectrum": spectrum})
 
-                if now - last_heartbeat >= self.server.sse_heartbeat_interval:
+                if now - last_heartbeat >= heartbeat_interval:
                     last_heartbeat = now
                     self.write_event("heartbeat", {"timestamp": now})
 
-                time.sleep(self.server.sse_status_interval)
+                time.sleep(status_interval)
             except (BrokenPipeError, ConnectionResetError):
                 break
             except Exception as exc:
@@ -130,7 +182,7 @@ class ButterflyTauriHandler(ButterflyHandler):
                     self.write_event("error", {"timestamp": time.time(), "error": str(exc)})
                 except Exception:
                     pass
-                time.sleep(self.server.sse_status_interval)
+                time.sleep(status_interval)
 
     def write_event(self, event, payload):
         data = format_sse(event, payload).encode("utf-8")
@@ -141,8 +193,9 @@ class ButterflyTauriHandler(ButterflyHandler):
 def build_parser():
     parser = build_legacy_parser()
     parser.description = "Tauri/SSE HTTP server for Butterfly Laser Driver"
-    parser.add_argument("--sse-status-hz", type=float, default=10.0, help="SSE status event rate")
+    parser.add_argument("--sse-status-hz", type=float, default=50.0, help="SSE status event rate")
     parser.add_argument("--sse-heartbeat-s", type=float, default=2.0, help="SSE heartbeat interval")
+    parser.add_argument("--sse-spectrum-hz", type=float, default=5.0, help="SSE spectrum event rate, set 0 to disable")
     parser.add_argument("--sse-spectrum-points", type=int, default=16384, help="Max points per SSE spectrum event")
     return parser
 
@@ -166,9 +219,12 @@ def main():
     httpd.settings = settings
     httpd.settings_path = args.settings
     httpd.tec_ramp = tec_ramp_from_settings(system.tec, httpd.lock, settings)
+    initialize_pl_parameters(system, settings)
     httpd.stop_event = threading.Event()
-    httpd.sse_status_interval = 1.0 / max(float(args.sse_status_hz), 0.1)
+    httpd.sse_status_hz = max(float(args.sse_status_hz), 0.1)
+    httpd.sse_status_interval = 1.0 / httpd.sse_status_hz
     httpd.sse_heartbeat_interval = max(float(args.sse_heartbeat_s), 0.2)
+    httpd.sse_spectrum_hz = max(float(args.sse_spectrum_hz), 0.0)
     httpd.sse_spectrum_points = max(1, min(int(args.sse_spectrum_points), 16384))
     httpd.daemon_threads = True
     httpd.block_on_close = False

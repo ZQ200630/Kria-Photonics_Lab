@@ -330,8 +330,8 @@
       <section>
         <h2>TEC PID Parameters</h2>
         <div class="form-grid">
-          <div><label>KP Float</label><input id="pidKp" value="0.5"></div>
-          <div><label>KI Float</label><input id="pidKi" value="0.001"></div>
+          <div><label>KP Float</label><input id="pidKp" value="1"></div>
+          <div><label>KI Float</label><input id="pidKi" value="0.003"></div>
           <div><label>KD Float</label><input id="pidKd" value="0"></div>
           <div><label>Integral Limit</label><input id="pidIlim" value="300000"></div>
           <div><label>Max Step</label><input id="pidStep" value="10"></div>
@@ -420,16 +420,16 @@
         <div class="form-grid" style="margin-top: 12px;">
           <div><label>CH0 Coarse Code</label><input id="lockCh0" value="5000"></div>
           <div><label>Target ADC Code</label><input id="lockTargetAdc" value="42000"></div>
-          <div><label>CH1 Bias Code</label><input id="lockBiasCh1" value="3000" oninput="setLockRangeFromBias()"></div>
-          <div><label>CH1 Range +/- Code</label><input id="lockRangeHalfspan" value="500" oninput="setLockRangeFromBias()"></div>
-          <div><label>CH1 Lock Min</label><input id="lockCh1Min" value="2500" readonly></div>
-          <div><label>CH1 Lock Max</label><input id="lockCh1Max" value="3500" readonly></div>
+          <div><label>CH1 Bias Code</label><input id="lockBiasCh1" value="25000" oninput="setLockRangeFromBias()"></div>
+          <div><label>CH1 Range +/- Code</label><input id="lockRangeHalfspan" value="5000" oninput="setLockRangeFromBias()"></div>
+          <div><label>CH1 Lock Min</label><input id="lockCh1Min" value="20000" readonly></div>
+          <div><label>CH1 Lock Max</label><input id="lockCh1Max" value="30000" readonly></div>
           <div><label>KP</label><input id="lockKp" value="0.5"></div>
           <div><label>KI</label><input id="lockKi" value="0.01"></div>
-          <div><label>Max Step</label><input id="lockMaxStep" value="10"></div>
+          <div><label>Max Step</label><input id="lockMaxStep" value="3"></div>
           <div><label><input id="lockPolarityInvert" type="checkbox">Invert Polarity</label></div>
-          <div><label>Locked Threshold</label><input id="lockLockedThreshold" value="20"></div>
-          <div><label>Loss Threshold</label><input id="lockLossThreshold" value="500"></div>
+          <div><label>Locked Threshold</label><input id="lockLockedThreshold" value="1000"></div>
+          <div><label>Loss Threshold</label><input id="lockLossThreshold" value="10000"></div>
           <div><label>Locked Count</label><input id="lockLockedCount" value="50"></div>
           <div><label>Loss Count</label><input id="lockLossCount" value="10"></div>
         </div>
@@ -448,7 +448,7 @@
           <div><label>CH0 Min</label><input id="laserCh0Min" value="0"></div>
           <div><label>CH0 Max</label><input id="laserCh0Max" value="40000"></div>
           <div><label>CH1 Min</label><input id="laserCh1Min" value="0"></div>
-          <div><label>CH1 Max</label><input id="laserCh1Max" value="50000"></div>
+          <div><label>CH1 Max</label><input id="laserCh1Max" value="40000"></div>
           <div><label>CH0 Soft Step</label><input id="laserCh0Step" value="8"></div>
           <div><label>CH1 Soft Step</label><input id="laserCh1Step" value="8"></div>
           <div><label>Ramp Interval</label><input id="laserRamp" value="1000"></div>
@@ -1093,8 +1093,8 @@
     function tecStop() { run(() => apiPost('/api/tec/stop')); }
     function tecClearFault() { run(() => apiPost('/api/tec/clear-fault')); }
     function loadTecPidDefaults() {
-      byId('pidKp').value = '0.5';
-      byId('pidKi').value = '0.001';
+      byId('pidKp').value = '1';
+      byId('pidKi').value = '0.003';
       byId('pidKd').value = '0';
       byId('pidIlim').value = '300000';
       byId('pidStep').value = '10';

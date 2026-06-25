@@ -63,6 +63,10 @@ export class ApiClient {
     return this.post("/api/laser/acquire-cancel");
   }
 
+  laserLockHold(): Promise<{ ok: true; laser?: unknown }> {
+    return this.post("/api/laser/lock-hold");
+  }
+
   stopAll(): Promise<{ ok: true; status: SystemStatus }> {
     return this.post("/api/stop-all");
   }

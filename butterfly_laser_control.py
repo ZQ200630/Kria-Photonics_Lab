@@ -794,10 +794,10 @@ class LaserCurrentController:
         kp=0.5,
         ki=0.01,
         polarity_invert=False,
-        integral_limit=100000,
-        max_step=10,
-        locked_threshold=20,
-        loss_threshold=500,
+        integral_limit=500000,
+        max_step=3,
+        locked_threshold=1000,
+        loss_threshold=10000,
         locked_count=50,
         loss_count=10,
         sat_count=100,
@@ -1396,7 +1396,7 @@ def add_laser_safety_args(parser):
     parser.add_argument("--ch0-min", type=parse_int, default=0)
     parser.add_argument("--ch0-max", type=parse_int, default=40000)
     parser.add_argument("--ch1-min", type=parse_int, default=0)
-    parser.add_argument("--ch1-max", type=parse_int, default=50000)
+    parser.add_argument("--ch1-max", type=parse_int, default=40000)
     parser.add_argument("--ch0-soft-step", type=parse_int, default=8)
     parser.add_argument("--ch1-soft-step", type=parse_int, default=8)
     parser.add_argument("--ramp-interval", type=parse_int, default=1000)
@@ -1529,10 +1529,10 @@ def build_parser():
     p.add_argument("--kp", type=float, default=0.5)
     p.add_argument("--ki", type=float, default=0.01)
     p.add_argument("--polarity-invert", action="store_true")
-    p.add_argument("--integral-limit", type=parse_int, default=100000)
-    p.add_argument("--max-step", type=parse_int, default=10)
-    p.add_argument("--locked-threshold", type=parse_int, default=20)
-    p.add_argument("--loss-threshold", type=parse_int, default=500)
+    p.add_argument("--integral-limit", type=parse_int, default=500000)
+    p.add_argument("--max-step", type=parse_int, default=3)
+    p.add_argument("--locked-threshold", type=parse_int, default=1000)
+    p.add_argument("--loss-threshold", type=parse_int, default=10000)
     p.add_argument("--locked-count", type=parse_int, default=50)
     p.add_argument("--loss-count", type=parse_int, default=10)
     p.add_argument("--sat-count", type=parse_int, default=100)

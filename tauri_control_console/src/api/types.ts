@@ -153,11 +153,16 @@ export type AdaStatus = {
   monitor_avg?: number;
   monitor_min?: number;
   monitor_max?: number;
+  monitor_counter?: number;
   relative_intensity_code?: number;
   total_frame_counter?: number;
   read_frame_counter?: number;
   read_buffer_id?: number;
   read_points_written?: number;
+  sample_delay?: number;
+  sample_window?: number;
+  max_points?: number;
+  frame_decim_n?: number;
   monitor_rate_hz?: number;
   monitor_decim_n?: number;
   filter?: Record<string, unknown>;

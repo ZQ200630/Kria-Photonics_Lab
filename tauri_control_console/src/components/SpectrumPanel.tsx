@@ -5,6 +5,12 @@ import PlotCanvas from "./PlotCanvas";
 import { parseNumber } from "../utils/format";
 import { saveTextFile } from "../utils/saveText";
 import {
+  DEFAULT_TZ_OHM,
+  adcCodeToInputCurrentMicroamp,
+  formatMicroamp,
+  inputCurrentMicroampToAdcCode,
+} from "../utils/ada4355";
+import {
   appendSpectrumFrame,
   createSpectrumRecordRows,
   recordedSpectrumCsv,
@@ -15,7 +21,17 @@ type Props = PanelProps & {
   dispatch: Dispatch<AppAction>;
 };
 
-export default function SpectrumPanel({ state, client, command, dispatch }: Props) {
+export default function SpectrumPanel({
+  state,
+  client,
+  command,
+  dispatch,
+  active = true,
+  tzOhm = DEFAULT_TZ_OHM,
+  tzOhmText = String(DEFAULT_TZ_OHM),
+  setTzOhmText,
+  pdCurrentOffsetMicroamp = 0,
+}: Props) {
   const spectrum = state.lastSpectrum;
   const [autoY, setAutoY] = useState(true);
   const [yMin, setYMin] = useState("");
@@ -26,7 +42,10 @@ export default function SpectrumPanel({ state, client, command, dispatch }: Prop
   const [recordState, setRecordState] = useState<SpectrumRecordingState>({ frames: [] });
   const completedDownloadRef = useRef(false);
 
-  const relative = useMemo(() => (spectrum?.points ?? []).map((value) => Math.max(0, 0xffff - (value & 0xffff))), [spectrum]);
+  const inputCurrent = useMemo(
+    () => (spectrum?.points ?? []).map((value) => adcCodeToInputCurrentMicroamp(value & 0xffff, tzOhm, pdCurrentOffsetMicroamp)),
+    [pdCurrentOffsetMicroamp, spectrum, tzOhm],
+  );
   const duration = spectrum?.duration_ms ?? 0;
   const count = spectrum?.count ?? 0;
   const mid = count > 1 ? Math.floor((count - 1) / 2) : 0;
@@ -44,9 +63,11 @@ export default function SpectrumPanel({ state, client, command, dispatch }: Prop
     if (!spectrum) return;
     const path = await saveTextFile(
       makeCsvFilename(`spectrum-${spectrum.frame_counter}`),
-      recordedSpectrumCsv([{ recordIndex: 0, frameCounter: spectrum.frame_counter, rows: createSpectrumRecordRows(spectrum, 0) }]),
+      recordedSpectrumCsv([
+        { recordIndex: 0, frameCounter: spectrum.frame_counter, rows: createSpectrumRecordRows(spectrum, 0, tzOhm, pdCurrentOffsetMicroamp) },
+      ]),
     );
-    dispatch({ type: "log", message: `Spectrum CSV saved: ${path}` });
+    dispatch({ type: "log", message: path ? `Spectrum CSV saved: ${path}` : "Spectrum CSV export cancelled" });
   };
 
   const startRecording = () => {
@@ -58,30 +79,32 @@ export default function SpectrumPanel({ state, client, command, dispatch }: Prop
   const stopRecording = async () => {
     if (recordState.frames.length > 0) {
       const path = await saveTextFile(makeCsvFilename("spectrum-record-partial"), recordedSpectrumCsv(recordState.frames));
-      dispatch({ type: "log", message: `Spectrum recording saved: ${path}` });
+      dispatch({ type: "log", message: path ? `Spectrum recording saved: ${path}` : "Spectrum recording export cancelled" });
     }
     setRecording(false);
   };
 
   useEffect(() => {
-    if (!recording || !spectrum) return;
+    if (!active || !recording || !spectrum) return;
     setRecordState((current) => {
       if (current.frames.length >= safeRecordTarget) return current;
       return appendSpectrumFrame(current, spectrum, {
         nowMs: performance.now(),
         minIntervalMs: safeRecordRefreshMs,
+        tzOhm,
+        currentOffsetMicroamp: pdCurrentOffsetMicroamp,
       });
     });
-  }, [recording, safeRecordRefreshMs, safeRecordTarget, spectrum]);
+  }, [active, pdCurrentOffsetMicroamp, recording, safeRecordRefreshMs, safeRecordTarget, spectrum, tzOhm]);
 
   useEffect(() => {
-    if (!recording || completedDownloadRef.current || recordState.frames.length < safeRecordTarget) return;
+    if (!active || !recording || completedDownloadRef.current || recordState.frames.length < safeRecordTarget) return;
     completedDownloadRef.current = true;
     saveTextFile(makeCsvFilename("spectrum-record"), recordedSpectrumCsv(recordState.frames))
-      .then((path) => dispatch({ type: "log", message: `Spectrum recording saved: ${path}` }))
+      .then((path) => dispatch({ type: "log", message: path ? `Spectrum recording saved: ${path}` : "Spectrum recording export cancelled" }))
       .catch((error) => dispatch({ type: "log", message: `Spectrum recording save failed: ${(error as Error).message}` }));
     setRecording(false);
-  }, [recordState.frames, recording, safeRecordTarget]);
+  }, [active, recordState.frames, recording, safeRecordTarget]);
 
   const manualYRange = autoY
     ? undefined
@@ -93,19 +116,33 @@ export default function SpectrumPanel({ state, client, command, dispatch }: Prop
   return (
     <section className="panel">
       <h2>Latest Spectrum</h2>
-      <PlotCanvas values={relative} color="#7c3aed" label="relative intensity" xLabel={xLabel} yRange={manualYRange} />
+      <PlotCanvas
+        values={inputCurrent}
+        color="#7c3aed"
+        label="input current"
+        xLabel={xLabel}
+        yRange={manualYRange}
+        yTickFormatter={(value) => `${formatMicroamp(value)} uA`}
+        rightAxisLabel="ADC code"
+        rightTickFormatter={(value) => String(inputCurrentMicroampToAdcCode(value, tzOhm, pdCurrentOffsetMicroamp))}
+        active={active}
+      />
       <div className="spectrum-controls">
         <div className="axis-controls below-plot">
+          <label>
+            Tz Ohm
+            <input value={tzOhmText} onChange={(event) => setTzOhmText?.(event.target.value)} />
+          </label>
           <label className="checkbox-field">
             <input type="checkbox" checked={autoY} onChange={(event) => setAutoY(event.target.checked)} />
             Auto Scale
           </label>
           <label>
-            Y Min
+            Y Min uA
             <input value={yMin} disabled={autoY} onChange={(event) => setYMin(event.target.value)} placeholder="auto" />
           </label>
           <label>
-            Y Max
+            Y Max uA
             <input value={yMax} disabled={autoY} onChange={(event) => setYMax(event.target.value)} placeholder="auto" />
           </label>
         </div>

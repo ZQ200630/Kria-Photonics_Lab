@@ -2,6 +2,7 @@ import type { PanelProps } from "./types";
 import { fmtInt, fmtNumber, inputInt, inputNumber, parseNumber } from "../utils/format";
 import { useSyncedInput } from "../utils/syncedInput";
 import { classifyLaserStatus, laserModeEditability, scanFrequencyHz, scanTicksForFrequency, type LaserStatusSummary } from "../utils/laser";
+import { isTecRunning } from "../utils/tec";
 
 type ModeSelection = "static" | "scan";
 
@@ -57,9 +58,11 @@ function modeFromStatus(status: LaserStatusSummary): ModeSelection {
 }
 
 export default function LaserPanel({ state, client, command, compact = false }: PanelProps) {
+  const tec = state.lastStatus?.tec;
   const laser = state.lastStatus?.laser;
   const status = classifyLaserStatus(laser);
   const laserOutputOn = status.mode === "static" || status.mode === "scan" || status.mode === "lock";
+  const laserBlockedByTec = !isTecRunning(tec?.status_flags);
 
   const mode = useSyncedInput(modeFromStatus(status), "static");
   const staticCh0 = useSyncedInput(inputInt(laser?.static_setpoint?.ch0_internal), "26000");
@@ -72,9 +75,13 @@ export default function LaserPanel({ state, client, command, compact = false }: 
   const settle = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.settle_ticks), "100");
   const frames = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.frames), "1");
   const ch0Max = useSyncedInput(inputInt(laser?.safety?.ch0_max), "40000");
-  const ch1Max = useSyncedInput(inputInt(laser?.safety?.ch1_max), "50000");
+  const ch1Max = useSyncedInput(inputInt(laser?.safety?.ch1_max), "40000");
   const editability = laserModeEditability(mode.value as ModeSelection, status.mode);
   const controlsLocked = status.mode === "lock";
+  const configurationLocked = controlsLocked || laserBlockedByTec;
+  const staticEditable = editability.staticEditable && !laserBlockedByTec;
+  const scanEditable = editability.scanEditable && !laserBlockedByTec;
+  const timingEditable = editability.timingEditable && !laserBlockedByTec;
 
   const scanRateReadback = scanFrequencyHz({
     start: laser?.fine_scan_setpoint?.ch1_start_internal ?? 0,
@@ -128,6 +135,9 @@ export default function LaserPanel({ state, client, command, compact = false }: 
   };
 
   const startStatic = async () => {
+    if (laserBlockedByTec) {
+      throw new Error("TEC must be On before laser output can be enabled.");
+    }
     await client.post("/api/laser/static", {
       ch0: numberFromInput(staticCh0.value),
       ch1: numberFromInput(staticCh1.value),
@@ -137,6 +147,9 @@ export default function LaserPanel({ state, client, command, compact = false }: 
   };
 
   const startScan = async () => {
+    if (laserBlockedByTec) {
+      throw new Error("TEC must be On before laser output can be enabled.");
+    }
     await client.post("/api/laser/fine-scan", {
       ch0: numberFromInput(scanCh0.value),
       start: numberFromInput(scanStart.value),
@@ -158,6 +171,7 @@ export default function LaserPanel({ state, client, command, compact = false }: 
 
   const toggleLaser = () => {
     if (laserOutputOn) return client.post("/api/laser/off");
+    if (laserBlockedByTec) throw new Error("TEC must be On before laser output can be enabled.");
     return applySelectedMode();
   };
 
@@ -199,15 +213,19 @@ export default function LaserPanel({ state, client, command, compact = false }: 
     <div className="laser-controls">
       <label>
         Mode
-        <select {...mode.bind}>
+        <select {...mode.bind} disabled={configurationLocked}>
           <option value="static">Static Output</option>
           <option value="scan">Scanning</option>
         </select>
       </label>
-      <button className={`command laser-power ${laserOutputOn ? "laser-on" : "laser-off"}`} onClick={() => command(laserOutputOn ? "Laser Off" : "Laser On", toggleLaser)}>
+      <button
+        className={`command laser-power ${laserOutputOn ? "laser-on" : "laser-off"}`}
+        disabled={laserBlockedByTec && !laserOutputOn}
+        onClick={() => command(laserOutputOn ? "Laser Off" : "Laser On", toggleLaser)}
+      >
         {laserOutputOn ? "Laser On" : "Laser Off"}
       </button>
-      <button className="command primary" onClick={() => command(selectedModeLabel, applySelectedMode)}>
+      <button className="command primary" disabled={configurationLocked} onClick={() => command(selectedModeLabel, applySelectedMode)}>
         {selectedModeLabel}
       </button>
     </div>
@@ -221,6 +239,7 @@ export default function LaserPanel({ state, client, command, compact = false }: 
           <StatusLamp status={status} compact />
         </div>
         <div className="laser-overview-metrics">{overviewMetrics()}</div>
+        {laserBlockedByTec && <div className="interlock-note">TEC must be On before laser output can be enabled.</div>}
         {controls}
       </section>
     );
@@ -302,42 +321,43 @@ export default function LaserPanel({ state, client, command, compact = false }: 
           <div className="parameter-section">
             <h3>Static Output</h3>
             <div className="parameter-row static-row">
-              <Field label="CH0 Code" input={staticCh0} disabled={!editability.staticEditable} />
-              <Field label="CH1 Code" input={staticCh1} disabled={!editability.staticEditable} />
+              <Field label="CH0 Code" input={staticCh0} disabled={!staticEditable} />
+              <Field label="CH1 Code" input={staticCh1} disabled={!staticEditable} />
             </div>
+            {laserBlockedByTec && <div className="interlock-note">TEC must be On before laser output can be enabled.</div>}
           </div>
 
-          <div className={`parameter-section ${!editability.scanEditable ? "disabled-section" : ""}`}>
+          <div className={`parameter-section ${!scanEditable ? "disabled-section" : ""}`}>
             <h3>Fine Scan</h3>
             <div className="parameter-row scan-row">
-              <Field label="CH0 Code" input={scanCh0} disabled={!editability.scanEditable} />
-              <Field label="CH1 Start" input={scanStart} disabled={!editability.scanEditable} />
-              <Field label="CH1 Stop" input={scanStop} disabled={!editability.scanEditable} />
-              <Field label="CH1 Step" input={scanStep} disabled={!editability.scanEditable} />
+              <Field label="CH0 Code" input={scanCh0} disabled={!scanEditable} />
+              <Field label="CH1 Start" input={scanStart} disabled={!scanEditable} />
+              <Field label="CH1 Stop" input={scanStop} disabled={!scanEditable} />
+              <Field label="CH1 Step" input={scanStep} disabled={!scanEditable} />
             </div>
           </div>
 
-          <div className={`parameter-section ${!editability.timingEditable ? "disabled-section" : ""}`}>
+          <div className={`parameter-section ${!timingEditable ? "disabled-section" : ""}`}>
             <h3>Scan Timing</h3>
             <div className="parameter-row timing-row">
-              <Field label="Scan Frequency Hz" input={scanRateInput} disabled={!editability.timingEditable} />
-              <Field label="Dwell Ticks" input={dwell} disabled={!editability.timingEditable} />
-              <Field label="Settle Ticks" input={settle} disabled={!editability.timingEditable} />
-              <Field label="Frames" input={frames} disabled={!editability.timingEditable} />
+              <Field label="Scan Frequency Hz" input={scanRateInput} disabled={!timingEditable} />
+              <Field label="Dwell Ticks" input={dwell} disabled={!timingEditable} />
+              <Field label="Settle Ticks" input={settle} disabled={!timingEditable} />
+              <Field label="Frames" input={frames} disabled={!timingEditable} />
             </div>
             <div className="timing-footer">
               <span>Current timing gives {fmtNumber(scanRateDraft, 3)} Hz forward scan rate.</span>
-              <button className="command" disabled={!editability.timingEditable} onClick={applyScanFrequency}>
+              <button className="command" disabled={!timingEditable} onClick={applyScanFrequency}>
                 Calculate Ticks
               </button>
             </div>
           </div>
 
-          <div className={`parameter-section ${controlsLocked ? "disabled-section" : ""}`}>
+          <div className={`parameter-section ${configurationLocked ? "disabled-section" : ""}`}>
             <h3>Safety</h3>
             <div className="parameter-row safety-row">
-              <Field label="CH0 Max" input={ch0Max} disabled={controlsLocked} />
-              <Field label="CH1 Max" input={ch1Max} disabled={controlsLocked} />
+              <Field label="CH0 Max" input={ch0Max} disabled={configurationLocked} />
+              <Field label="CH1 Max" input={ch1Max} disabled={configurationLocked} />
             </div>
           </div>
         </div>

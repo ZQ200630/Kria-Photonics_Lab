@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Spectrum } from "../api/types";
 import { appendSpectrumFrame, recordedSpectrumCsv } from "../utils/spectrumRecording";
+import { adcCodeToInputCurrentMicroamp } from "../utils/ada4355";
 
 function makeSpectrum(frame: number, points = [0xfffe, 0x8000]): Spectrum {
   return {
@@ -22,10 +23,10 @@ describe("spectrum recording helpers", () => {
     });
 
     expect(state.frames).toHaveLength(1);
-    expect(state.frames[0].rows).toEqual([
-      { recordIndex: 0, frameCounter: 7, pointIndex: 0, timeMs: 0, relativeIntensity: 1, rawAdc: 0xfffe },
-      { recordIndex: 0, frameCounter: 7, pointIndex: 1, timeMs: 1, relativeIntensity: 32767, rawAdc: 0x8000 },
-    ]);
+    expect(state.frames[0].rows[0]).toMatchObject({ recordIndex: 0, frameCounter: 7, pointIndex: 0, timeMs: 0, relativeIntensity: 1, rawAdc: 0xfffe });
+    expect(state.frames[0].rows[0].pdCurrentMicroamp).toBeCloseTo(adcCodeToInputCurrentMicroamp(0xfffe, 2000));
+    expect(state.frames[0].rows[1]).toMatchObject({ recordIndex: 0, frameCounter: 7, pointIndex: 1, timeMs: 1, relativeIntensity: 32767, rawAdc: 0x8000 });
+    expect(state.frames[0].rows[1].pdCurrentMicroamp).toBeCloseTo(adcCodeToInputCurrentMicroamp(0x8000, 2000));
   });
 
   it("skips duplicate frames and frames faster than the requested refresh interval", () => {
@@ -48,9 +49,19 @@ describe("spectrum recording helpers", () => {
     state = appendSpectrumFrame(state, makeSpectrum(2, [0xfffd]), { nowMs: 1, minIntervalMs: 0 });
 
     expect(recordedSpectrumCsv(state.frames)).toBe(
-      "record_index,frame_counter,point_index,time_ms,relative_intensity,raw_adc\n" +
-        "0,1,0,0.000000,0,65535\n" +
-        "1,2,0,0.000000,2,65533\n",
+      "record_index,frame_counter,point_index,time_ms,relative_intensity,raw_adc,pd_current_uA\n" +
+        `0,1,0,0.000000,0,65535,${adcCodeToInputCurrentMicroamp(0xffff, 2000).toFixed(6)}\n` +
+        `1,2,0,0.000000,2,65533,${adcCodeToInputCurrentMicroamp(0xfffd, 2000).toFixed(6)}\n`,
     );
+  });
+
+  it("records spectrum currents with the configured photodiode current offset", () => {
+    const state = appendSpectrumFrame({ frames: [], lastFrameCounter: undefined, lastAcceptedAtMs: undefined }, makeSpectrum(1, [0xffff]), {
+      nowMs: 0,
+      minIntervalMs: 0,
+      currentOffsetMicroamp: 519,
+    });
+
+    expect(state.frames[0].rows[0].pdCurrentMicroamp).toBeCloseTo(adcCodeToInputCurrentMicroamp(0xffff, 2000) - 519);
   });
 });
