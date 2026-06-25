@@ -43,7 +43,7 @@ export class ApiClient {
     return this.get(`/api/ada/spectrum?points=${encodeURIComponent(points)}&release=true`);
   }
 
-  rawCapture(length = 16384, decim = 1): Promise<{ ok: true; capture: Record<string, unknown>; raw: RawCapture }> {
+  rawCapture(length = 524288, decim = 1): Promise<{ ok: true; capture: Record<string, unknown>; raw: RawCapture }> {
     return this.post("/api/ada/raw-capture", { length, decim, timeout: 1.0 });
   }
 

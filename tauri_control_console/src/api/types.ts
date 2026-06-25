@@ -147,6 +147,36 @@ export type LaserStatus = {
   last_fb_adc?: number;
 };
 
+export type AdaFilterStatus = {
+  [key: string]: unknown;
+  control?: number;
+  control_hex?: string;
+  enabled?: boolean;
+  glitch_reject?: boolean;
+  raw_use_filtered?: boolean;
+  spectrum_use_filtered?: boolean;
+  monitor_use_filtered?: boolean;
+  glitch_threshold?: number;
+  lp_shift?: number;
+  raw_lp_shift?: number;
+  filtered_adc_last?: number;
+  raw_filtered_adc_last?: number;
+  glitch_reject_counter?: number;
+};
+
+export type AdaRawStatus = {
+  [key: string]: unknown;
+  control?: number;
+  status?: number;
+  status_hex?: string;
+  length?: number;
+  decim?: number;
+  write_count?: number;
+  capacity_samples?: number;
+  buffer_words?: number;
+  storage?: string;
+};
+
 export type AdaStatus = {
   status_hex?: string;
   status_flags?: string[];
@@ -165,8 +195,8 @@ export type AdaStatus = {
   frame_decim_n?: number;
   monitor_rate_hz?: number;
   monitor_decim_n?: number;
-  filter?: Record<string, unknown>;
-  raw?: Record<string, unknown>;
+  filter?: AdaFilterStatus;
+  raw?: AdaRawStatus;
 };
 
 export type SystemStatus = {
@@ -188,6 +218,8 @@ export type Spectrum = {
 export type RawCapture = {
   count: number;
   samples: number[];
+  storage?: string;
+  word_count?: number;
   raw_status?: number;
   raw_status_hex?: string;
   raw_write_count?: number;

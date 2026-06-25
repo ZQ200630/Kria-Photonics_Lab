@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { RawCapture } from "../api/types";
+import type { AdaFilterStatus, RawCapture } from "../api/types";
 import type { PanelProps } from "./types";
 import PlotCanvas from "./PlotCanvas";
 import { samplesCsv } from "../utils/csv";
@@ -19,11 +19,15 @@ function numberFromInput(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 function timestampSlug(date = new Date()): string {
   return date.toISOString().replace(/[:.]/g, "-");
 }
 
-function rawFilterReadback(filter: Record<string, unknown> | undefined): boolean | undefined {
+function rawFilterReadback(filter: AdaFilterStatus | undefined): boolean | undefined {
   return typeof filter?.raw_use_filtered === "boolean" ? filter.raw_use_filtered : undefined;
 }
 
@@ -42,7 +46,8 @@ export default function AdaPanel({
   const monitorHz = useSyncedInput(inputNumber(ada?.monitor_rate_hz, 0), "100000");
   const threshold = useSyncedInput(inputInt(ada?.filter?.glitch_threshold), "3000");
   const lpShift = useSyncedInput(inputInt(ada?.filter?.lp_shift), "13");
-  const rawLength = useSyncedInput(inputInt(ada?.raw?.length), "16384");
+  const rawLpShift = useSyncedInput(inputInt(ada?.filter?.raw_lp_shift), "13");
+  const rawLength = useSyncedInput(inputInt(ada?.raw?.length), "524288");
   const rawDecim = useSyncedInput(inputInt(ada?.raw?.decim), "1");
   const rawFilterStatus = rawFilterReadback(ada?.filter);
   const [rawFilterEnabled, setRawFilterEnabled] = useState(rawFilterStatus ?? false);
@@ -68,18 +73,20 @@ export default function AdaPanel({
     monitorHz.release();
     threshold.release();
     lpShift.release();
+    rawLpShift.release();
     rawLength.release();
     rawDecim.release();
   };
   const updateParameters = async () => {
     await client.post("/api/ada/monitor-rate", { hz: numberFromInput(monitorHz.value) });
     await client.post("/api/ada/capture-config", {
-      max_points: numberFromInput(rawLength.value),
-      frame_decim: Math.max(1, numberFromInput(rawDecim.value)),
+      max_points: clampNumber(ada?.max_points ?? 16384, 1, 16384),
+      frame_decim: Math.max(1, ada?.frame_decim_n ?? 1000),
     });
     await client.post("/api/ada/filter", {
       threshold: numberFromInput(threshold.value),
       lp_shift: numberFromInput(lpShift.value),
+      raw_lp_shift: numberFromInput(rawLpShift.value),
       enable: true,
       glitch_reject: true,
       raw_filtered: rawFilterEnabled,
@@ -89,7 +96,9 @@ export default function AdaPanel({
     releaseDrafts();
   };
   const captureRaw = async () => {
-    const response = await client.rawCapture(numberFromInput(rawLength.value), Math.max(1, numberFromInput(rawDecim.value)));
+    const length = clampNumber(numberFromInput(rawLength.value), 1, 524288);
+    const decim = Math.max(1, numberFromInput(rawDecim.value));
+    const response = await client.rawCapture(length, decim);
     setRaw(response.raw);
     setRawMessage(`Captured ${response.raw.count ?? response.raw.samples.length} raw ADC samples.`);
   };
@@ -120,6 +129,9 @@ export default function AdaPanel({
               monitor_rate_hz: numberFromInput(monitorHz.value),
               glitch_threshold: numberFromInput(threshold.value),
               lp_shift: numberFromInput(lpShift.value),
+              raw_lp_shift: numberFromInput(rawLpShift.value),
+              raw_storage: raw.storage,
+              raw_word_count: raw.word_count,
               tz_ohm: tzOhm,
               pd_current_offset_uA: pdCurrentOffsetMicroamp,
               ada4355_status: ada,
@@ -177,8 +189,12 @@ export default function AdaPanel({
               <input {...threshold.bind} />
             </label>
             <label>
-              LP Shift
+              Spectrum/Monitor LP Shift
               <input {...lpShift.bind} />
+            </label>
+            <label>
+              Raw LP Shift
+              <input {...rawLpShift.bind} />
             </label>
             <label>
               Raw Length

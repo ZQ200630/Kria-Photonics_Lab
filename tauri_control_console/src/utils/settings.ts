@@ -141,6 +141,7 @@ export function settingsFromStatus(existing: Record<string, unknown>, status: Sy
   if (filterControl !== undefined) ada.filter_control = filterControl;
   assignText(ada, "glitch_threshold", status.ada4355.filter?.glitch_threshold);
   assignText(ada, "lp_shift", status.ada4355.filter?.lp_shift);
+  assignText(ada, "raw_lp_shift", status.ada4355.filter?.raw_lp_shift);
 
   return settings;
 }
