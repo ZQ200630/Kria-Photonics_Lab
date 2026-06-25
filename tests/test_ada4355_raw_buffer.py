@@ -81,14 +81,24 @@ class Ada4355RawBufferTests(unittest.TestCase):
         self.assertIn((control.ADA_REG["LP_SHIFT"], 7), regs.writes)
         self.assertIn((control.ADA_REG["RAW_LP_SHIFT"], 12), regs.writes)
 
-    def test_system_constructor_maps_raw_buffer_and_closes_it(self):
-        created = []
+        raw_only, raw_only_regs, _raw = self.make_capture([])
+        raw_only_regs.values[control.ADA_REG["FILTER_CONTROL"]] = control.ADA_FILTER_DEFAULT
 
+        raw_only.configure_filter(raw_lp_shift=12)
+
+        self.assertIn((control.ADA_REG["RAW_LP_SHIFT"], 12), raw_only_regs.writes)
+        self.assertFalse(
+            any(
+                offset == control.ADA_REG["LP_SHIFT"]
+                for offset, _value in raw_only_regs.writes
+            )
+        )
+
+    def test_system_constructor_maps_raw_buffer_and_closes_it(self):
         class FakeAxiMap(FakeRegs):
             def __init__(self, base, span, dev="/dev/mem"):
                 super().__init__(base=control.parse_int(base))
                 self.span = control.parse_int(span)
-                created.append(self)
 
         original = control.AxiMap
         control.AxiMap = FakeAxiMap
