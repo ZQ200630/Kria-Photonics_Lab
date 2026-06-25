@@ -30,6 +30,33 @@ class FakeRegs:
 
 
 class Ada4355RawBufferTests(unittest.TestCase):
+    def test_axi_map_closes_fd_when_mmap_fails(self):
+        closed = []
+
+        def fake_open(_dev, _flags):
+            return 123
+
+        def fake_mmap(*_args, **_kwargs):
+            raise OSError("mmap failed")
+
+        def fake_close(fd):
+            closed.append(fd)
+
+        original_open = control.os.open
+        original_close = control.os.close
+        original_mmap = control.mmap.mmap
+        control.os.open = fake_open
+        control.os.close = fake_close
+        control.mmap.mmap = fake_mmap
+        try:
+            with self.assertRaisesRegex(OSError, "mmap failed"):
+                control.AxiMap(0xA0000000, 0x1000)
+            self.assertEqual(closed, [123])
+        finally:
+            control.os.open = original_open
+            control.os.close = original_close
+            control.mmap.mmap = original_mmap
+
     def make_capture(self, raw_words):
         regs = FakeRegs()
         regs.values[control.ADA_REG["RAW_STATUS"]] = 0x4

@@ -430,13 +430,17 @@ class AxiMap:
         self.page_offset = self.base - self.page_base
         self.map_size = self.page_offset + self.span
         self.fd = os.open(self.dev, os.O_RDWR | os.O_SYNC)
-        self.mem = mmap.mmap(
-            self.fd,
-            self.map_size,
-            mmap.MAP_SHARED,
-            mmap.PROT_READ | mmap.PROT_WRITE,
-            offset=self.page_base,
-        )
+        try:
+            self.mem = mmap.mmap(
+                self.fd,
+                self.map_size,
+                mmap.MAP_SHARED,
+                mmap.PROT_READ | mmap.PROT_WRITE,
+                offset=self.page_base,
+            )
+        except Exception:
+            os.close(self.fd)
+            raise
 
     def close(self):
         self.mem.close()
