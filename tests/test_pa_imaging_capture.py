@@ -87,15 +87,25 @@ class PaProtocolTests(unittest.TestCase):
         self.assertEqual(decoded, {"x_points": 3})
 
     def test_axis_status_unpack_matches_superblock_driver_layout(self):
-        raw = struct.pack("<15I", 1, 0, 0, 4096, 33554432, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0)
+        raw = struct.pack("<15I", 1, 1, 0, 4096, 33554432, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1)
 
         status = pa.AxisCaptureStatus.unpack(raw)
 
         self.assertTrue(status.running)
+        self.assertTrue(status.stop_requested)
+        self.assertFalse(status.removing)
         self.assertEqual(status.frame_bytes, 4096)
         self.assertEqual(status.superblock_bytes, 33554432)
+        self.assertEqual(status.active_dma_count, 2)
+        self.assertEqual(status.done_count, 3)
         self.assertEqual(status.ready_block_count, 4)
+        self.assertEqual(status.free_block_count, 5)
+        self.assertEqual(status.completed_frames, 6)
+        self.assertEqual(status.aggregated_frames, 7)
         self.assertEqual(status.completed_blocks, 8)
+        self.assertEqual(status.dropped_frames, 9)
+        self.assertEqual(status.dropped_blocks, 10)
+        self.assertTrue(status.draining_done)
 
     def test_axis_block_header_unpack_matches_superblock_driver_layout(self):
         raw = struct.pack("<QIIQQ", 5, 12, 3, 20, 22)
