@@ -27,7 +27,11 @@ class TauriServerDefaultsTests(unittest.TestCase):
         self.assertEqual(legacy_args.pa_tcp_port, 9090)
         self.assertEqual(tauri_args.pa_tcp_port, 9090)
         self.assertEqual(legacy_args.pa_axi_base, "0xa0110000")
+        self.assertEqual(tauri_args.pa_axi_base, "0xa0110000")
+        self.assertEqual(legacy_args.pa_axi_span, "0x1000")
+        self.assertEqual(tauri_args.pa_axi_span, "0x1000")
         self.assertEqual(legacy_args.pa_capture_dev, "/dev/axis_capture0")
+        self.assertEqual(tauri_args.pa_capture_dev, "/dev/axis_capture0")
 
 
 class FakePaSocket:
