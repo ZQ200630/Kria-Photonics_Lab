@@ -457,7 +457,6 @@ class PaService:
             self.writer = None
             self.client_socket = None
             self.writer_token = None
-            self.worker_token = None
             if writer is not None:
                 try:
                     writer.close_client()

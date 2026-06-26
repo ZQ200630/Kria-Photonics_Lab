@@ -168,6 +168,22 @@ class SlowJoinablePaWorker(JoinablePaWorker):
         return dict(self.stats)
 
 
+class CountingStopPaWorker(JoinablePaWorker):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+        self.stats["running"] = True
+        self.run_entered.set()
+        self.stop_requested.wait(1.0)
+        self.stats.update({
+            "running": False,
+            "blocks_sent": 3,
+            "frames_sent": 7,
+            "bytes_sent": 1024,
+            "end_reason": "stop_requested",
+        })
+        self.run_exited.set()
+        return dict(self.stats)
+
+
 class PaServiceTests(unittest.TestCase):
     def make_service(self, worker):
         writer = FakePaWriter()
@@ -339,6 +355,22 @@ class PaServiceTests(unittest.TestCase):
         self.assertIsNone(service.worker_thread)
         self.assertTrue(writer.closed)
         self.assertFalse(status["connected"])
+
+    def test_pa_service_joined_disconnect_preserves_final_worker_stats(self):
+        worker = CountingStopPaWorker()
+        service, writer, _created = self.make_service(worker)
+        service.attach_socket(FakePaSocket())
+        service.start(pa.PamCaptureParams())
+        self.assertTrue(worker.run_entered.wait(0.5))
+
+        status = service.disconnect(join_timeout=None)
+
+        self.assertFalse(status["running"])
+        self.assertEqual(status["blocks_sent"], 3)
+        self.assertEqual(status["frames_sent"], 7)
+        self.assertEqual(status["bytes_sent"], 1024)
+        self.assertEqual(status["end_reason"], "stop_requested")
+        self.assertTrue(writer.closed)
 
     def test_pa_service_disconnect_without_timeout_waits_for_worker_exit(self):
         worker = SlowJoinablePaWorker()
