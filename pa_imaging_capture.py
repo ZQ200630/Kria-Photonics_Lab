@@ -407,11 +407,12 @@ class AxisCaptureDevice:
 
 
 class PaCaptureWorker:
-    def __init__(self, pam, device, writer, drain_idle_timeout_s=2.0):
+    def __init__(self, pam, device, writer, drain_idle_timeout_s=2.0, drain_total_timeout_s=10.0):
         self.pam = pam
         self.device = device
         self.writer = writer
         self.drain_idle_timeout_s = drain_idle_timeout_s
+        self.drain_total_timeout_s = drain_total_timeout_s
         self._stop_event = threading.Event()
         self.sequence = 0
         self.stats = self._new_stats()
@@ -455,6 +456,7 @@ class PaCaptureWorker:
         self.stats["bytes_sent"] += len(payload)
 
     def _drain_until_eof(self):
+        drain_start_ns = now_ns()
         idle_start_ns = now_ns()
         while True:
             item = self.device.read_block(timeout=0.1)
@@ -462,6 +464,10 @@ class PaCaptureWorker:
                 status = self.device.get_status()
                 if status.draining_done and status.ready_block_count == 0:
                     return
+                if self.drain_total_timeout_s is not None:
+                    elapsed_ns = now_ns() - drain_start_ns
+                    if elapsed_ns >= int(float(self.drain_total_timeout_s) * 1_000_000_000):
+                        raise RuntimeError("axis capture drain total timeout")
                 if self.drain_idle_timeout_s is not None:
                     elapsed_ns = now_ns() - idle_start_ns
                     if elapsed_ns >= int(float(self.drain_idle_timeout_s) * 1_000_000_000):
@@ -471,6 +477,10 @@ class PaCaptureWorker:
                 return
             header, payload = item
             self._send_data_record(header, payload)
+            if self.drain_total_timeout_s is not None:
+                elapsed_ns = now_ns() - drain_start_ns
+                if elapsed_ns >= int(float(self.drain_total_timeout_s) * 1_000_000_000):
+                    raise RuntimeError("axis capture drain total timeout")
             idle_start_ns = now_ns()
 
     def run_once(self, params, max_blocks=-1, capture_time_sec=0):

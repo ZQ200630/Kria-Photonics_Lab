@@ -184,6 +184,24 @@ class RaisingDrainDevice(FakeCaptureDevice):
         raise RuntimeError("drain failed")
 
 
+class EndlessDrainDevice(FakeCaptureDevice):
+    def __init__(self, guard_reads=3):
+        block = (
+            pa.AxisBlockHeader(block_id=3, used_bytes=4, frame_count=1, first_frame_id=30, last_frame_id=30),
+            b"loop",
+        )
+        super().__init__([block])
+        self.block = block
+        self.guard_reads = guard_reads
+
+    def read_block(self, timeout=0.5):
+        self.actions.append("read")
+        self.guard_reads -= 1
+        if self.guard_reads < 0:
+            raise RuntimeError("test guard: total drain timeout did not fire")
+        return self.block
+
+
 class FakeSocket:
     def __init__(self):
         self.timeout = None
@@ -354,6 +372,27 @@ class PaWorkerTests(unittest.TestCase):
 
         self.assertEqual(device.actions.count("dma_stop"), 1)
         self.assertEqual(regs.writes.count((pa.PAM_REG_START, 0)), 2)
+
+    def test_worker_total_drain_timeout_sends_error_after_streaming_blocks(self):
+        regs = FakeRegs()
+        pam = pa.PamAxiController(regs)
+        device = EndlessDrainDevice()
+        writer = FakeWriter()
+        worker = pa.PaCaptureWorker(
+            pam,
+            device,
+            writer,
+            drain_idle_timeout_s=10.0,
+            drain_total_timeout_s=0,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "axis capture drain total timeout"):
+            worker.run_once(pa.PamCaptureParams(), max_blocks=0, capture_time_sec=0)
+
+        record_types = [record.record_type for record in writer.records]
+        self.assertIn(pa.RECORD_TYPE_DATA, record_types)
+        self.assertEqual(writer.records[-1].record_type, pa.RECORD_TYPE_ERROR)
+        self.assertIn("axis capture drain total timeout", writer.records[-1].payload.decode("utf-8"))
 
 
 class PaWriterTests(unittest.TestCase):
