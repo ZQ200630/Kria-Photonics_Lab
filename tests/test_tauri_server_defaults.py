@@ -184,6 +184,23 @@ class CountingStopPaWorker(JoinablePaWorker):
         return dict(self.stats)
 
 
+class WriterClosedAfterStopPaWorker(JoinablePaWorker):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+        self.stats["running"] = True
+        self.run_entered.set()
+        self.stop_requested.wait(1.0)
+        self.stats.update({
+            "running": False,
+            "blocks_sent": 2,
+            "frames_sent": 5,
+            "bytes_sent": 512,
+            "last_error": "PA writer client is closed",
+            "end_reason": "error",
+        })
+        self.run_exited.set()
+        raise RuntimeError("PA writer client is closed")
+
+
 class PaServiceTests(unittest.TestCase):
     def make_service(self, worker):
         writer = FakePaWriter()
@@ -372,6 +389,23 @@ class PaServiceTests(unittest.TestCase):
         self.assertEqual(status["end_reason"], "stop_requested")
         self.assertTrue(writer.closed)
 
+    def test_pa_service_user_disconnect_suppresses_expected_closed_writer_error(self):
+        worker = WriterClosedAfterStopPaWorker()
+        service, writer, _created = self.make_service(worker)
+        service.attach_socket(FakePaSocket())
+        service.start(pa.PamCaptureParams())
+        self.assertTrue(worker.run_entered.wait(0.5))
+
+        status = service.disconnect(join_timeout=None)
+
+        self.assertFalse(status["running"])
+        self.assertEqual(status["blocks_sent"], 2)
+        self.assertEqual(status["frames_sent"], 5)
+        self.assertEqual(status["bytes_sent"], 512)
+        self.assertEqual(status["end_reason"], "disconnect")
+        self.assertEqual(status["last_error"], "")
+        self.assertTrue(writer.closed)
+
     def test_pa_service_disconnect_without_timeout_waits_for_worker_exit(self):
         worker = SlowJoinablePaWorker()
         service, writer, _created = self.make_service(worker)
@@ -496,6 +530,31 @@ class FakePaServiceForHandler:
         return {"connected": True, "running": False, "last_error": ""}
 
 
+class FakePaServiceForStart:
+    def __init__(self, events):
+        self.events = events
+
+    def start(self, params, max_blocks=-1, capture_time_sec=0):
+        self.events.append("pa_start")
+        return {"connected": True, "running": True, "last_error": ""}
+
+    def status(self):
+        return {"connected": True, "running": False, "last_error": ""}
+
+
+class RecordingLock:
+    def __init__(self, events):
+        self.events = events
+
+    def __enter__(self):
+        self.events.append("lock_enter")
+        return self
+
+    def __exit__(self, _exc_type, _exc, _tb):
+        self.events.append("lock_exit")
+        return False
+
+
 class FakeSystemForHandler:
     def __init__(self):
         self.stop_all_called = False
@@ -527,6 +586,25 @@ class HandlerPaEndpointTests(unittest.TestCase):
 
         self.assertTrue(server.pa_service.stop_called)
         self.assertTrue(server.system.stop_all_called)
+        self.assertEqual(replies[0][0], 200)
+
+    def test_pa_start_is_serialized_by_server_lock(self):
+        events = []
+        server = mock.Mock()
+        server.lock = RecordingLock(events)
+        server.pa_service = FakePaServiceForStart(events)
+        handler = legacy.ButterflyHandler.__new__(legacy.ButterflyHandler)
+        handler.server = server
+        handler.path = "/api/pa/start"
+        handler.headers = {"Content-Length": "2"}
+        handler.rfile = io.BytesIO(b"{}")
+        replies = []
+        handler.reply_json = lambda obj, status=200: replies.append((status, obj))
+        handler.reply_error = lambda status, message: replies.append((status, {"ok": False, "error": message}))
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(events, ["lock_enter", "pa_start", "lock_exit"])
         self.assertEqual(replies[0][0], 200)
 
 

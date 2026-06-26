@@ -402,6 +402,7 @@ class PaService:
         self.worker_token = None
         self.client_socket = None
         self.writer_token = None
+        self.disconnect_worker_token = None
         self.last_stats = self._new_stats()
         self.last_error = ""
 
@@ -431,6 +432,7 @@ class PaService:
             worker_token = object()
             self.worker = worker
             self.worker_token = worker_token
+            self.disconnect_worker_token = None
             self.worker_thread = threading.Thread(
                 target=self._run_worker,
                 args=(worker, worker_writer, writer_token, worker_token, params, int(max_blocks), float(capture_time_sec)),
@@ -451,6 +453,7 @@ class PaService:
         with self.state_lock:
             if self.worker is not None:
                 self.worker.request_stop()
+                self.disconnect_worker_token = self.worker_token
             writer = self.writer
             sock = self.client_socket
             worker_thread = self.worker_thread
@@ -478,7 +481,16 @@ class PaService:
             worker.run_once(params, max_blocks=max_blocks, capture_time_sec=capture_time_sec)
         except Exception as exc:
             with self.state_lock:
-                if self.worker is worker and self.worker_token is worker_token:
+                expected_disconnect = (
+                    self.worker is worker
+                    and self.worker_token is worker_token
+                    and self.disconnect_worker_token is worker_token
+                    and self._is_expected_disconnect_error(exc)
+                )
+                if expected_disconnect:
+                    self.last_error = ""
+                    self._mark_worker_disconnected(worker)
+                elif self.worker is worker and self.worker_token is worker_token:
                     self.last_error = str(exc)
                 writer = self.writer if self.writer is worker_writer and self.writer_token is writer_token else None
                 if writer is not None:
@@ -500,6 +512,8 @@ class PaService:
                     self.worker = None
                     self.worker_thread = None
                     self.worker_token = None
+                    if self.disconnect_worker_token is worker_token:
+                        self.disconnect_worker_token = None
 
     def _capture_active_locked(self):
         return self.worker_thread is not None and self.worker_thread.is_alive()
@@ -537,6 +551,16 @@ class PaService:
         if self.last_error:
             stats["last_error"] = self.last_error
         return stats
+
+    def _is_expected_disconnect_error(self, exc):
+        return "PA writer client is closed" in str(exc)
+
+    def _mark_worker_disconnected(self, worker):
+        stats = getattr(worker, "stats", None)
+        if isinstance(stats, dict):
+            stats["running"] = False
+            stats["last_error"] = ""
+            stats["end_reason"] = "disconnect"
 
     def _close_socket(self, sock):
         try:
@@ -942,7 +966,8 @@ class ButterflyHandler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             body = parse_body(self)
             if parsed.path.startswith("/api/pa/"):
-                self.handle_pa_post(parsed.path, body)
+                with self.server.lock:
+                    self.handle_pa_post(parsed.path, body)
                 return
             with self.server.lock:
                 if parsed.path == "/api/tec/start":
