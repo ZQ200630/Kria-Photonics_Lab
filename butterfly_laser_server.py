@@ -466,6 +466,15 @@ class PaService:
         except Exception as exc:
             with self.state_lock:
                 self.last_error = str(exc)
+                writer = self.writer
+                self.writer = None
+                self.client_socket = None
+            if writer is not None:
+                try:
+                    writer.close_client()
+                except Exception as close_exc:
+                    with self.state_lock:
+                        self.last_error = f"{exc}; close failed: {close_exc}"
 
     def _capture_active_locked(self):
         return self.worker_thread is not None and self.worker_thread.is_alive()
@@ -496,11 +505,12 @@ class PaService:
 
 
 class PaTcpListener:
-    def __init__(self, host, port, service, stop_event):
+    def __init__(self, host, port, service, stop_event, join_timeout=1.0):
         self.host = host
         self.port = int(port)
         self.service = service
         self.stop_event = stop_event
+        self.join_timeout = float(join_timeout)
         self.listener = None
         self.thread = threading.Thread(target=self._run, name="pa-tcp-listener", daemon=True)
 
@@ -514,6 +524,8 @@ class PaTcpListener:
                 self.listener.close()
             except OSError:
                 pass
+        if self.thread is not threading.current_thread():
+            self.thread.join(timeout=self.join_timeout)
 
     def _run(self):
         try:
@@ -1129,6 +1141,9 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                     self.reply_json({"ok": True, "capture": meta, "raw": raw})
                 elif parsed.path == "/api/stop-all":
                     self.server.tec_ramp.stop()
+                    pa_service = getattr(self.server, "pa_service", None)
+                    if pa_service is not None:
+                        pa_service.stop()
                     self.server.system.stop_all()
                     self.reply_json({"ok": True, "status": server_status(self.server)})
                 elif parsed.path == "/api/settings":
@@ -1258,64 +1273,78 @@ def build_parser():
 
 def main():
     args = build_parser().parse_args()
-    system = ButterflyLaserSystem(
-        tec_base=args.tec_base,
-        laser_base=args.laser_base,
-        span=args.span,
-        ada_base=args.ada_base,
-        ada_buf0_base=args.ada_buf0_base,
-        ada_buf1_base=args.ada_buf1_base,
-        buffer_span=args.buffer_span,
-        ada_raw_base=args.ada_raw_base,
-        raw_buffer_span=args.raw_buffer_span,
-    )
-    pa_regs = AxiMap(args.pa_axi_base, args.pa_axi_span)
-    settings = load_settings(args.settings)
-    httpd = ThreadingHTTPServer((args.host, args.port), ButterflyHandler)
-    httpd.system = system
-    httpd.lock = threading.RLock()
-    httpd.verbose = args.verbose
-    httpd.settings = settings
-    httpd.settings_path = args.settings
-    httpd.tec_ramp = tec_ramp_from_settings(system.tec, httpd.lock, settings)
-    initialize_pl_parameters(system, settings)
-    httpd.stop_event = threading.Event()
-    httpd.pa_service = PaService(pa_regs, capture_dev_path=args.pa_capture_dev)
-    httpd.pa_tcp_listener = PaTcpListener(args.host, args.pa_tcp_port, httpd.pa_service, httpd.stop_event)
-    httpd.pa_tcp_listener.start()
-
-    httpd.daemon_threads = True
-    httpd.block_on_close = False
-
-    def request_stop(signum, _frame):
-        name = signal.Signals(signum).name
-        print(f"\n{name} received, shutting down server...", flush=True)
-        httpd.stop_event.set()
-        raise KeyboardInterrupt
-
-    signal.signal(signal.SIGTERM, request_stop)
-    signal.signal(signal.SIGINT, request_stop)
-
-    print(
-        f"Listening on http://{args.host}:{args.port} "
-        f"tec=0x{parse_int(args.tec_base):08X} laser=0x{parse_int(args.laser_base):08X} "
-        f"ada=0x{parse_int(args.ada_base):08X} "
-        f"pa_tcp={args.pa_tcp_port} "
-        f"settings={args.settings}",
-        flush=True,
-    )
+    system = None
+    pa_regs = None
+    httpd = None
     try:
+        system = ButterflyLaserSystem(
+            tec_base=args.tec_base,
+            laser_base=args.laser_base,
+            span=args.span,
+            ada_base=args.ada_base,
+            ada_buf0_base=args.ada_buf0_base,
+            ada_buf1_base=args.ada_buf1_base,
+            buffer_span=args.buffer_span,
+            ada_raw_base=args.ada_raw_base,
+            raw_buffer_span=args.raw_buffer_span,
+        )
+        pa_regs = AxiMap(args.pa_axi_base, args.pa_axi_span)
+        settings = load_settings(args.settings)
+        httpd = ThreadingHTTPServer((args.host, args.port), ButterflyHandler)
+        httpd.system = system
+        httpd.lock = threading.RLock()
+        httpd.verbose = args.verbose
+        httpd.settings = settings
+        httpd.settings_path = args.settings
+        httpd.tec_ramp = tec_ramp_from_settings(system.tec, httpd.lock, settings)
+        initialize_pl_parameters(system, settings)
+        httpd.stop_event = threading.Event()
+        httpd.pa_service = PaService(pa_regs, capture_dev_path=args.pa_capture_dev)
+        httpd.pa_tcp_listener = PaTcpListener(args.host, args.pa_tcp_port, httpd.pa_service, httpd.stop_event)
+        httpd.pa_tcp_listener.start()
+
+        httpd.daemon_threads = True
+        httpd.block_on_close = False
+
+        def request_stop(signum, _frame):
+            name = signal.Signals(signum).name
+            print(f"\n{name} received, shutting down server...", flush=True)
+            httpd.stop_event.set()
+            raise KeyboardInterrupt
+
+        signal.signal(signal.SIGTERM, request_stop)
+        signal.signal(signal.SIGINT, request_stop)
+
+        print(
+            f"Listening on http://{args.host}:{args.port} "
+            f"tec=0x{parse_int(args.tec_base):08X} laser=0x{parse_int(args.laser_base):08X} "
+            f"ada=0x{parse_int(args.ada_base):08X} "
+            f"pa_tcp={args.pa_tcp_port} "
+            f"settings={args.settings}",
+            flush=True,
+        )
         httpd.serve_forever(poll_interval=0.2)
     except KeyboardInterrupt:
         pass
     finally:
-        httpd.stop_event.set()
-        httpd.pa_tcp_listener.stop()
-        httpd.pa_service.disconnect()
-        pa_regs.close()
-        httpd.tec_ramp.stop()
-        httpd.server_close()
-        system.close()
+        if httpd is not None:
+            stop_event = getattr(httpd, "stop_event", None)
+            if stop_event is not None:
+                stop_event.set()
+            pa_tcp_listener = getattr(httpd, "pa_tcp_listener", None)
+            if pa_tcp_listener is not None:
+                pa_tcp_listener.stop()
+            pa_service = getattr(httpd, "pa_service", None)
+            if pa_service is not None:
+                pa_service.disconnect()
+            tec_ramp = getattr(httpd, "tec_ramp", None)
+            if tec_ramp is not None:
+                tec_ramp.stop()
+            httpd.server_close()
+        if pa_regs is not None:
+            pa_regs.close()
+        if system is not None:
+            system.close()
         print("Server stopped.", flush=True)
 
 

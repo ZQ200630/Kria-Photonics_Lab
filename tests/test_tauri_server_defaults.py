@@ -1,5 +1,8 @@
+import io
 import threading
 import unittest
+from contextlib import redirect_stdout
+from unittest import mock
 
 import butterfly_laser_server as legacy
 import butterfly_laser_server_tauri as tauri_server
@@ -77,6 +80,27 @@ class BlockingPaWorker:
         self.stop_requested.set()
 
 
+class RaisingPaWorker:
+    def __init__(self):
+        self.stats = {
+            "running": False,
+            "blocks_sent": 0,
+            "frames_sent": 0,
+            "bytes_sent": 0,
+            "last_error": "",
+            "end_reason": "",
+        }
+
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+        self.stats["running"] = True
+        self.stats["last_error"] = "send failed"
+        self.stats["end_reason"] = "error"
+        raise RuntimeError("send failed")
+
+    def request_stop(self):
+        pass
+
+
 class PaServiceTests(unittest.TestCase):
     def make_service(self, worker):
         writer = FakePaWriter()
@@ -137,6 +161,166 @@ class PaServiceTests(unittest.TestCase):
         self.assertFalse(disconnect_status["connected"])
         self.assertTrue(writer.closed)
         worker.release_run.set()
+
+    def test_pa_service_clears_failed_writer_so_client_can_reconnect(self):
+        writers = []
+
+        def writer_factory(sock):
+            writer = FakePaWriter()
+            writers.append(writer)
+            return writer
+
+        service = legacy.PaService(
+            pam_regs=object(),
+            writer_factory=writer_factory,
+            pam_factory=lambda regs: object(),
+            device_factory=lambda path: object(),
+            worker_factory=lambda pam, device, writer: RaisingPaWorker(),
+        )
+
+        service.attach_socket(FakePaSocket())
+        service.start(pa.PamCaptureParams())
+        service.worker_thread.join(0.5)
+
+        replacement_socket = FakePaSocket()
+        status = service.attach_socket(replacement_socket)
+
+        self.assertTrue(writers[0].closed)
+        self.assertFalse(replacement_socket.closed)
+        self.assertTrue(status["connected"])
+
+
+class FakeThread:
+    def __init__(self):
+        self.join_calls = []
+
+    def start(self):
+        pass
+
+    def join(self, timeout=None):
+        self.join_calls.append(timeout)
+
+
+class FakeListenerSocket:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+class PaTcpListenerTests(unittest.TestCase):
+    def test_stop_closes_listener_and_joins_thread(self):
+        stop_event = threading.Event()
+        service = mock.Mock()
+        listener = legacy.PaTcpListener("127.0.0.1", 9090, service, stop_event)
+        fake_thread = FakeThread()
+        fake_socket = FakeListenerSocket()
+        listener.thread = fake_thread
+        listener.listener = fake_socket
+
+        listener.stop()
+
+        self.assertTrue(stop_event.is_set())
+        self.assertTrue(fake_socket.closed)
+        self.assertEqual(fake_thread.join_calls, [1.0])
+
+
+class FakeRamp:
+    def __init__(self):
+        self.stop_called = False
+
+    def stop(self):
+        self.stop_called = True
+
+    def status(self):
+        return {"active": False}
+
+
+class FakePaServiceForHandler:
+    def __init__(self):
+        self.stop_called = False
+
+    def stop(self):
+        self.stop_called = True
+        return {"connected": True, "running": False, "last_error": ""}
+
+    def status(self):
+        return {"connected": True, "running": False, "last_error": ""}
+
+
+class FakeSystemForHandler:
+    def __init__(self):
+        self.stop_all_called = False
+
+    def stop_all(self):
+        self.stop_all_called = True
+
+    def status(self):
+        return {"laser": {}, "tec": {}, "ada4355": {}}
+
+
+class HandlerPaEndpointTests(unittest.TestCase):
+    def test_stop_all_stops_pa_service_when_present(self):
+        server = mock.Mock()
+        server.lock = threading.RLock()
+        server.tec_ramp = FakeRamp()
+        server.pa_service = FakePaServiceForHandler()
+        server.system = FakeSystemForHandler()
+        handler = legacy.ButterflyHandler.__new__(legacy.ButterflyHandler)
+        handler.server = server
+        handler.path = "/api/stop-all"
+        handler.headers = {"Content-Length": "0"}
+        handler.rfile = io.BytesIO(b"")
+        replies = []
+        handler.reply_json = lambda obj, status=200: replies.append((status, obj))
+        handler.reply_error = lambda status, message: replies.append((status, {"ok": False, "error": message}))
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertTrue(server.pa_service.stop_called)
+        self.assertTrue(server.system.stop_all_called)
+        self.assertEqual(replies[0][0], 200)
+
+
+class FakeCloseable:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+class MainCleanupTests(unittest.TestCase):
+    def test_legacy_main_closes_system_and_pa_regs_when_setup_fails(self):
+        system = FakeCloseable()
+        pa_regs = FakeCloseable()
+
+        with mock.patch.object(legacy, "ButterflyLaserSystem", return_value=system):
+            with mock.patch.object(legacy, "AxiMap", return_value=pa_regs):
+                with mock.patch.object(legacy, "load_settings", side_effect=RuntimeError("settings failed")):
+                    with mock.patch("sys.argv", ["butterfly_laser_server.py"]):
+                        with self.assertRaises(RuntimeError):
+                            with redirect_stdout(io.StringIO()):
+                                legacy.main()
+
+        self.assertTrue(system.closed)
+        self.assertTrue(pa_regs.closed)
+
+    def test_tauri_main_closes_system_and_pa_regs_when_setup_fails(self):
+        system = FakeCloseable()
+        pa_regs = FakeCloseable()
+
+        with mock.patch.object(tauri_server, "ButterflyLaserSystem", return_value=system):
+            with mock.patch.object(tauri_server, "AxiMap", return_value=pa_regs):
+                with mock.patch.object(tauri_server, "load_settings", side_effect=RuntimeError("settings failed")):
+                    with mock.patch("sys.argv", ["butterfly_laser_server_tauri.py"]):
+                        with self.assertRaises(RuntimeError):
+                            with redirect_stdout(io.StringIO()):
+                                tauri_server.main()
+
+        self.assertTrue(system.closed)
+        self.assertTrue(pa_regs.closed)
 
 
 if __name__ == "__main__":
