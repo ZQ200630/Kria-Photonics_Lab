@@ -119,5 +119,83 @@ class PaProtocolTests(unittest.TestCase):
         self.assertEqual(header.last_frame_id, 22)
 
 
+class FakeWriter:
+    def __init__(self):
+        self.records = []
+        self.closed = False
+
+    def send_record(self, record):
+        self.records.append(record)
+
+    def close_client(self):
+        self.closed = True
+
+
+class FakeCaptureDevice:
+    def __init__(self, blocks):
+        self.blocks = list(blocks)
+        self.actions = []
+        self.status = pa.AxisCaptureStatus(False, False, False, 4096, 33554432, 0, 0, 0, 8, 0, 0, 0, 0, 0, False)
+
+    def open(self):
+        self.actions.append("open")
+
+    def get_status(self):
+        self.actions.append("status")
+        return self.status
+
+    def start(self):
+        self.actions.append("dma_start")
+
+    def stop(self):
+        self.actions.append("dma_stop")
+
+    def read_block(self, timeout=0.5):
+        self.actions.append("read")
+        if self.blocks:
+            return self.blocks.pop(0)
+        return None
+
+    def close(self):
+        self.actions.append("close")
+
+
+class PaWorkerTests(unittest.TestCase):
+    def test_worker_sends_metadata_data_and_end_records(self):
+        regs = FakeRegs()
+        pam = pa.PamAxiController(regs)
+        block = (
+            pa.AxisBlockHeader(block_id=1, used_bytes=4, frame_count=2, first_frame_id=10, last_frame_id=11),
+            b"abcd",
+        )
+        device = FakeCaptureDevice([block])
+        writer = FakeWriter()
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        summary = worker.run_once(pa.PamCaptureParams(), max_blocks=1, capture_time_sec=0)
+
+        self.assertEqual([record.record_type for record in writer.records], [
+            pa.RECORD_TYPE_METADATA,
+            pa.RECORD_TYPE_DATA,
+            pa.RECORD_TYPE_END,
+        ])
+        self.assertEqual(writer.records[1].payload, b"abcd")
+        self.assertEqual(writer.records[1].block_id, 1)
+        self.assertEqual(summary["blocks_sent"], 1)
+
+    def test_worker_stop_order_matches_axis_capture_app(self):
+        regs = FakeRegs()
+        pam = pa.PamAxiController(regs)
+        device = FakeCaptureDevice([])
+        writer = FakeWriter()
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        worker.run_once(pa.PamCaptureParams(), max_blocks=0, capture_time_sec=0)
+
+        self.assertIn((pa.PAM_REG_START, 0), regs.writes)
+        self.assertLess(device.actions.index("dma_start"), device.actions.index("dma_stop"))
+        self.assertEqual(regs.writes[-1], (pa.PAM_REG_START, 0))
+
+
 if __name__ == "__main__":
     unittest.main()

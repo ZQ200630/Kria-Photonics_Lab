@@ -3,7 +3,9 @@ import fcntl
 import json
 import os
 import select
+import socket
 import struct
+import threading
 import time
 from dataclasses import asdict, dataclass
 
@@ -298,3 +300,263 @@ def json_record(record_type, sequence, timestamp_ns, payload):
 
 def metadata_record(sequence, timestamp_ns, payload):
     return json_record(RECORD_TYPE_METADATA, sequence, timestamp_ns, payload)
+
+
+class ConnectedPaWriter:
+    def __init__(self, sock):
+        self.sock = sock
+        self._lock = threading.Lock()
+        self._closed = False
+
+    def send_record(self, record):
+        encoded = record.encode()
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("PA writer client is closed")
+            self.sock.sendall(encoded)
+
+    def close_client(self):
+        with self._lock:
+            if self._closed:
+                return
+            try:
+                self.sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                self.sock.close()
+            except OSError:
+                pass
+            self._closed = True
+
+
+class AxisCaptureDevice:
+    def __init__(self, dev_path="/dev/axis_capture0"):
+        self.dev_path = dev_path
+        self.fd = None
+
+    def open(self):
+        if self.fd is None:
+            self.fd = os.open(self.dev_path, os.O_RDONLY)
+
+    def close(self):
+        if self.fd is None:
+            return
+        fd = self.fd
+        self.fd = None
+        os.close(fd)
+
+    def _require_fd(self):
+        if self.fd is None:
+            raise RuntimeError("axis capture device is not open")
+        return self.fd
+
+    def get_status(self):
+        fd = self._require_fd()
+        buf = array.array("B", b"\x00" * AXIS_STATUS_BYTES)
+        fcntl.ioctl(fd, AXIS_CAP_IOC_GET_STATUS, buf, True)
+        return AxisCaptureStatus.unpack(buf.tobytes())
+
+    def start(self):
+        fcntl.ioctl(self._require_fd(), AXIS_CAP_IOC_START)
+
+    def stop(self):
+        fcntl.ioctl(self._require_fd(), AXIS_CAP_IOC_STOP)
+
+    def read_block(self, timeout=0.5):
+        fd = self._require_fd()
+        read_events = select.POLLIN | getattr(select, "POLLRDNORM", 0) | select.POLLHUP
+        poller = select.poll()
+        poller.register(fd, read_events | select.POLLERR)
+
+        timeout_ms = None if timeout is None else max(0, int(timeout * 1000))
+        events = poller.poll(timeout_ms)
+        if not events:
+            return AXIS_READ_TIMEOUT
+
+        revents = 0
+        for event_fd, event_mask in events:
+            if event_fd == fd:
+                revents |= event_mask
+
+        if revents & select.POLLERR:
+            raise RuntimeError("axis capture poll error")
+        if not (revents & read_events):
+            return AXIS_READ_TIMEOUT
+
+        status = self.get_status()
+        expected_bytes = AXIS_BLOCK_HEADER_BYTES + status.superblock_bytes
+        raw = os.read(fd, expected_bytes)
+        if not raw:
+            return None
+        if len(raw) < AXIS_BLOCK_HEADER_BYTES:
+            raise RuntimeError("axis capture short block header")
+        if len(raw) != expected_bytes:
+            raise RuntimeError(f"axis capture block size mismatch: expected {expected_bytes}, got {len(raw)}")
+
+        header = AxisBlockHeader.unpack(raw[:AXIS_BLOCK_HEADER_BYTES])
+        if header.used_bytes > status.superblock_bytes:
+            raise RuntimeError(
+                f"axis capture block payload size mismatch: used {header.used_bytes}, superblock {status.superblock_bytes}"
+            )
+        payload = raw[AXIS_BLOCK_HEADER_BYTES:AXIS_BLOCK_HEADER_BYTES + header.used_bytes]
+        if len(payload) != header.used_bytes:
+            raise RuntimeError(f"axis capture block payload size mismatch: expected {header.used_bytes}, got {len(payload)}")
+        return header, payload
+
+
+class PaCaptureWorker:
+    def __init__(self, pam, device, writer):
+        self.pam = pam
+        self.device = device
+        self.writer = writer
+        self._stop_event = threading.Event()
+        self.sequence = 0
+        self.stats = self._new_stats()
+
+    def _new_stats(self):
+        return {
+            "running": False,
+            "blocks_sent": 0,
+            "frames_sent": 0,
+            "bytes_sent": 0,
+            "last_error": "",
+            "end_reason": "",
+        }
+
+    def request_stop(self):
+        self._stop_event.set()
+
+    def _next_sequence(self):
+        sequence = self.sequence
+        self.sequence += 1
+        return sequence
+
+    def _send_json_record(self, record_type, payload):
+        self.writer.send_record(json_record(record_type, self._next_sequence(), now_ns(), payload))
+
+    def _send_data_record(self, header, payload):
+        self.writer.send_record(
+            PaStreamRecord(
+                record_type=RECORD_TYPE_DATA,
+                sequence=self._next_sequence(),
+                timestamp_ns=now_ns(),
+                block_id=header.block_id,
+                frame_count=header.frame_count,
+                first_frame_id=header.first_frame_id,
+                last_frame_id=header.last_frame_id,
+                payload=payload,
+            )
+        )
+        self.stats["blocks_sent"] += 1
+        self.stats["frames_sent"] += header.frame_count
+        self.stats["bytes_sent"] += len(payload)
+
+    def _drain_until_eof(self):
+        while True:
+            item = self.device.read_block(timeout=0.1)
+            if item is AXIS_READ_TIMEOUT:
+                continue
+            if item is None:
+                return
+
+    def _stop_capture(self, pam_started, dma_started):
+        if pam_started:
+            self.pam.write_start(0)
+        if dma_started:
+            self.device.stop()
+            self._drain_until_eof()
+
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+        self._stop_event.clear()
+        self.sequence = 0
+        self.stats = self._new_stats()
+        self.stats["running"] = True
+        pam_started = False
+        dma_started = False
+        device_opened = False
+        start_ns = now_ns()
+
+        try:
+            self.pam.program(params)
+            self.device.open()
+            device_opened = True
+            status = self.device.get_status()
+            self._send_json_record(
+                RECORD_TYPE_METADATA,
+                {
+                    "params": params.to_dict(),
+                    "status": status.to_dict(),
+                    "start_ns": start_ns,
+                },
+            )
+
+            self.device.start()
+            dma_started = True
+            self.pam.write_start(1)
+            pam_started = True
+
+            while not self._stop_event.is_set():
+                if max_blocks >= 0 and self.stats["blocks_sent"] >= max_blocks:
+                    self.stats["end_reason"] = "max_blocks"
+                    break
+                if capture_time_sec > 0 and (now_ns() - start_ns) >= int(capture_time_sec * 1_000_000_000):
+                    self.stats["end_reason"] = "capture_time"
+                    break
+
+                item = self.device.read_block(timeout=0.5)
+                if item is AXIS_READ_TIMEOUT:
+                    continue
+                if item is None:
+                    self.stats["end_reason"] = "eof"
+                    break
+
+                header, payload = item
+                self._send_data_record(header, payload)
+
+            if self._stop_event.is_set() and not self.stats["end_reason"]:
+                self.stats["end_reason"] = "stop_requested"
+            if not self.stats["end_reason"]:
+                self.stats["end_reason"] = "complete"
+
+            self._stop_capture(pam_started, dma_started)
+            pam_started = False
+            dma_started = False
+            self.stats["running"] = False
+            self._send_json_record(RECORD_TYPE_END, dict(self.stats))
+            return dict(self.stats)
+        except Exception as exc:
+            self.stats["last_error"] = str(exc)
+            self.stats["end_reason"] = "error"
+            try:
+                self._stop_capture(pam_started, dma_started)
+                pam_started = False
+                dma_started = False
+            except Exception as stop_exc:
+                if self.stats["last_error"]:
+                    self.stats["last_error"] += f"; stop failed: {stop_exc}"
+                else:
+                    self.stats["last_error"] = f"stop failed: {stop_exc}"
+            self.stats["running"] = False
+            try:
+                self._send_json_record(RECORD_TYPE_ERROR, dict(self.stats))
+            except Exception:
+                pass
+            raise
+        finally:
+            self.stats["running"] = False
+            if pam_started:
+                try:
+                    self.pam.write_start(0)
+                except Exception:
+                    pass
+            if dma_started:
+                try:
+                    self.device.stop()
+                except Exception:
+                    pass
+            if device_opened:
+                try:
+                    self.device.close()
+                except Exception:
+                    pass
