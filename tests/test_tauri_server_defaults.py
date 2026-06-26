@@ -451,6 +451,7 @@ class PaTcpListenerTests(unittest.TestCase):
         fake_thread = FakeThread()
         fake_socket = FakeListenerSocket()
         listener.thread = fake_thread
+        listener.thread_started = True
         listener.listener = fake_socket
 
         listener.stop()
@@ -469,6 +470,7 @@ class PaTcpListenerTests(unittest.TestCase):
                 listener.start()
 
         self.assertIn("address already in use", service.last_error)
+        listener.stop()
 
 
 class FakeRamp:
@@ -536,6 +538,25 @@ class FakeCloseable:
         self.closed = True
 
 
+class FakeHttpd(FakeCloseable):
+    def __init__(self, _addr, _handler):
+        super().__init__()
+        self.server_closed = False
+
+    def server_close(self):
+        self.server_closed = True
+
+    def serve_forever(self, poll_interval=0.2):
+        raise AssertionError("serve_forever should not run when PA listener start fails")
+
+
+class FakeSystemForMain(FakeCloseable):
+    tec = object()
+
+    def close(self):
+        self.closed = True
+
+
 class MainCleanupTests(unittest.TestCase):
     def test_legacy_main_closes_system_and_pa_regs_when_setup_fails(self):
         system = FakeCloseable()
@@ -551,6 +572,32 @@ class MainCleanupTests(unittest.TestCase):
 
         self.assertTrue(system.closed)
         self.assertTrue(pa_regs.closed)
+
+    def test_legacy_main_preserves_listener_start_error_and_cleans_partial_resources(self):
+        system = FakeSystemForMain()
+        pa_regs = FakeCloseable()
+        httpd_instances = []
+
+        def httpd_factory(addr, handler):
+            httpd = FakeHttpd(addr, handler)
+            httpd_instances.append(httpd)
+            return httpd
+
+        with mock.patch.object(legacy, "ButterflyLaserSystem", return_value=system):
+            with mock.patch.object(legacy, "AxiMap", return_value=pa_regs):
+                with mock.patch.object(legacy, "ThreadingHTTPServer", side_effect=httpd_factory):
+                    with mock.patch.object(legacy, "load_settings", return_value={}):
+                        with mock.patch.object(legacy, "tec_ramp_from_settings", return_value=FakeRamp()):
+                            with mock.patch.object(legacy, "initialize_pl_parameters"):
+                                with mock.patch.object(legacy.socket, "socket", return_value=FakeBindFailSocket()):
+                                    with mock.patch("sys.argv", ["butterfly_laser_server.py"]):
+                                        with self.assertRaisesRegex(OSError, "address already in use"):
+                                            with redirect_stdout(io.StringIO()):
+                                                legacy.main()
+
+        self.assertTrue(system.closed)
+        self.assertTrue(pa_regs.closed)
+        self.assertTrue(httpd_instances[0].server_closed)
 
     def test_tauri_main_closes_system_and_pa_regs_when_setup_fails(self):
         system = FakeCloseable()

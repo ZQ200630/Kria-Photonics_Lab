@@ -557,6 +557,7 @@ class PaTcpListener:
         self.stop_event = stop_event
         self.join_timeout = float(join_timeout)
         self.listener = None
+        self.thread_started = False
         self.thread = threading.Thread(target=self._run, name="pa-tcp-listener", daemon=True)
 
     def start(self):
@@ -576,6 +577,7 @@ class PaTcpListener:
             raise
         self.listener = listener
         self.thread.start()
+        self.thread_started = True
 
     def stop(self):
         self.stop_event.set()
@@ -584,7 +586,7 @@ class PaTcpListener:
                 self.listener.close()
             except OSError:
                 pass
-        if self.thread is not threading.current_thread():
+        if self.thread_started and self.thread is not threading.current_thread():
             self.thread.join(timeout=self.join_timeout)
 
     def _run(self):
