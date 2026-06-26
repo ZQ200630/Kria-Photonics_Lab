@@ -153,6 +153,21 @@ class JoinablePaWorker:
         self.stop_requested.set()
 
 
+class SlowJoinablePaWorker(JoinablePaWorker):
+    def __init__(self):
+        super().__init__()
+        self.release_exit = threading.Event()
+
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+        self.stats["running"] = True
+        self.run_entered.set()
+        self.stop_requested.wait(1.0)
+        self.release_exit.wait(1.0)
+        self.stats["running"] = False
+        self.run_exited.set()
+        return dict(self.stats)
+
+
 class PaServiceTests(unittest.TestCase):
     def make_service(self, worker):
         writer = FakePaWriter()
@@ -232,7 +247,9 @@ class PaServiceTests(unittest.TestCase):
 
         service.attach_socket(FakePaSocket())
         service.start(pa.PamCaptureParams())
-        service.worker_thread.join(0.5)
+        worker_thread = service.worker_thread
+        if worker_thread is not None:
+            worker_thread.join(0.5)
 
         replacement_socket = FakePaSocket()
         status = service.attach_socket(replacement_socket)
@@ -240,6 +257,37 @@ class PaServiceTests(unittest.TestCase):
         self.assertTrue(writers[0].closed)
         self.assertFalse(replacement_socket.closed)
         self.assertTrue(status["connected"])
+
+    def test_pa_service_failed_worker_status_uses_snapshot_not_stale_running_stats(self):
+        writers = []
+
+        def writer_factory(sock):
+            writer = FakePaWriter()
+            writers.append(writer)
+            return writer
+
+        service = legacy.PaService(
+            pam_regs=object(),
+            writer_factory=writer_factory,
+            pam_factory=lambda regs: object(),
+            device_factory=lambda path: object(),
+            worker_factory=lambda pam, device, writer: RaisingPaWorker(),
+        )
+
+        service.attach_socket(FakePaSocket())
+        service.start(pa.PamCaptureParams())
+        worker_thread = service.worker_thread
+        if worker_thread is not None:
+            worker_thread.join(0.5)
+
+        failed_status = service.status()
+        self.assertFalse(failed_status["running"])
+        self.assertEqual(failed_status["last_error"], "send failed")
+
+        service.attach_socket(FakePaSocket())
+        reconnected_status = service.status()
+        self.assertFalse(reconnected_status["running"])
+        self.assertEqual(reconnected_status["last_error"], "")
 
     def test_pa_service_late_old_worker_error_does_not_close_reconnected_writer(self):
         worker = DelayedRaisingPaWorker()
@@ -267,8 +315,10 @@ class PaServiceTests(unittest.TestCase):
         replacement_socket = FakePaSocket()
         status = service.attach_socket(replacement_socket)
         new_writer = writers[1]
+        worker_thread = service.worker_thread
         worker.release_run.set()
-        service.worker_thread.join(0.5)
+        if worker_thread is not None:
+            worker_thread.join(0.5)
 
         self.assertTrue(old_writer.closed)
         self.assertFalse(replacement_socket.closed)
@@ -286,9 +336,34 @@ class PaServiceTests(unittest.TestCase):
         status = service.disconnect(join_timeout=0.5)
 
         self.assertTrue(worker.run_exited.is_set())
-        self.assertFalse(service.worker_thread.is_alive())
+        self.assertIsNone(service.worker_thread)
         self.assertTrue(writer.closed)
         self.assertFalse(status["connected"])
+
+    def test_pa_service_disconnect_without_timeout_waits_for_worker_exit(self):
+        worker = SlowJoinablePaWorker()
+        service, writer, _created = self.make_service(worker)
+        service.attach_socket(FakePaSocket())
+        service.start(pa.PamCaptureParams())
+        self.assertTrue(worker.run_entered.wait(0.5))
+
+        disconnect_done = threading.Event()
+
+        def disconnect_worker():
+            service.disconnect(join_timeout=None)
+            disconnect_done.set()
+
+        thread = threading.Thread(target=disconnect_worker)
+        thread.start()
+        self.assertTrue(worker.stop_requested.wait(0.5))
+        self.assertFalse(disconnect_done.wait(0.05))
+        worker.release_exit.set()
+        thread.join(0.5)
+
+        self.assertTrue(disconnect_done.is_set())
+        self.assertTrue(worker.run_exited.is_set())
+        self.assertIsNone(service.worker_thread)
+        self.assertTrue(writer.closed)
 
 
 class FakeThread:
@@ -310,6 +385,32 @@ class FakeListenerSocket:
         self.closed = True
 
 
+class FakeBindFailSocket:
+    def __init__(self):
+        self.closed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _exc_type, _exc, _tb):
+        self.close()
+
+    def setsockopt(self, *_args):
+        pass
+
+    def bind(self, _addr):
+        raise OSError("address already in use")
+
+    def close(self):
+        self.closed = True
+
+
+class FakePaServiceForListener:
+    def __init__(self):
+        self.state_lock = threading.RLock()
+        self.last_error = ""
+
+
 class PaTcpListenerTests(unittest.TestCase):
     def test_stop_closes_listener_and_joins_thread(self):
         stop_event = threading.Event()
@@ -325,6 +426,17 @@ class PaTcpListenerTests(unittest.TestCase):
         self.assertTrue(stop_event.is_set())
         self.assertTrue(fake_socket.closed)
         self.assertEqual(fake_thread.join_calls, [1.0])
+
+    def test_start_raises_and_records_error_when_bind_fails(self):
+        stop_event = threading.Event()
+        service = FakePaServiceForListener()
+        listener = legacy.PaTcpListener("127.0.0.1", 9090, service, stop_event)
+
+        with mock.patch.object(legacy.socket, "socket", return_value=FakeBindFailSocket()):
+            with self.assertRaises(OSError):
+                listener.start()
+
+        self.assertIn("address already in use", service.last_error)
 
 
 class FakeRamp:

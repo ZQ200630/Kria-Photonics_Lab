@@ -399,8 +399,10 @@ class PaService:
         self.writer = None
         self.worker = None
         self.worker_thread = None
+        self.worker_token = None
         self.client_socket = None
         self.writer_token = None
+        self.last_stats = self._new_stats()
         self.last_error = ""
 
     def attach_socket(self, sock):
@@ -426,10 +428,12 @@ class PaService:
             worker = self.worker_factory(pam, device, self.writer)
             worker_writer = self.writer
             writer_token = self.writer_token
+            worker_token = object()
             self.worker = worker
+            self.worker_token = worker_token
             self.worker_thread = threading.Thread(
                 target=self._run_worker,
-                args=(worker, worker_writer, writer_token, params, int(max_blocks), float(capture_time_sec)),
+                args=(worker, worker_writer, writer_token, worker_token, params, int(max_blocks), float(capture_time_sec)),
                 name="pa-capture-worker",
                 daemon=True,
             )
@@ -443,7 +447,7 @@ class PaService:
                 self.worker.request_stop()
             return self._status_locked()
 
-    def disconnect(self, join_timeout=None):
+    def disconnect(self, join_timeout=0):
         with self.state_lock:
             if self.worker is not None:
                 self.worker.request_stop()
@@ -453,6 +457,7 @@ class PaService:
             self.writer = None
             self.client_socket = None
             self.writer_token = None
+            self.worker_token = None
             if writer is not None:
                 try:
                     writer.close_client()
@@ -460,8 +465,8 @@ class PaService:
                     self.last_error = str(exc)
             elif sock is not None:
                 self._close_socket(sock)
-        if join_timeout is not None and worker_thread is not None and worker_thread is not threading.current_thread():
-            worker_thread.join(timeout=float(join_timeout))
+        if worker_thread is not None and worker_thread is not threading.current_thread():
+            worker_thread.join(timeout=None if join_timeout is None else float(join_timeout))
         with self.state_lock:
             return self._status_locked()
 
@@ -469,12 +474,13 @@ class PaService:
         with self.state_lock:
             return self._status_locked()
 
-    def _run_worker(self, worker, worker_writer, writer_token, params, max_blocks, capture_time_sec):
+    def _run_worker(self, worker, worker_writer, writer_token, worker_token, params, max_blocks, capture_time_sec):
         try:
             worker.run_once(params, max_blocks=max_blocks, capture_time_sec=capture_time_sec)
         except Exception as exc:
             with self.state_lock:
-                self.last_error = str(exc)
+                if self.worker is worker and self.worker_token is worker_token:
+                    self.last_error = str(exc)
                 writer = self.writer if self.writer is worker_writer and self.writer_token is writer_token else None
                 if writer is not None:
                     self.writer = None
@@ -486,23 +492,52 @@ class PaService:
                 except Exception as close_exc:
                     with self.state_lock:
                         self.last_error = f"{exc}; close failed: {close_exc}"
+        finally:
+            with self.state_lock:
+                if self.worker is worker:
+                    stats = self._snapshot_worker_stats(worker)
+                    if self.worker_token is worker_token:
+                        self.last_stats = stats
+                    self.worker = None
+                    self.worker_thread = None
+                    self.worker_token = None
 
     def _capture_active_locked(self):
         return self.worker_thread is not None and self.worker_thread.is_alive()
 
     def _status_locked(self):
-        stats = {}
-        if self.worker is not None:
+        running = self._capture_active_locked()
+        if running and self.worker is not None:
             stats = dict(getattr(self.worker, "stats", {}) or {})
+        else:
+            stats = dict(self.last_stats)
         return {
             "connected": self.writer is not None,
-            "running": self._capture_active_locked() or bool(stats.get("running", False)),
-            "last_error": self.last_error or str(stats.get("last_error", "")),
+            "running": running,
+            "last_error": self.last_error,
             "blocks_sent": int(stats.get("blocks_sent", 0) or 0),
             "frames_sent": int(stats.get("frames_sent", 0) or 0),
             "bytes_sent": int(stats.get("bytes_sent", 0) or 0),
             "end_reason": str(stats.get("end_reason", "")),
         }
+
+    def _new_stats(self):
+        return {
+            "running": False,
+            "blocks_sent": 0,
+            "frames_sent": 0,
+            "bytes_sent": 0,
+            "last_error": "",
+            "end_reason": "",
+        }
+
+    def _snapshot_worker_stats(self, worker):
+        stats = self._new_stats()
+        stats.update(dict(getattr(worker, "stats", {}) or {}))
+        stats["running"] = False
+        if self.last_error:
+            stats["last_error"] = self.last_error
+        return stats
 
     def _close_socket(self, sock):
         try:
@@ -526,6 +561,21 @@ class PaTcpListener:
         self.thread = threading.Thread(target=self._run, name="pa-tcp-listener", daemon=True)
 
     def start(self):
+        listener = None
+        try:
+            listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            listener.bind((self.host, self.port))
+            listener.listen(1)
+            listener.settimeout(0.2)
+        except Exception as exc:
+            self._record_error(exc)
+            try:
+                listener.close()
+            except Exception:
+                pass
+            raise
+        self.listener = listener
         self.thread.start()
 
     def stop(self):
@@ -540,31 +590,34 @@ class PaTcpListener:
 
     def _run(self):
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-                self.listener = listener
-                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                listener.bind((self.host, self.port))
-                listener.listen(1)
-                listener.settimeout(0.2)
-                while not self.stop_event.is_set():
-                    try:
-                        client, _addr = listener.accept()
-                    except socket.timeout:
-                        continue
-                    except OSError as exc:
-                        if not self.stop_event.is_set():
-                            self._record_error(exc)
-                        break
-                    try:
-                        self.service.attach_socket(client)
-                    except Exception as exc:
+            listener = self.listener
+            if listener is None:
+                return
+            while not self.stop_event.is_set():
+                try:
+                    client, _addr = listener.accept()
+                except socket.timeout:
+                    continue
+                except OSError as exc:
+                    if not self.stop_event.is_set():
                         self._record_error(exc)
-                        self._close_client(client)
+                    break
+                try:
+                    self.service.attach_socket(client)
+                except Exception as exc:
+                    self._record_error(exc)
+                    self._close_client(client)
         except Exception as exc:
             if not self.stop_event.is_set():
                 self._record_error(exc)
         finally:
+            listener = self.listener
             self.listener = None
+            if listener is not None:
+                try:
+                    listener.close()
+                except OSError:
+                    pass
 
     def _record_error(self, exc):
         with self.service.state_lock:
@@ -1347,7 +1400,7 @@ def main():
                 pa_tcp_listener.stop()
             pa_service = getattr(httpd, "pa_service", None)
             if pa_service is not None:
-                pa_service.disconnect(join_timeout=1.0)
+                pa_service.disconnect(join_timeout=None)
             tec_ramp = getattr(httpd, "tec_ramp", None)
             if tec_ramp is not None:
                 tec_ramp.stop()
