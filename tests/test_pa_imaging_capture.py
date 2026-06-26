@@ -86,6 +86,28 @@ class PaProtocolTests(unittest.TestCase):
         self.assertEqual(record.record_type, pa.RECORD_TYPE_METADATA)
         self.assertEqual(decoded, {"x_points": 3})
 
+    def test_axis_status_unpack_matches_superblock_driver_layout(self):
+        raw = struct.pack("<15I", 1, 0, 0, 4096, 33554432, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0)
+
+        status = pa.AxisCaptureStatus.unpack(raw)
+
+        self.assertTrue(status.running)
+        self.assertEqual(status.frame_bytes, 4096)
+        self.assertEqual(status.superblock_bytes, 33554432)
+        self.assertEqual(status.ready_block_count, 4)
+        self.assertEqual(status.completed_blocks, 8)
+
+    def test_axis_block_header_unpack_matches_superblock_driver_layout(self):
+        raw = struct.pack("<QIIQQ", 5, 12, 3, 20, 22)
+
+        header = pa.AxisBlockHeader.unpack(raw)
+
+        self.assertEqual(header.block_id, 5)
+        self.assertEqual(header.used_bytes, 12)
+        self.assertEqual(header.frame_count, 3)
+        self.assertEqual(header.first_frame_id, 20)
+        self.assertEqual(header.last_frame_id, 22)
+
 
 if __name__ == "__main__":
     unittest.main()

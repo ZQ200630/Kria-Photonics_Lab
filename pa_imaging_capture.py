@@ -1,4 +1,8 @@
+import array
+import fcntl
 import json
+import os
+import select
 import struct
 import time
 from dataclasses import asdict, dataclass
@@ -48,6 +52,106 @@ RECORD_TYPE_END = 4
 RECORD_TYPE_ERROR = 5
 STREAM_RECORD_HEADER_FORMAT = "<4sHHIQQQQIIQQ"
 STREAM_RECORD_HEADER_BYTES = struct.calcsize(STREAM_RECORD_HEADER_FORMAT)
+
+AXIS_CAP_IOC_MAGIC = ord("q")
+AXIS_CAP_IOC_START_NR = 0x01
+AXIS_CAP_IOC_STOP_NR = 0x02
+AXIS_CAP_IOC_GET_STATUS_NR = 0x03
+
+IOC_NRBITS = 8
+IOC_TYPEBITS = 8
+IOC_SIZEBITS = 14
+IOC_DIRBITS = 2
+IOC_NRSHIFT = 0
+IOC_TYPESHIFT = IOC_NRSHIFT + IOC_NRBITS
+IOC_SIZESHIFT = IOC_TYPESHIFT + IOC_TYPEBITS
+IOC_DIRSHIFT = IOC_SIZESHIFT + IOC_SIZEBITS
+IOC_NONE = 0
+IOC_WRITE = 1
+IOC_READ = 2
+
+AXIS_STATUS_FORMAT = "<15I"
+AXIS_STATUS_BYTES = struct.calcsize(AXIS_STATUS_FORMAT)
+AXIS_BLOCK_HEADER_FORMAT = "<QIIQQ"
+AXIS_BLOCK_HEADER_BYTES = struct.calcsize(AXIS_BLOCK_HEADER_FORMAT)
+AXIS_READ_TIMEOUT = object()
+
+
+def _ioc(direction, magic, number, size):
+    return (
+        (int(direction) << IOC_DIRSHIFT)
+        | (int(magic) << IOC_TYPESHIFT)
+        | (int(number) << IOC_NRSHIFT)
+        | (int(size) << IOC_SIZESHIFT)
+    )
+
+
+AXIS_CAP_IOC_START = _ioc(IOC_NONE, AXIS_CAP_IOC_MAGIC, AXIS_CAP_IOC_START_NR, 0)
+AXIS_CAP_IOC_STOP = _ioc(IOC_NONE, AXIS_CAP_IOC_MAGIC, AXIS_CAP_IOC_STOP_NR, 0)
+AXIS_CAP_IOC_GET_STATUS = _ioc(IOC_READ, AXIS_CAP_IOC_MAGIC, AXIS_CAP_IOC_GET_STATUS_NR, AXIS_STATUS_BYTES)
+
+
+@dataclass(frozen=True)
+class AxisCaptureStatus:
+    running: bool
+    stop_requested: bool
+    removing: bool
+    frame_bytes: int
+    superblock_bytes: int
+    active_dma_count: int
+    done_count: int
+    ready_block_count: int
+    free_block_count: int
+    completed_frames: int
+    aggregated_frames: int
+    completed_blocks: int
+    dropped_frames: int
+    dropped_blocks: int
+    draining_done: bool
+
+    @classmethod
+    def unpack(cls, raw):
+        fields = struct.unpack(AXIS_STATUS_FORMAT, raw[:AXIS_STATUS_BYTES])
+        return cls(
+            running=bool(fields[0]),
+            stop_requested=bool(fields[1]),
+            removing=bool(fields[2]),
+            frame_bytes=fields[3],
+            superblock_bytes=fields[4],
+            active_dma_count=fields[5],
+            done_count=fields[6],
+            ready_block_count=fields[7],
+            free_block_count=fields[8],
+            completed_frames=fields[9],
+            aggregated_frames=fields[10],
+            completed_blocks=fields[11],
+            dropped_frames=fields[12],
+            dropped_blocks=fields[13],
+            draining_done=bool(fields[14]),
+        )
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class AxisBlockHeader:
+    block_id: int
+    used_bytes: int
+    frame_count: int
+    first_frame_id: int
+    last_frame_id: int
+
+    @classmethod
+    def unpack(cls, raw):
+        block_id, used_bytes, frame_count, first_frame_id, last_frame_id = struct.unpack(
+            AXIS_BLOCK_HEADER_FORMAT,
+            raw[:AXIS_BLOCK_HEADER_BYTES],
+        )
+        return cls(block_id, used_bytes, frame_count, first_frame_id, last_frame_id)
+
+    def to_dict(self):
+        return asdict(self)
 
 
 def now_ns():
