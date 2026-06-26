@@ -1,5 +1,6 @@
 import json
 import struct
+import threading
 import unittest
 from unittest import mock
 
@@ -232,6 +233,19 @@ class OrderingCaptureDevice(FakeCaptureDevice):
         return super().read_block(timeout=timeout)
 
 
+class StopFailsOnceDevice(OrderingCaptureDevice):
+    def __init__(self, actions, blocks):
+        super().__init__(actions, blocks)
+        self.stop_attempts = 0
+
+    def stop(self):
+        self.stop_attempts += 1
+        self.actions_ref.append("dma_stop")
+        self.actions.append("dma_stop")
+        if self.stop_attempts == 1:
+            raise RuntimeError("stop failed once")
+
+
 class OrderingWriter:
     def __init__(self, actions, fail_on_data=False):
         self.actions = actions
@@ -311,6 +325,28 @@ class FakeSocket:
 
     def close(self):
         self.closed = True
+
+
+class BlockingSocket:
+    def __init__(self):
+        self.timeout = None
+        self.send_started = threading.Event()
+        self.unblock_send = threading.Event()
+        self.shutdown_called = threading.Event()
+        self.close_called = threading.Event()
+
+    def settimeout(self, timeout):
+        self.timeout = timeout
+
+    def sendall(self, data):
+        self.send_started.set()
+        self.unblock_send.wait(1.0)
+
+    def shutdown(self, how):
+        self.shutdown_called.set()
+
+    def close(self):
+        self.close_called.set()
 
 
 class FakePoll:
@@ -580,6 +616,23 @@ class PaWorkerTests(unittest.TestCase):
         self.assertGreaterEqual(actions.count("pam_low"), 2)
         self.assertEqual(actions.count("dma_stop"), 1)
 
+    def test_worker_retries_dma_stop_in_finally_after_stop_failure(self):
+        actions = []
+        block = (
+            pa.AxisBlockHeader(block_id=9, used_bytes=4, frame_count=1, first_frame_id=90, last_frame_id=90),
+            b"fail",
+        )
+        pam = OrderingPam(actions)
+        device = StopFailsOnceDevice(actions, [block])
+        writer = OrderingWriter(actions, fail_on_data=True)
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        with self.assertRaisesRegex(RuntimeError, "data send failed"):
+            worker.run_once(pa.PamCaptureParams(), max_blocks=1, capture_time_sec=0)
+
+        self.assertGreaterEqual(actions.count("dma_stop"), 2)
+        self.assertIn("close", device.actions)
+
 
 class PaWriterTests(unittest.TestCase):
     def test_connected_writer_sets_timeout_and_sends_encoded_record(self):
@@ -591,6 +644,24 @@ class PaWriterTests(unittest.TestCase):
 
         self.assertEqual(sock.timeout, 1.5)
         self.assertEqual(sock.sent, [record.encode()])
+
+    def test_connected_writer_close_interrupts_blocked_send(self):
+        sock = BlockingSocket()
+        writer = pa.ConnectedPaWriter(sock, send_timeout_s=None)
+        record = pa.metadata_record(sequence=1, timestamp_ns=2, payload={"ok": True})
+        send_thread = threading.Thread(target=writer.send_record, args=(record,))
+        close_thread = threading.Thread(target=writer.close_client)
+
+        send_thread.start()
+        self.assertTrue(sock.send_started.wait(1.0))
+        close_thread.start()
+        try:
+            self.assertTrue(sock.shutdown_called.wait(0.05))
+            self.assertTrue(sock.close_called.wait(0.05))
+        finally:
+            sock.unblock_send.set()
+            send_thread.join(1.0)
+            close_thread.join(1.0)
 
 
 if __name__ == "__main__":

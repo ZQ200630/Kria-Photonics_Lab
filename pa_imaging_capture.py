@@ -315,21 +315,21 @@ class ConnectedPaWriter:
         with self._lock:
             if self._closed:
                 raise RuntimeError("PA writer client is closed")
-            self.sock.sendall(encoded)
+        self.sock.sendall(encoded)
 
     def close_client(self):
         with self._lock:
             if self._closed:
                 return
-            try:
-                self.sock.shutdown(socket.SHUT_RDWR)
-            except OSError:
-                pass
-            try:
-                self.sock.close()
-            except OSError:
-                pass
             self._closed = True
+        try:
+            self.sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            self.sock.close()
+        except OSError:
+            pass
 
 
 class AxisCaptureDevice:
@@ -530,8 +530,8 @@ class PaCaptureWorker:
                     stop_succeeded = True
                 except Exception as exc:
                     errors.append(exc)
-                dma_started = False
                 if stop_succeeded:
+                    dma_started = False
                     try:
                         self._drain_until_eof()
                     except Exception as exc:
