@@ -270,7 +270,7 @@ def main():
                 pa_tcp_listener.stop()
             pa_service = getattr(httpd, "pa_service", None)
             if pa_service is not None:
-                pa_service.disconnect()
+                pa_service.disconnect(join_timeout=1.0)
             tec_ramp = getattr(httpd, "tec_ramp", None)
             if tec_ramp is not None:
                 tec_ramp.stop()

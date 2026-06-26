@@ -400,6 +400,7 @@ class PaService:
         self.worker = None
         self.worker_thread = None
         self.client_socket = None
+        self.writer_token = None
         self.last_error = ""
 
     def attach_socket(self, sock):
@@ -410,6 +411,7 @@ class PaService:
                 return self._status_locked()
             self.client_socket = sock
             self.writer = self.writer_factory(sock)
+            self.writer_token = object()
             self.last_error = ""
             return self._status_locked()
 
@@ -422,10 +424,12 @@ class PaService:
             pam = self.pam_factory(self.pam_regs)
             device = self.device_factory(self.capture_dev_path)
             worker = self.worker_factory(pam, device, self.writer)
+            worker_writer = self.writer
+            writer_token = self.writer_token
             self.worker = worker
             self.worker_thread = threading.Thread(
                 target=self._run_worker,
-                args=(worker, params, int(max_blocks), float(capture_time_sec)),
+                args=(worker, worker_writer, writer_token, params, int(max_blocks), float(capture_time_sec)),
                 name="pa-capture-worker",
                 daemon=True,
             )
@@ -439,14 +443,16 @@ class PaService:
                 self.worker.request_stop()
             return self._status_locked()
 
-    def disconnect(self):
+    def disconnect(self, join_timeout=None):
         with self.state_lock:
             if self.worker is not None:
                 self.worker.request_stop()
             writer = self.writer
             sock = self.client_socket
+            worker_thread = self.worker_thread
             self.writer = None
             self.client_socket = None
+            self.writer_token = None
             if writer is not None:
                 try:
                     writer.close_client()
@@ -454,21 +460,26 @@ class PaService:
                     self.last_error = str(exc)
             elif sock is not None:
                 self._close_socket(sock)
+        if join_timeout is not None and worker_thread is not None and worker_thread is not threading.current_thread():
+            worker_thread.join(timeout=float(join_timeout))
+        with self.state_lock:
             return self._status_locked()
 
     def status(self):
         with self.state_lock:
             return self._status_locked()
 
-    def _run_worker(self, worker, params, max_blocks, capture_time_sec):
+    def _run_worker(self, worker, worker_writer, writer_token, params, max_blocks, capture_time_sec):
         try:
             worker.run_once(params, max_blocks=max_blocks, capture_time_sec=capture_time_sec)
         except Exception as exc:
             with self.state_lock:
                 self.last_error = str(exc)
-                writer = self.writer
-                self.writer = None
-                self.client_socket = None
+                writer = self.writer if self.writer is worker_writer and self.writer_token is writer_token else None
+                if writer is not None:
+                    self.writer = None
+                    self.client_socket = None
+                    self.writer_token = None
             if writer is not None:
                 try:
                     writer.close_client()
@@ -1336,7 +1347,7 @@ def main():
                 pa_tcp_listener.stop()
             pa_service = getattr(httpd, "pa_service", None)
             if pa_service is not None:
-                pa_service.disconnect()
+                pa_service.disconnect(join_timeout=1.0)
             tec_ramp = getattr(httpd, "tec_ramp", None)
             if tec_ramp is not None:
                 tec_ramp.stop()
