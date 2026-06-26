@@ -610,6 +610,13 @@ class PaCaptureWorker:
             if dma_started:
                 try:
                     self.device.stop()
+                    dma_started = False
+                    writer_failed = self._writer_failed
+                    self._writer_failed = True
+                    try:
+                        self._drain_until_eof()
+                    finally:
+                        self._writer_failed = writer_failed
                 except Exception:
                     pass
             if device_opened:

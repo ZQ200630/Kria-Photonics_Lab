@@ -175,6 +175,18 @@ class FailingStartPam:
             raise RuntimeError("start verify failed")
 
 
+class FailingProgramPam:
+    def __init__(self):
+        self.actions = []
+
+    def program(self, params):
+        self.actions.append("program")
+        raise RuntimeError("program failed")
+
+    def write_start(self, level):
+        self.actions.append(("start", 1 if level else 0))
+
+
 class OrderingPam:
     def __init__(self, actions, fail_low=False):
         self.actions = actions
@@ -244,6 +256,26 @@ class StopFailsOnceDevice(OrderingCaptureDevice):
         self.actions.append("dma_stop")
         if self.stop_attempts == 1:
             raise RuntimeError("stop failed once")
+
+
+class RequestStopDevice(OrderingCaptureDevice):
+    def __init__(self, actions):
+        super().__init__(actions, [])
+        self.on_read = None
+        self.stopped = False
+
+    def stop(self):
+        self.stopped = True
+        super().stop()
+
+    def read_block(self, timeout=0.5):
+        self.actions_ref.append("read")
+        self.actions.append("read")
+        if self.stopped:
+            return None
+        if self.on_read is not None:
+            self.on_read()
+        return pa.AXIS_READ_TIMEOUT
 
 
 class OrderingWriter:
@@ -340,7 +372,8 @@ class BlockingSocket:
 
     def sendall(self, data):
         self.send_started.set()
-        self.unblock_send.wait(1.0)
+        while not self.unblock_send.is_set() and not self.close_called.is_set() and not self.shutdown_called.is_set():
+            self.unblock_send.wait(0.01)
 
     def shutdown(self, how):
         self.shutdown_called.set()
@@ -633,6 +666,59 @@ class PaWorkerTests(unittest.TestCase):
         self.assertGreaterEqual(actions.count("dma_stop"), 2)
         self.assertIn("close", device.actions)
 
+    def test_worker_drains_after_finally_stop_retry_succeeds(self):
+        actions = []
+        blocks = [
+            (
+                pa.AxisBlockHeader(block_id=10, used_bytes=4, frame_count=1, first_frame_id=100, last_frame_id=100),
+                b"fail",
+            ),
+            (
+                pa.AxisBlockHeader(block_id=11, used_bytes=4, frame_count=1, first_frame_id=101, last_frame_id=101),
+                b"drop",
+            ),
+        ]
+        pam = OrderingPam(actions)
+        device = StopFailsOnceDevice(actions, blocks)
+        writer = OrderingWriter(actions, fail_on_data=True)
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        with self.assertRaisesRegex(RuntimeError, "data send failed"):
+            worker.run_once(pa.PamCaptureParams(), max_blocks=1, capture_time_sec=0)
+
+        self.assertGreaterEqual(actions.count("dma_stop"), 2)
+        self.assertEqual(actions.count("read"), 3)
+        self.assertLess(device.actions.index("read"), device.actions.index("close"))
+
+    def test_worker_program_failure_aborts_before_dma(self):
+        pam = FailingProgramPam()
+        device = FakeCaptureDevice([])
+        writer = FakeWriter()
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        with self.assertRaisesRegex(RuntimeError, "program failed"):
+            worker.run_once(pa.PamCaptureParams(), max_blocks=0, capture_time_sec=0)
+
+        self.assertEqual(pam.actions, ["program"])
+        self.assertNotIn("open", device.actions)
+        self.assertNotIn("dma_start", device.actions)
+        self.assertNotIn("dma_stop", device.actions)
+
+    def test_worker_repeated_stop_requests_use_one_cleanup_sequence(self):
+        actions = []
+        pam = OrderingPam(actions)
+        device = RequestStopDevice(actions)
+        writer = OrderingWriter(actions)
+        worker = pa.PaCaptureWorker(pam, device, writer)
+        device.on_read = lambda: (worker.request_stop(), worker.request_stop())
+
+        summary = worker.run_once(pa.PamCaptureParams(), max_blocks=-1, capture_time_sec=0)
+
+        self.assertEqual(summary["end_reason"], "stop_requested")
+        self.assertEqual(actions.count("pam_low"), 1)
+        self.assertEqual(actions.count("dma_stop"), 1)
+        self.assertEqual(writer.records[-1].record_type, pa.RECORD_TYPE_END)
+
 
 class PaWriterTests(unittest.TestCase):
     def test_connected_writer_sets_timeout_and_sends_encoded_record(self):
@@ -659,9 +745,9 @@ class PaWriterTests(unittest.TestCase):
             self.assertTrue(sock.shutdown_called.wait(0.05))
             self.assertTrue(sock.close_called.wait(0.05))
         finally:
-            sock.unblock_send.set()
             send_thread.join(1.0)
             close_thread.join(1.0)
+            sock.unblock_send.set()
 
 
 if __name__ == "__main__":
