@@ -521,13 +521,18 @@ class FakeRamp:
 class FakePaServiceForHandler:
     def __init__(self):
         self.stop_called = False
+        self.disconnect_called = False
 
     def stop(self):
         self.stop_called = True
         return {"connected": True, "running": False, "last_error": ""}
 
+    def disconnect(self):
+        self.disconnect_called = True
+        return {"connected": False, "running": False, "last_error": ""}
+
     def status(self):
-        return {"connected": True, "running": False, "last_error": ""}
+        return {"connected": True, "running": False, "last_error": "", "blocks_sent": 4}
 
 
 class FakePaServiceForStart:
@@ -566,8 +571,16 @@ class FakeSystemForHandler:
         return {"laser": {}, "tec": {}, "ada4355": {}}
 
 
+class RaisingPaServiceForStart:
+    def start(self, params, max_blocks=-1, capture_time_sec=0):
+        raise RuntimeError("PA TCP client is not connected")
+
+    def status(self):
+        return {"connected": False, "running": False, "last_error": ""}
+
+
 class HandlerPaEndpointTests(unittest.TestCase):
-    def test_stop_all_stops_pa_service_when_present(self):
+    def make_handler(self, path, method="GET", body=b""):
         server = mock.Mock()
         server.lock = threading.RLock()
         server.tec_ramp = FakeRamp()
@@ -575,12 +588,65 @@ class HandlerPaEndpointTests(unittest.TestCase):
         server.system = FakeSystemForHandler()
         handler = legacy.ButterflyHandler.__new__(legacy.ButterflyHandler)
         handler.server = server
-        handler.path = "/api/stop-all"
-        handler.headers = {"Content-Length": "0"}
-        handler.rfile = io.BytesIO(b"")
+        handler.path = path
+        handler.headers = {"Content-Length": str(len(body))}
+        handler.rfile = io.BytesIO(body)
         replies = []
         handler.reply_json = lambda obj, status=200: replies.append((status, obj))
         handler.reply_error = lambda status, message: replies.append((status, {"ok": False, "error": message}))
+        return handler, server, replies
+
+    def test_api_status_includes_pa_object(self):
+        handler, _server, replies = self.make_handler("/api/status")
+
+        legacy.ButterflyHandler.do_GET(handler)
+
+        self.assertEqual(replies[0][0], 200)
+        self.assertTrue(replies[0][1]["ok"])
+        self.assertEqual(replies[0][1]["status"]["pa"]["blocks_sent"], 4)
+
+    def test_pa_status_endpoint_returns_pa_status(self):
+        handler, _server, replies = self.make_handler("/api/pa/status")
+
+        legacy.ButterflyHandler.do_GET(handler)
+
+        self.assertEqual(replies[0], (200, {
+            "ok": True,
+            "pa": {"connected": True, "running": False, "last_error": "", "blocks_sent": 4},
+        }))
+
+    def test_pa_stop_endpoint_calls_service_stop(self):
+        handler, server, replies = self.make_handler("/api/pa/stop", method="POST", body=b"{}")
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertTrue(server.pa_service.stop_called)
+        self.assertEqual(replies[0][0], 200)
+        self.assertTrue(replies[0][1]["ok"])
+
+    def test_pa_disconnect_endpoint_calls_service_disconnect(self):
+        handler, server, replies = self.make_handler("/api/pa/disconnect", method="POST", body=b"{}")
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertTrue(server.pa_service.disconnect_called)
+        self.assertEqual(replies[0], (200, {
+            "ok": True,
+            "pa": {"connected": False, "running": False, "last_error": ""},
+        }))
+
+    def test_pa_start_no_client_conflict_maps_to_409(self):
+        handler, server, replies = self.make_handler("/api/pa/start", method="POST", body=b"{}")
+        server.pa_service = RaisingPaServiceForStart()
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(replies[0][0], 409)
+        self.assertFalse(replies[0][1]["ok"])
+        self.assertIn("not connected", replies[0][1]["error"])
+
+    def test_stop_all_stops_pa_service_when_present(self):
+        handler, server, replies = self.make_handler("/api/stop-all", method="POST")
 
         legacy.ButterflyHandler.do_POST(handler)
 
@@ -691,6 +757,32 @@ class MainCleanupTests(unittest.TestCase):
 
         self.assertTrue(system.closed)
         self.assertTrue(pa_regs.closed)
+
+    def test_tauri_main_preserves_listener_start_error_and_cleans_partial_resources(self):
+        system = FakeSystemForMain()
+        pa_regs = FakeCloseable()
+        httpd_instances = []
+
+        def httpd_factory(addr, handler):
+            httpd = FakeHttpd(addr, handler)
+            httpd_instances.append(httpd)
+            return httpd
+
+        with mock.patch.object(tauri_server, "ButterflyLaserSystem", return_value=system):
+            with mock.patch.object(tauri_server, "AxiMap", return_value=pa_regs):
+                with mock.patch.object(tauri_server, "ThreadingHTTPServer", side_effect=httpd_factory):
+                    with mock.patch.object(tauri_server, "load_settings", return_value={}):
+                        with mock.patch.object(tauri_server, "tec_ramp_from_settings", return_value=FakeRamp()):
+                            with mock.patch.object(tauri_server, "initialize_pl_parameters"):
+                                with mock.patch.object(legacy.socket, "socket", return_value=FakeBindFailSocket()):
+                                    with mock.patch("sys.argv", ["butterfly_laser_server_tauri.py"]):
+                                        with self.assertRaisesRegex(OSError, "address already in use"):
+                                            with redirect_stdout(io.StringIO()):
+                                                tauri_server.main()
+
+        self.assertTrue(system.closed)
+        self.assertTrue(pa_regs.closed)
+        self.assertTrue(httpd_instances[0].server_closed)
 
 
 if __name__ == "__main__":
