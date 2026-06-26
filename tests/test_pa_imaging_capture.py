@@ -191,6 +191,21 @@ class OrderingPam:
                 raise RuntimeError("pam low failed")
 
 
+class RetryLowPam(OrderingPam):
+    def __init__(self, actions):
+        super().__init__(actions)
+        self.low_attempts = 0
+
+    def write_start(self, level):
+        if level:
+            self.actions.append("pam_high")
+            return
+        self.low_attempts += 1
+        self.actions.append("pam_low")
+        if self.low_attempts == 1:
+            raise RuntimeError("pam low failed once")
+
+
 class OrderingCaptureDevice(FakeCaptureDevice):
     def __init__(self, actions, blocks):
         super().__init__(blocks)
@@ -521,6 +536,49 @@ class PaWorkerTests(unittest.TestCase):
         self.assertLess(actions.index("dma_stop"), actions.index("send_error"))
         self.assertEqual(actions.count("dma_stop"), 1)
         self.assertEqual(writer.records[-1].record_type, pa.RECORD_TYPE_ERROR)
+
+    def test_worker_drains_to_eof_after_data_send_failure(self):
+        actions = []
+        blocks = [
+            (
+                pa.AxisBlockHeader(block_id=6, used_bytes=4, frame_count=1, first_frame_id=60, last_frame_id=60),
+                b"send",
+            ),
+            (
+                pa.AxisBlockHeader(block_id=7, used_bytes=4, frame_count=1, first_frame_id=61, last_frame_id=61),
+                b"drop",
+            ),
+        ]
+        pam = OrderingPam(actions)
+        device = OrderingCaptureDevice(actions, blocks)
+        writer = OrderingWriter(actions, fail_on_data=True)
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        with self.assertRaisesRegex(RuntimeError, "data send failed"):
+            worker.run_once(pa.PamCaptureParams(), max_blocks=1, capture_time_sec=0)
+
+        self.assertLess(actions.index("pam_low"), actions.index("dma_stop"))
+        self.assertLess(actions.index("dma_stop"), actions.index("send_error"))
+        self.assertEqual(actions.count("dma_stop"), 1)
+        self.assertEqual(actions.count("read"), 3)
+        self.assertEqual(writer.records[-1].record_type, pa.RECORD_TYPE_ERROR)
+
+    def test_worker_retries_pam_low_after_cleanup_low_failure(self):
+        actions = []
+        block = (
+            pa.AxisBlockHeader(block_id=8, used_bytes=4, frame_count=1, first_frame_id=80, last_frame_id=80),
+            b"fail",
+        )
+        pam = RetryLowPam(actions)
+        device = OrderingCaptureDevice(actions, [block])
+        writer = OrderingWriter(actions, fail_on_data=True)
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        with self.assertRaisesRegex(RuntimeError, "data send failed"):
+            worker.run_once(pa.PamCaptureParams(), max_blocks=1, capture_time_sec=0)
+
+        self.assertGreaterEqual(actions.count("pam_low"), 2)
+        self.assertEqual(actions.count("dma_stop"), 1)
 
 
 class PaWriterTests(unittest.TestCase):

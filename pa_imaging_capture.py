@@ -414,6 +414,7 @@ class PaCaptureWorker:
         self.drain_idle_timeout_s = drain_idle_timeout_s
         self.drain_total_timeout_s = drain_total_timeout_s
         self._stop_event = threading.Event()
+        self._writer_failed = False
         self.sequence = 0
         self.stats = self._new_stats()
 
@@ -436,21 +437,29 @@ class PaCaptureWorker:
         return sequence
 
     def _send_json_record(self, record_type, payload):
-        self.writer.send_record(json_record(record_type, self._next_sequence(), now_ns(), payload))
+        try:
+            self.writer.send_record(json_record(record_type, self._next_sequence(), now_ns(), payload))
+        except Exception:
+            self._writer_failed = True
+            raise
 
     def _send_data_record(self, header, payload):
-        self.writer.send_record(
-            PaStreamRecord(
-                record_type=RECORD_TYPE_DATA,
-                sequence=self._next_sequence(),
-                timestamp_ns=now_ns(),
-                block_id=header.block_id,
-                frame_count=header.frame_count,
-                first_frame_id=header.first_frame_id,
-                last_frame_id=header.last_frame_id,
-                payload=payload,
+        try:
+            self.writer.send_record(
+                PaStreamRecord(
+                    record_type=RECORD_TYPE_DATA,
+                    sequence=self._next_sequence(),
+                    timestamp_ns=now_ns(),
+                    block_id=header.block_id,
+                    frame_count=header.frame_count,
+                    first_frame_id=header.first_frame_id,
+                    last_frame_id=header.last_frame_id,
+                    payload=payload,
+                )
             )
-        )
+        except Exception:
+            self._writer_failed = True
+            raise
         self.stats["blocks_sent"] += 1
         self.stats["frames_sent"] += header.frame_count
         self.stats["bytes_sent"] += len(payload)
@@ -458,11 +467,14 @@ class PaCaptureWorker:
     def _drain_until_eof(self):
         drain_start_ns = now_ns()
         idle_start_ns = now_ns()
+        drain_send_error = None
         while True:
             item = self.device.read_block(timeout=0.1)
             if item is AXIS_READ_TIMEOUT:
                 status = self.device.get_status()
                 if status.draining_done and status.ready_block_count == 0:
+                    if drain_send_error is not None:
+                        raise drain_send_error
                     return
                 if self.drain_total_timeout_s is not None:
                     elapsed_ns = now_ns() - drain_start_ns
@@ -474,9 +486,16 @@ class PaCaptureWorker:
                         raise RuntimeError("axis capture drain timed out")
                 continue
             if item is None:
+                if drain_send_error is not None:
+                    raise drain_send_error
                 return
             header, payload = item
-            self._send_data_record(header, payload)
+            if not self._writer_failed:
+                try:
+                    self._send_data_record(header, payload)
+                except Exception as exc:
+                    if drain_send_error is None:
+                        drain_send_error = exc
             if self.drain_total_timeout_s is not None:
                 elapsed_ns = now_ns() - drain_start_ns
                 if elapsed_ns >= int(float(self.drain_total_timeout_s) * 1_000_000_000):
@@ -486,6 +505,7 @@ class PaCaptureWorker:
     def run_once(self, params, max_blocks=-1, capture_time_sec=0):
         self._stop_event.clear()
         self.sequence = 0
+        self._writer_failed = False
         self.stats = self._new_stats()
         self.stats["running"] = True
         pam_started = False
@@ -501,7 +521,8 @@ class PaCaptureWorker:
                     self.pam.write_start(0)
                 except Exception as exc:
                     errors.append(exc)
-                pam_started = False
+                else:
+                    pam_started = False
             if dma_started:
                 stop_succeeded = False
                 try:
