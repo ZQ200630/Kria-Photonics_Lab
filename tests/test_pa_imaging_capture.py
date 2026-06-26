@@ -1,6 +1,7 @@
 import json
 import struct
 import unittest
+from unittest import mock
 
 import pa_imaging_capture as pa
 
@@ -160,6 +161,53 @@ class FakeCaptureDevice:
         self.actions.append("close")
 
 
+class FakePoll:
+    def __init__(self, events):
+        self.events = events
+        self.registered = []
+
+    def register(self, fd, event_mask):
+        self.registered.append((fd, event_mask))
+
+    def poll(self, timeout_ms):
+        return self.events
+
+
+class AxisCaptureDeviceTests(unittest.TestCase):
+    def axis_status(self, superblock_bytes):
+        return pa.AxisCaptureStatus(False, False, False, 4096, superblock_bytes, 0, 0, 0, 8, 0, 0, 0, 0, 0, False)
+
+    def block_bytes(self, used_bytes, payload):
+        header = struct.pack("<QIIQQ", 7, used_bytes, 2, 20, 21)
+        return header + payload
+
+    def test_read_block_accepts_used_bytes_shorter_than_superblock(self):
+        device = pa.AxisCaptureDevice()
+        device.fd = 123
+        device.get_status = lambda: self.axis_status(superblock_bytes=32)
+        raw = self.block_bytes(used_bytes=4, payload=b"abcd")
+
+        with mock.patch.object(pa.select, "poll", return_value=FakePoll([(123, pa.select.POLLIN)])):
+            with mock.patch.object(pa.os, "read", return_value=raw) as read_mock:
+                header, payload = device.read_block()
+
+        read_mock.assert_called_once_with(123, pa.AXIS_BLOCK_HEADER_BYTES + 32)
+        self.assertEqual(header.block_id, 7)
+        self.assertEqual(header.used_bytes, 4)
+        self.assertEqual(payload, b"abcd")
+
+    def test_read_block_rejects_extra_payload_bytes(self):
+        device = pa.AxisCaptureDevice()
+        device.fd = 123
+        device.get_status = lambda: self.axis_status(superblock_bytes=5)
+        raw = self.block_bytes(used_bytes=4, payload=b"abcde")
+
+        with mock.patch.object(pa.select, "poll", return_value=FakePoll([(123, pa.select.POLLIN)])):
+            with mock.patch.object(pa.os, "read", return_value=raw):
+                with self.assertRaises(RuntimeError):
+                    device.read_block()
+
+
 class PaWorkerTests(unittest.TestCase):
     def test_worker_sends_metadata_data_and_end_records(self):
         regs = FakeRegs()
@@ -195,6 +243,30 @@ class PaWorkerTests(unittest.TestCase):
         self.assertIn((pa.PAM_REG_START, 0), regs.writes)
         self.assertLess(device.actions.index("dma_start"), device.actions.index("dma_stop"))
         self.assertEqual(regs.writes[-1], (pa.PAM_REG_START, 0))
+
+    def test_worker_sends_drained_blocks_before_end_record(self):
+        regs = FakeRegs()
+        pam = pa.PamAxiController(regs)
+        block = (
+            pa.AxisBlockHeader(block_id=2, used_bytes=4, frame_count=3, first_frame_id=12, last_frame_id=14),
+            b"wxyz",
+        )
+        device = FakeCaptureDevice([block])
+        writer = FakeWriter()
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        summary = worker.run_once(pa.PamCaptureParams(), max_blocks=0, capture_time_sec=0)
+
+        self.assertEqual([record.record_type for record in writer.records], [
+            pa.RECORD_TYPE_METADATA,
+            pa.RECORD_TYPE_DATA,
+            pa.RECORD_TYPE_END,
+        ])
+        self.assertEqual(writer.records[1].payload, b"wxyz")
+        self.assertEqual(writer.records[1].block_id, 2)
+        self.assertEqual(summary["blocks_sent"], 1)
+        self.assertEqual(summary["frames_sent"], 3)
+        self.assertEqual(summary["bytes_sent"], 4)
 
 
 if __name__ == "__main__":

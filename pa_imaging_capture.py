@@ -391,17 +391,16 @@ class AxisCaptureDevice:
             return None
         if len(raw) < AXIS_BLOCK_HEADER_BYTES:
             raise RuntimeError("axis capture short block header")
-        if len(raw) != expected_bytes:
-            raise RuntimeError(f"axis capture block size mismatch: expected {expected_bytes}, got {len(raw)}")
 
         header = AxisBlockHeader.unpack(raw[:AXIS_BLOCK_HEADER_BYTES])
         if header.used_bytes > status.superblock_bytes:
             raise RuntimeError(
                 f"axis capture block payload size mismatch: used {header.used_bytes}, superblock {status.superblock_bytes}"
             )
-        payload = raw[AXIS_BLOCK_HEADER_BYTES:AXIS_BLOCK_HEADER_BYTES + header.used_bytes]
-        if len(payload) != header.used_bytes:
-            raise RuntimeError(f"axis capture block payload size mismatch: expected {header.used_bytes}, got {len(payload)}")
+        actual_bytes = AXIS_BLOCK_HEADER_BYTES + header.used_bytes
+        if len(raw) != actual_bytes:
+            raise RuntimeError(f"axis capture block size mismatch: expected {actual_bytes}, got {len(raw)}")
+        payload = raw[AXIS_BLOCK_HEADER_BYTES:]
         return header, payload
 
 
@@ -459,6 +458,8 @@ class PaCaptureWorker:
                 continue
             if item is None:
                 return
+            header, payload = item
+            self._send_data_record(header, payload)
 
     def _stop_capture(self, pam_started, dma_started):
         if pam_started:
