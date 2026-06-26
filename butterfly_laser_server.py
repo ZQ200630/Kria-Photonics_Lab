@@ -49,6 +49,7 @@ from pa_imaging_capture import (
 
 SETTINGS_SCHEMA_VERSION = 6
 PA_STOP_ALL_JOIN_TIMEOUT_S = 15.0
+PA_SHUTDOWN_JOIN_TIMEOUT_S = 15.0
 
 
 DEFAULT_SETTINGS = {
@@ -452,6 +453,14 @@ class PaService:
             worker_thread = self.worker_thread
         if worker_thread is not None and worker_thread is not threading.current_thread() and join_timeout != 0:
             worker_thread.join(timeout=None if join_timeout is None else float(join_timeout))
+            if join_timeout is not None and worker_thread.is_alive():
+                with self.state_lock:
+                    if self.worker_thread is worker_thread and self.worker is not None:
+                        self._mark_worker_timeout_locked(
+                            self.worker,
+                            "stop_timeout",
+                            f"PA stop timed out after {float(join_timeout):.1f}s",
+                        )
         with self.state_lock:
             return self._status_locked()
 
@@ -475,6 +484,14 @@ class PaService:
                 self._close_socket(sock)
         if worker_thread is not None and worker_thread is not threading.current_thread():
             worker_thread.join(timeout=None if join_timeout is None else float(join_timeout))
+            if join_timeout is not None and worker_thread.is_alive():
+                with self.state_lock:
+                    if self.worker_thread is worker_thread and self.worker is not None:
+                        self._mark_worker_timeout_locked(
+                            self.worker,
+                            "shutdown_timeout",
+                            f"PA shutdown timed out after {float(join_timeout):.1f}s",
+                        )
         with self.state_lock:
             return self._status_locked()
 
@@ -583,6 +600,14 @@ class PaService:
             stats["running"] = False
             stats["last_error"] = ""
             stats["end_reason"] = "disconnect"
+
+    def _mark_worker_timeout_locked(self, worker, end_reason, message):
+        self.last_error = message
+        stats = getattr(worker, "stats", None)
+        if isinstance(stats, dict):
+            stats["last_error"] = message
+            stats["end_reason"] = end_reason
+        self.last_stats = self._snapshot_worker_stats(worker)
 
     def _close_socket(self, sock):
         try:
@@ -1254,10 +1279,16 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                 elif parsed.path == "/api/stop-all":
                     self.server.tec_ramp.stop()
                     pa_service = getattr(self.server, "pa_service", None)
+                    pa_status = None
                     if pa_service is not None:
-                        pa_service.stop(join_timeout=PA_STOP_ALL_JOIN_TIMEOUT_S)
+                        pa_status = pa_service.stop(join_timeout=PA_STOP_ALL_JOIN_TIMEOUT_S)
                     self.server.system.stop_all()
-                    self.reply_json({"ok": True, "status": server_status(self.server)})
+                    status = server_status(self.server)
+                    if pa_status is not None and pa_status.get("running"):
+                        error = pa_status.get("last_error") or "PA stop timed out"
+                        self.reply_json({"ok": False, "error": error, "status": status}, status=409)
+                    else:
+                        self.reply_json({"ok": True, "status": status})
                 elif parsed.path == "/api/settings":
                     settings = migrate_settings(deep_merge(DEFAULT_SETTINGS, body.get("settings", body)))
                     self.server.settings = settings
@@ -1448,7 +1479,10 @@ def main():
                 pa_tcp_listener.stop()
             pa_service = getattr(httpd, "pa_service", None)
             if pa_service is not None:
-                pa_service.disconnect(join_timeout=None)
+                pa_status = pa_service.disconnect(join_timeout=PA_SHUTDOWN_JOIN_TIMEOUT_S)
+                if pa_status.get("running"):
+                    error = pa_status.get("last_error") or "PA shutdown timed out"
+                    print(error, flush=True)
             tec_ramp = getattr(httpd, "tec_ramp", None)
             if tec_ramp is not None:
                 tec_ramp.stop()

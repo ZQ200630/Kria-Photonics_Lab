@@ -26,6 +26,7 @@ from butterfly_laser_server import (
     DEFAULT_SETTINGS,
     DEFAULT_SPAN,
     DEFAULT_TEC_BASE,
+    PA_SHUTDOWN_JOIN_TIMEOUT_S,
     ButterflyHandler,
     PaService,
     PaTcpListener,
@@ -270,7 +271,10 @@ def main():
                 pa_tcp_listener.stop()
             pa_service = getattr(httpd, "pa_service", None)
             if pa_service is not None:
-                pa_service.disconnect(join_timeout=None)
+                pa_status = pa_service.disconnect(join_timeout=PA_SHUTDOWN_JOIN_TIMEOUT_S)
+                if pa_status.get("running"):
+                    error = pa_status.get("last_error") or "PA shutdown timed out"
+                    print(error, flush=True)
             tec_ramp = getattr(httpd, "tec_ramp", None)
             if tec_ramp is not None:
                 tec_ramp.stop()

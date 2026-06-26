@@ -453,6 +453,21 @@ class PaServiceTests(unittest.TestCase):
         self.assertIsNone(service.worker_thread)
         self.assertFalse(status["running"])
 
+    def test_pa_service_stop_with_bounded_join_reports_timeout(self):
+        worker = SlowJoinablePaWorker()
+        service, _writer, _created = self.make_service(worker)
+        service.attach_socket(FakePaSocket())
+        service.start(pa.PamCaptureParams())
+        self.assertTrue(worker.run_entered.wait(0.5))
+
+        status = service.stop(join_timeout=0.01)
+
+        self.assertTrue(status["running"])
+        self.assertEqual(status["end_reason"], "stop_timeout")
+        self.assertIn("timed out", status["last_error"])
+        worker.release_exit.set()
+        service.disconnect(join_timeout=None)
+
     def test_pa_service_disconnect_without_timeout_waits_for_worker_exit(self):
         worker = SlowJoinablePaWorker()
         service, writer, _created = self.make_service(worker)
@@ -638,6 +653,30 @@ class RecordingPaServiceForStopAll(FakePaServiceForHandler):
         return super().stop()
 
 
+class TimedOutPaServiceForStopAll(FakePaServiceForHandler):
+    def __init__(self):
+        super().__init__()
+        self.join_timeout = "not called"
+
+    def stop(self, join_timeout=0):
+        self.stop_called = True
+        self.join_timeout = join_timeout
+        return {
+            "connected": True,
+            "running": True,
+            "last_error": "PA stop timed out after 15.0s",
+            "end_reason": "stop_timeout",
+        }
+
+    def status(self):
+        return {
+            "connected": True,
+            "running": True,
+            "last_error": "PA stop timed out after 15.0s",
+            "end_reason": "stop_timeout",
+        }
+
+
 class RecordingSystemForStopAll(FakeSystemForHandler):
     def __init__(self, events):
         super().__init__()
@@ -766,6 +805,20 @@ class HandlerPaEndpointTests(unittest.TestCase):
         self.assertEqual(server.pa_service.join_timeout, 15.0)
         self.assertEqual(replies[0][0], 200)
 
+    def test_stop_all_reports_pa_stop_timeout(self):
+        handler, server, replies = self.make_handler("/api/stop-all", method="POST")
+        server.pa_service = TimedOutPaServiceForStopAll()
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertTrue(server.pa_service.stop_called)
+        self.assertTrue(server.system.stop_all_called)
+        self.assertEqual(server.pa_service.join_timeout, 15.0)
+        self.assertEqual(replies[0][0], 409)
+        self.assertFalse(replies[0][1]["ok"])
+        self.assertIn("timed out", replies[0][1]["error"])
+        self.assertEqual(replies[0][1]["status"]["pa"]["end_reason"], "stop_timeout")
+
     def test_pa_start_is_serialized_by_server_lock(self):
         events = []
         server = mock.Mock()
@@ -806,11 +859,45 @@ class FakeHttpd(FakeCloseable):
         raise AssertionError("serve_forever should not run when PA listener start fails")
 
 
+class FakeServingHttpd(FakeHttpd):
+    def serve_forever(self, poll_interval=0.2):
+        raise KeyboardInterrupt
+
+
 class FakeSystemForMain(FakeCloseable):
     tec = object()
 
     def close(self):
         self.closed = True
+
+
+class FakePaTcpListenerForMain:
+    def __init__(self, _host, _port, _service, _stop_event):
+        self.started = False
+        self.stopped = False
+
+    def start(self):
+        self.started = True
+
+    def stop(self):
+        self.stopped = True
+
+
+class RunningPaServiceForMain:
+    instances = []
+
+    def __init__(self, _pa_regs, capture_dev_path="/dev/axis_capture0"):
+        self.disconnect_timeout = "not called"
+        RunningPaServiceForMain.instances.append(self)
+
+    def disconnect(self, join_timeout=0):
+        self.disconnect_timeout = join_timeout
+        return {
+            "connected": False,
+            "running": True,
+            "last_error": "PA shutdown timed out",
+            "end_reason": "shutdown_timeout",
+        }
 
 
 class MainCleanupTests(unittest.TestCase):
@@ -892,6 +979,62 @@ class MainCleanupTests(unittest.TestCase):
                                             with redirect_stdout(io.StringIO()):
                                                 tauri_server.main()
 
+        self.assertTrue(system.closed)
+        self.assertTrue(pa_regs.closed)
+        self.assertTrue(httpd_instances[0].server_closed)
+
+    def test_legacy_main_uses_bounded_pa_disconnect_during_shutdown(self):
+        system = FakeSystemForMain()
+        pa_regs = FakeCloseable()
+        httpd_instances = []
+        RunningPaServiceForMain.instances = []
+
+        def httpd_factory(addr, handler):
+            httpd = FakeServingHttpd(addr, handler)
+            httpd_instances.append(httpd)
+            return httpd
+
+        with mock.patch.object(legacy, "ButterflyLaserSystem", return_value=system):
+            with mock.patch.object(legacy, "AxiMap", return_value=pa_regs):
+                with mock.patch.object(legacy, "ThreadingHTTPServer", side_effect=httpd_factory):
+                    with mock.patch.object(legacy, "load_settings", return_value={}):
+                        with mock.patch.object(legacy, "tec_ramp_from_settings", return_value=FakeRamp()):
+                            with mock.patch.object(legacy, "initialize_pl_parameters"):
+                                with mock.patch.object(legacy, "PaTcpListener", FakePaTcpListenerForMain):
+                                    with mock.patch.object(legacy, "PaService", RunningPaServiceForMain):
+                                        with mock.patch("sys.argv", ["butterfly_laser_server.py"]):
+                                            with redirect_stdout(io.StringIO()):
+                                                legacy.main()
+
+        self.assertEqual(RunningPaServiceForMain.instances[0].disconnect_timeout, 15.0)
+        self.assertTrue(system.closed)
+        self.assertTrue(pa_regs.closed)
+        self.assertTrue(httpd_instances[0].server_closed)
+
+    def test_tauri_main_uses_bounded_pa_disconnect_during_shutdown(self):
+        system = FakeSystemForMain()
+        pa_regs = FakeCloseable()
+        httpd_instances = []
+        RunningPaServiceForMain.instances = []
+
+        def httpd_factory(addr, handler):
+            httpd = FakeServingHttpd(addr, handler)
+            httpd_instances.append(httpd)
+            return httpd
+
+        with mock.patch.object(tauri_server, "ButterflyLaserSystem", return_value=system):
+            with mock.patch.object(tauri_server, "AxiMap", return_value=pa_regs):
+                with mock.patch.object(tauri_server, "ThreadingHTTPServer", side_effect=httpd_factory):
+                    with mock.patch.object(tauri_server, "load_settings", return_value={}):
+                        with mock.patch.object(tauri_server, "tec_ramp_from_settings", return_value=FakeRamp()):
+                            with mock.patch.object(tauri_server, "initialize_pl_parameters"):
+                                with mock.patch.object(tauri_server, "PaTcpListener", FakePaTcpListenerForMain):
+                                    with mock.patch.object(tauri_server, "PaService", RunningPaServiceForMain):
+                                        with mock.patch("sys.argv", ["butterfly_laser_server_tauri.py"]):
+                                            with redirect_stdout(io.StringIO()):
+                                                tauri_server.main()
+
+        self.assertEqual(RunningPaServiceForMain.instances[0].disconnect_timeout, 15.0)
         self.assertTrue(system.closed)
         self.assertTrue(pa_regs.closed)
         self.assertTrue(httpd_instances[0].server_closed)
