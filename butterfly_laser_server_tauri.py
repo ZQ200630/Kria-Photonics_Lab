@@ -16,7 +16,7 @@ import time
 from http.server import ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from butterfly_laser_control import ButterflyLaserSystem, parse_int
+from butterfly_laser_control import AxiMap, ButterflyLaserSystem, parse_int
 from butterfly_laser_server import (
     DEFAULT_ADA_BASE,
     DEFAULT_ADA_BUF0_BASE,
@@ -27,6 +27,8 @@ from butterfly_laser_server import (
     DEFAULT_SPAN,
     DEFAULT_TEC_BASE,
     ButterflyHandler,
+    PaService,
+    PaTcpListener,
     build_parser as build_legacy_parser,
     initialize_pl_parameters,
     load_settings,
@@ -213,6 +215,7 @@ def main():
         ada_raw_base=args.ada_raw_base,
         raw_buffer_span=args.raw_buffer_span,
     )
+    pa_regs = AxiMap(args.pa_axi_base, args.pa_axi_span)
     settings = load_settings(args.settings)
     httpd = ThreadingHTTPServer((args.host, args.port), ButterflyTauriHandler)
     httpd.system = system
@@ -223,6 +226,9 @@ def main():
     httpd.tec_ramp = tec_ramp_from_settings(system.tec, httpd.lock, settings)
     initialize_pl_parameters(system, settings)
     httpd.stop_event = threading.Event()
+    httpd.pa_service = PaService(pa_regs, capture_dev_path=args.pa_capture_dev)
+    httpd.pa_tcp_listener = PaTcpListener(args.host, args.pa_tcp_port, httpd.pa_service, httpd.stop_event)
+    httpd.pa_tcp_listener.start()
     httpd.sse_status_hz = max(float(args.sse_status_hz), 0.1)
     httpd.sse_status_interval = 1.0 / httpd.sse_status_hz
     httpd.sse_heartbeat_interval = max(float(args.sse_heartbeat_s), 0.2)
@@ -243,7 +249,8 @@ def main():
     print(
         f"Listening on http://{args.host}:{args.port} "
         f"tec=0x{parse_int(args.tec_base):08X} laser=0x{parse_int(args.laser_base):08X} "
-        f"ada=0x{parse_int(args.ada_base):08X} settings={args.settings} sse=on",
+        f"ada=0x{parse_int(args.ada_base):08X} pa_tcp={args.pa_tcp_port} "
+        f"settings={args.settings} sse=on",
         flush=True,
     )
     try:
@@ -252,6 +259,9 @@ def main():
         pass
     finally:
         httpd.stop_event.set()
+        httpd.pa_tcp_listener.stop()
+        httpd.pa_service.disconnect()
+        pa_regs.close()
         httpd.tec_ramp.stop()
         httpd.server_close()
         system.close()

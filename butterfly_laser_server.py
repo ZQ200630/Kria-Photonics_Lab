@@ -13,12 +13,14 @@ import argparse
 import json
 import os
 import signal
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from butterfly_laser_control import (
+    AxiMap,
     DEFAULT_ADA_BASE,
     DEFAULT_ADA_BUF0_BASE,
     DEFAULT_ADA_BUF1_BASE,
@@ -32,6 +34,15 @@ from butterfly_laser_control import (
     parse_int,
     require_u16,
     require_u32,
+)
+from pa_imaging_capture import (
+    PAM_AXI_DEFAULT_BASE,
+    PAM_AXI_MAP_SPAN,
+    AxisCaptureDevice,
+    ConnectedPaWriter,
+    PaCaptureWorker,
+    PamAxiController,
+    PamCaptureParams,
 )
 
 
@@ -368,11 +379,193 @@ def tec_ramp_from_settings(tec, lock, settings):
     )
 
 
+class PaService:
+    def __init__(
+        self,
+        pam_regs,
+        capture_dev_path="/dev/axis_capture0",
+        writer_factory=ConnectedPaWriter,
+        pam_factory=PamAxiController,
+        device_factory=AxisCaptureDevice,
+        worker_factory=PaCaptureWorker,
+    ):
+        self.pam_regs = pam_regs
+        self.capture_dev_path = capture_dev_path
+        self.writer_factory = writer_factory
+        self.pam_factory = pam_factory
+        self.device_factory = device_factory
+        self.worker_factory = worker_factory
+        self.state_lock = threading.RLock()
+        self.writer = None
+        self.worker = None
+        self.worker_thread = None
+        self.client_socket = None
+        self.last_error = ""
+
+    def attach_socket(self, sock):
+        with self.state_lock:
+            if self.writer is not None:
+                self.last_error = "PA TCP client already connected"
+                self._close_socket(sock)
+                return self._status_locked()
+            self.client_socket = sock
+            self.writer = self.writer_factory(sock)
+            self.last_error = ""
+            return self._status_locked()
+
+    def start(self, params, max_blocks=-1, capture_time_sec=0):
+        with self.state_lock:
+            if self.writer is None:
+                raise RuntimeError("PA TCP client is not connected")
+            if self._capture_active_locked():
+                raise RuntimeError("PA capture is already running")
+            pam = self.pam_factory(self.pam_regs)
+            device = self.device_factory(self.capture_dev_path)
+            worker = self.worker_factory(pam, device, self.writer)
+            self.worker = worker
+            self.worker_thread = threading.Thread(
+                target=self._run_worker,
+                args=(worker, params, int(max_blocks), float(capture_time_sec)),
+                name="pa-capture-worker",
+                daemon=True,
+            )
+            self.last_error = ""
+            self.worker_thread.start()
+            return self._status_locked()
+
+    def stop(self):
+        with self.state_lock:
+            if self.worker is not None:
+                self.worker.request_stop()
+            return self._status_locked()
+
+    def disconnect(self):
+        with self.state_lock:
+            if self.worker is not None:
+                self.worker.request_stop()
+            writer = self.writer
+            sock = self.client_socket
+            self.writer = None
+            self.client_socket = None
+            if writer is not None:
+                try:
+                    writer.close_client()
+                except Exception as exc:
+                    self.last_error = str(exc)
+            elif sock is not None:
+                self._close_socket(sock)
+            return self._status_locked()
+
+    def status(self):
+        with self.state_lock:
+            return self._status_locked()
+
+    def _run_worker(self, worker, params, max_blocks, capture_time_sec):
+        try:
+            worker.run_once(params, max_blocks=max_blocks, capture_time_sec=capture_time_sec)
+        except Exception as exc:
+            with self.state_lock:
+                self.last_error = str(exc)
+
+    def _capture_active_locked(self):
+        return self.worker_thread is not None and self.worker_thread.is_alive()
+
+    def _status_locked(self):
+        stats = {}
+        if self.worker is not None:
+            stats = dict(getattr(self.worker, "stats", {}) or {})
+        return {
+            "connected": self.writer is not None,
+            "running": self._capture_active_locked() or bool(stats.get("running", False)),
+            "last_error": self.last_error or str(stats.get("last_error", "")),
+            "blocks_sent": int(stats.get("blocks_sent", 0) or 0),
+            "frames_sent": int(stats.get("frames_sent", 0) or 0),
+            "bytes_sent": int(stats.get("bytes_sent", 0) or 0),
+            "end_reason": str(stats.get("end_reason", "")),
+        }
+
+    def _close_socket(self, sock):
+        try:
+            sock.shutdown(socket.SHUT_RDWR)
+        except (AttributeError, OSError):
+            pass
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+
+class PaTcpListener:
+    def __init__(self, host, port, service, stop_event):
+        self.host = host
+        self.port = int(port)
+        self.service = service
+        self.stop_event = stop_event
+        self.listener = None
+        self.thread = threading.Thread(target=self._run, name="pa-tcp-listener", daemon=True)
+
+    def start(self):
+        self.thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+        if self.listener is not None:
+            try:
+                self.listener.close()
+            except OSError:
+                pass
+
+    def _run(self):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+                self.listener = listener
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                listener.bind((self.host, self.port))
+                listener.listen(1)
+                listener.settimeout(0.2)
+                while not self.stop_event.is_set():
+                    try:
+                        client, _addr = listener.accept()
+                    except socket.timeout:
+                        continue
+                    except OSError as exc:
+                        if not self.stop_event.is_set():
+                            self._record_error(exc)
+                        break
+                    try:
+                        self.service.attach_socket(client)
+                    except Exception as exc:
+                        self._record_error(exc)
+                        self._close_client(client)
+        except Exception as exc:
+            if not self.stop_event.is_set():
+                self._record_error(exc)
+        finally:
+            self.listener = None
+
+    def _record_error(self, exc):
+        with self.service.state_lock:
+            self.service.last_error = str(exc)
+
+    def _close_client(self, client):
+        try:
+            client.shutdown(socket.SHUT_RDWR)
+        except (AttributeError, OSError):
+            pass
+        try:
+            client.close()
+        except OSError:
+            pass
+
+
 def server_status(server):
     status = server.system.status()
     ramp = getattr(server, "tec_ramp", None)
     if ramp is not None:
         status.setdefault("tec", {})["ramp"] = ramp.status()
+    pa_service = getattr(server, "pa_service", None)
+    if pa_service is not None:
+        status["pa"] = pa_service.status()
     return status
 
 
@@ -604,12 +797,18 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                         "/api/ada/status",
                         "/api/ada/spectrum",
                         "/api/ada/filter",
+                        "/api/pa/status",
+                        "/api/pa/start",
+                        "/api/pa/stop",
+                        "/api/pa/disconnect",
                         "/api/stop-all",
                     ],
                 })
             elif parsed.path == "/api/status":
                 with self.server.lock:
                     self.reply_json({"ok": True, "status": server_status(self.server)})
+            elif parsed.path == "/api/pa/status":
+                self.reply_json({"ok": True, "pa": self.server.pa_service.status()})
             elif parsed.path == "/api/settings":
                 with self.server.lock:
                     self.reply_json({
@@ -665,6 +864,9 @@ class ButterflyHandler(BaseHTTPRequestHandler):
         try:
             parsed = urlparse(self.path)
             body = parse_body(self)
+            if parsed.path.startswith("/api/pa/"):
+                self.handle_pa_post(parsed.path, body)
+                return
             with self.server.lock:
                 if parsed.path == "/api/tec/start":
                     target = body.get("celsius", body.get("target_celsius"))
@@ -972,6 +1174,30 @@ class ButterflyHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             self.reply_error(400, str(exc))
 
+    def handle_pa_post(self, path, body):
+        pa_service = self.server.pa_service
+        if path == "/api/pa/start":
+            params_body = body.get("params", body)
+            params = PamCaptureParams.from_dict(params_body)
+            max_blocks = body_int(body, "max_blocks", -1)
+            capture_time_sec = float(body.get("capture_time_sec", 0))
+            try:
+                status = pa_service.start(
+                    params,
+                    max_blocks=max_blocks,
+                    capture_time_sec=capture_time_sec,
+                )
+            except RuntimeError as exc:
+                self.reply_json({"ok": False, "error": str(exc), "pa": pa_service.status()}, status=409)
+                return
+            self.reply_json({"ok": True, "pa": status})
+        elif path == "/api/pa/stop":
+            self.reply_json({"ok": True, "pa": pa_service.stop()})
+        elif path == "/api/pa/disconnect":
+            self.reply_json({"ok": True, "pa": pa_service.disconnect()})
+        else:
+            self.reply_error(404, "unknown endpoint")
+
     def read_block(self, block, offset):
         with self.server.lock:
             if block == "tec":
@@ -1015,6 +1241,10 @@ def build_parser():
     parser.add_argument("--span", default=hex(DEFAULT_SPAN), help="/dev/mem mapping span")
     parser.add_argument("--buffer-span", default=hex(DEFAULT_BUFFER_SPAN), help="ADA4355 spectrum buffer mapping span")
     parser.add_argument("--raw-buffer-span", default=hex(DEFAULT_RAW_BUFFER_SPAN), help="ADA4355 raw ADC buffer mapping span")
+    parser.add_argument("--pa-axi-base", default=hex(PAM_AXI_DEFAULT_BASE), help="PA imaging AXI base address")
+    parser.add_argument("--pa-axi-span", default=hex(PAM_AXI_MAP_SPAN), help="PA imaging AXI mapping span")
+    parser.add_argument("--pa-capture-dev", default="/dev/axis_capture0", help="PA AXIS capture device path")
+    parser.add_argument("--pa-tcp-port", type=int, default=9090, help="PA imaging TCP stream port")
     parser.add_argument("--host", default="0.0.0.0", help="Listen address")
     parser.add_argument("--port", type=int, default=8080, help="Listen port")
     parser.add_argument(
@@ -1039,6 +1269,7 @@ def main():
         ada_raw_base=args.ada_raw_base,
         raw_buffer_span=args.raw_buffer_span,
     )
+    pa_regs = AxiMap(args.pa_axi_base, args.pa_axi_span)
     settings = load_settings(args.settings)
     httpd = ThreadingHTTPServer((args.host, args.port), ButterflyHandler)
     httpd.system = system
@@ -1048,6 +1279,10 @@ def main():
     httpd.settings_path = args.settings
     httpd.tec_ramp = tec_ramp_from_settings(system.tec, httpd.lock, settings)
     initialize_pl_parameters(system, settings)
+    httpd.stop_event = threading.Event()
+    httpd.pa_service = PaService(pa_regs, capture_dev_path=args.pa_capture_dev)
+    httpd.pa_tcp_listener = PaTcpListener(args.host, args.pa_tcp_port, httpd.pa_service, httpd.stop_event)
+    httpd.pa_tcp_listener.start()
 
     httpd.daemon_threads = True
     httpd.block_on_close = False
@@ -1055,6 +1290,7 @@ def main():
     def request_stop(signum, _frame):
         name = signal.Signals(signum).name
         print(f"\n{name} received, shutting down server...", flush=True)
+        httpd.stop_event.set()
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, request_stop)
@@ -1064,6 +1300,7 @@ def main():
         f"Listening on http://{args.host}:{args.port} "
         f"tec=0x{parse_int(args.tec_base):08X} laser=0x{parse_int(args.laser_base):08X} "
         f"ada=0x{parse_int(args.ada_base):08X} "
+        f"pa_tcp={args.pa_tcp_port} "
         f"settings={args.settings}",
         flush=True,
     )
@@ -1072,6 +1309,10 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        httpd.stop_event.set()
+        httpd.pa_tcp_listener.stop()
+        httpd.pa_service.disconnect()
+        pa_regs.close()
         httpd.tec_ramp.stop()
         httpd.server_close()
         system.close()
