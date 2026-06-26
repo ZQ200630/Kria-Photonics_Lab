@@ -61,6 +61,13 @@ def _u16_bits(value):
     return value & 0xFFFF
 
 
+def _u16_positive(value):
+    value = int(value)
+    if value < 1 or value > 0xFFFF:
+        raise ValueError("positive 16-bit register value out of range")
+    return value
+
+
 def _u32(value):
     value = int(value)
     if value < 0 or value > 0xFFFFFFFF:
@@ -108,11 +115,11 @@ class PamCaptureParams:
         return {
             PAM_REG_X_START: _u16_bits(self.x_start),
             PAM_REG_X_STEP: _u16_bits(self.x_step),
-            PAM_REG_X_POINTS: _u16_bits(self.x_points),
+            PAM_REG_X_POINTS: _u16_positive(self.x_points),
             PAM_REG_Y_START: _u16_bits(self.y_start),
             PAM_REG_Y_STEP: _u16_bits(self.y_step),
-            PAM_REG_Y_POINTS: _u16_bits(self.y_points),
-            PAM_REG_FRAME_NUMBER: _u16_bits(self.frame_number),
+            PAM_REG_Y_POINTS: _u16_positive(self.y_points),
+            PAM_REG_FRAME_NUMBER: _u16_positive(self.frame_number),
             PAM_REG_TASK_ID: _u32(self.task_id),
             PAM_REG_GAP_TIME: _u32(self.gap_time),
             PAM_REG_GALVO_SETTLE_TIME: _u32(self.galvo_settle_time),

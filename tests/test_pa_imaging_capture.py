@@ -29,6 +29,19 @@ class PaProtocolTests(unittest.TestCase):
         self.assertEqual(packed[pa.PAM_REG_X_POINTS], 128)
         self.assertEqual(packed[pa.PAM_REG_SCAN_MODE], 0)
 
+    def test_pam_params_reject_invalid_count_register_values(self):
+        invalid_params = (
+            pa.PamCaptureParams(x_points=0),
+            pa.PamCaptureParams(x_points=-1),
+            pa.PamCaptureParams(y_points=0),
+            pa.PamCaptureParams(frame_number=0),
+        )
+
+        for params in invalid_params:
+            with self.subTest(params=params):
+                with self.assertRaises(ValueError):
+                    params.register_values()
+
     def test_pam_axi_program_forces_start_low_before_register_writes(self):
         regs = FakeRegs()
         params = pa.PamCaptureParams(x_start=-1, x_step=2, x_points=3)
