@@ -465,6 +465,22 @@ class PaWorkerTests(unittest.TestCase):
         self.assertLess(device.actions.index("dma_start"), device.actions.index("dma_stop"))
         self.assertEqual(regs.writes[-1], (pa.PAM_REG_START, 0))
 
+    def test_worker_stop_requested_before_run_skips_hardware_start(self):
+        actions = []
+        pam = OrderingPam(actions)
+        device = OrderingCaptureDevice(actions, [])
+        writer = OrderingWriter(actions)
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        worker.request_stop()
+        summary = worker.run_once(pa.PamCaptureParams(), max_blocks=1, capture_time_sec=0)
+
+        self.assertEqual(summary["end_reason"], "stop_requested")
+        self.assertIn("send_metadata", actions)
+        self.assertNotIn("dma_start", actions)
+        self.assertNotIn("pam_high", actions)
+        self.assertEqual(writer.records[-1].record_type, pa.RECORD_TYPE_END)
+
     def test_worker_sends_drained_blocks_before_end_record(self):
         regs = FakeRegs()
         pam = pa.PamAxiController(regs)

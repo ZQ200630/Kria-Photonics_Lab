@@ -10,6 +10,7 @@ control and does not implement authentication.
 """
 
 import argparse
+import errno
 import json
 import os
 import signal
@@ -443,10 +444,14 @@ class PaService:
             self.worker_thread.start()
             return self._status_locked()
 
-    def stop(self):
+    def stop(self, join_timeout=0):
         with self.state_lock:
             if self.worker is not None:
                 self.worker.request_stop()
+            worker_thread = self.worker_thread
+        if worker_thread is not None and worker_thread is not threading.current_thread() and join_timeout != 0:
+            worker_thread.join(timeout=None if join_timeout is None else float(join_timeout))
+        with self.state_lock:
             return self._status_locked()
 
     def disconnect(self, join_timeout=0):
@@ -553,7 +558,23 @@ class PaService:
         return stats
 
     def _is_expected_disconnect_error(self, exc):
-        return "PA writer client is closed" in str(exc)
+        if isinstance(exc, (BrokenPipeError, ConnectionResetError)):
+            return True
+        if isinstance(exc, OSError) and getattr(exc, "errno", None) in {
+            errno.EBADF,
+            errno.EPIPE,
+            errno.ENOTCONN,
+            errno.ECONNRESET,
+        }:
+            return True
+        message = str(exc).lower()
+        return (
+            "pa writer client is closed" in message
+            or "broken pipe" in message
+            or "connection reset" in message
+            or "bad file descriptor" in message
+            or "socket is closed" in message
+        )
 
     def _mark_worker_disconnected(self, worker):
         stats = getattr(worker, "stats", None)
@@ -1233,7 +1254,7 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                     self.server.tec_ramp.stop()
                     pa_service = getattr(self.server, "pa_service", None)
                     if pa_service is not None:
-                        pa_service.stop()
+                        pa_service.stop(join_timeout=None)
                     self.server.system.stop_all()
                     self.reply_json({"ok": True, "status": server_status(self.server)})
                 elif parsed.path == "/api/settings":

@@ -503,7 +503,6 @@ class PaCaptureWorker:
             idle_start_ns = now_ns()
 
     def run_once(self, params, max_blocks=-1, capture_time_sec=0):
-        self._stop_event.clear()
         self.sequence = 0
         self._writer_failed = False
         self.stats = self._new_stats()
@@ -554,8 +553,23 @@ class PaCaptureWorker:
                 },
             )
 
+            if self._stop_event.is_set():
+                self.stats["end_reason"] = "stop_requested"
+                stop_capture()
+                self.stats["running"] = False
+                self._send_json_record(RECORD_TYPE_END, dict(self.stats))
+                return dict(self.stats)
+
             self.device.start()
             dma_started = True
+
+            if self._stop_event.is_set():
+                self.stats["end_reason"] = "stop_requested"
+                stop_capture()
+                self.stats["running"] = False
+                self._send_json_record(RECORD_TYPE_END, dict(self.stats))
+                return dict(self.stats)
+
             pam_started = True
             self.pam.write_start(1)
 
