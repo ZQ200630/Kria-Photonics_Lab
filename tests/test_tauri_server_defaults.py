@@ -763,7 +763,7 @@ class HandlerPaEndpointTests(unittest.TestCase):
         legacy.ButterflyHandler.do_POST(handler)
 
         self.assertEqual(events, ["lock_enter", "pa_stop", "system_stop_all", "lock_exit"])
-        self.assertIsNone(server.pa_service.join_timeout)
+        self.assertEqual(server.pa_service.join_timeout, 15.0)
         self.assertEqual(replies[0][0], 200)
 
     def test_pa_start_is_serialized_by_server_lock(self):

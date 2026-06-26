@@ -48,6 +48,7 @@ from pa_imaging_capture import (
 
 
 SETTINGS_SCHEMA_VERSION = 6
+PA_STOP_ALL_JOIN_TIMEOUT_S = 15.0
 
 
 DEFAULT_SETTINGS = {
@@ -1254,7 +1255,7 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                     self.server.tec_ramp.stop()
                     pa_service = getattr(self.server, "pa_service", None)
                     if pa_service is not None:
-                        pa_service.stop(join_timeout=None)
+                        pa_service.stop(join_timeout=PA_STOP_ALL_JOIN_TIMEOUT_S)
                     self.server.system.stop_all()
                     self.reply_json({"ok": True, "status": server_status(self.server)})
                 elif parsed.path == "/api/settings":
