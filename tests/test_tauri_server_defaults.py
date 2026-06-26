@@ -547,6 +547,14 @@ class FakePaServiceForStart:
         return {"connected": True, "running": False, "last_error": ""}
 
 
+class RaisingAlreadyRunningPaService:
+    def start(self, params, max_blocks=-1, capture_time_sec=0):
+        raise RuntimeError("PA capture already running")
+
+    def status(self):
+        return {"connected": True, "running": True, "last_error": ""}
+
+
 class RecordingLock:
     def __init__(self, events):
         self.events = events
@@ -569,6 +577,26 @@ class FakeSystemForHandler:
 
     def status(self):
         return {"laser": {}, "tec": {}, "ada4355": {}}
+
+
+class RecordingPaServiceForStopAll(FakePaServiceForHandler):
+    def __init__(self, events):
+        super().__init__()
+        self.events = events
+
+    def stop(self):
+        self.events.append("pa_stop")
+        return super().stop()
+
+
+class RecordingSystemForStopAll(FakeSystemForHandler):
+    def __init__(self, events):
+        super().__init__()
+        self.events = events
+
+    def stop_all(self):
+        self.events.append("system_stop_all")
+        super().stop_all()
 
 
 class RaisingPaServiceForStart:
@@ -595,6 +623,18 @@ class HandlerPaEndpointTests(unittest.TestCase):
         handler.reply_json = lambda obj, status=200: replies.append((status, obj))
         handler.reply_error = lambda status, message: replies.append((status, {"ok": False, "error": message}))
         return handler, server, replies
+
+    def test_root_lists_pa_endpoints(self):
+        handler, _server, replies = self.make_handler("/")
+
+        legacy.ButterflyHandler.do_GET(handler)
+
+        self.assertEqual(replies[0][0], 200)
+        endpoints = set(replies[0][1]["endpoints"])
+        self.assertIn("/api/pa/status", endpoints)
+        self.assertIn("/api/pa/start", endpoints)
+        self.assertIn("/api/pa/stop", endpoints)
+        self.assertIn("/api/pa/disconnect", endpoints)
 
     def test_api_status_includes_pa_object(self):
         handler, _server, replies = self.make_handler("/api/status")
@@ -645,6 +685,16 @@ class HandlerPaEndpointTests(unittest.TestCase):
         self.assertFalse(replies[0][1]["ok"])
         self.assertIn("not connected", replies[0][1]["error"])
 
+    def test_pa_start_already_running_conflict_maps_to_409(self):
+        handler, server, replies = self.make_handler("/api/pa/start", method="POST", body=b"{}")
+        server.pa_service = RaisingAlreadyRunningPaService()
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(replies[0][0], 409)
+        self.assertFalse(replies[0][1]["ok"])
+        self.assertIn("already running", replies[0][1]["error"])
+
     def test_stop_all_stops_pa_service_when_present(self):
         handler, server, replies = self.make_handler("/api/stop-all", method="POST")
 
@@ -652,6 +702,18 @@ class HandlerPaEndpointTests(unittest.TestCase):
 
         self.assertTrue(server.pa_service.stop_called)
         self.assertTrue(server.system.stop_all_called)
+        self.assertEqual(replies[0][0], 200)
+
+    def test_stop_all_is_serialized_by_server_lock(self):
+        events = []
+        handler, server, replies = self.make_handler("/api/stop-all", method="POST")
+        server.lock = RecordingLock(events)
+        server.pa_service = RecordingPaServiceForStopAll(events)
+        server.system = RecordingSystemForStopAll(events)
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(events, ["lock_enter", "pa_stop", "system_stop_all", "lock_exit"])
         self.assertEqual(replies[0][0], 200)
 
     def test_pa_start_is_serialized_by_server_lock(self):
