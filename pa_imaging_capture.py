@@ -303,8 +303,10 @@ def metadata_record(sequence, timestamp_ns, payload):
 
 
 class ConnectedPaWriter:
-    def __init__(self, sock):
+    def __init__(self, sock, send_timeout_s=5.0):
         self.sock = sock
+        if send_timeout_s is not None:
+            self.sock.settimeout(float(send_timeout_s))
         self._lock = threading.Lock()
         self._closed = False
 
@@ -405,10 +407,11 @@ class AxisCaptureDevice:
 
 
 class PaCaptureWorker:
-    def __init__(self, pam, device, writer):
+    def __init__(self, pam, device, writer, drain_idle_timeout_s=2.0):
         self.pam = pam
         self.device = device
         self.writer = writer
+        self.drain_idle_timeout_s = drain_idle_timeout_s
         self._stop_event = threading.Event()
         self.sequence = 0
         self.stats = self._new_stats()
@@ -452,21 +455,23 @@ class PaCaptureWorker:
         self.stats["bytes_sent"] += len(payload)
 
     def _drain_until_eof(self):
+        idle_start_ns = now_ns()
         while True:
             item = self.device.read_block(timeout=0.1)
             if item is AXIS_READ_TIMEOUT:
+                status = self.device.get_status()
+                if status.draining_done and status.ready_block_count == 0:
+                    return
+                if self.drain_idle_timeout_s is not None:
+                    elapsed_ns = now_ns() - idle_start_ns
+                    if elapsed_ns >= int(float(self.drain_idle_timeout_s) * 1_000_000_000):
+                        raise RuntimeError("axis capture drain timed out")
                 continue
             if item is None:
                 return
             header, payload = item
             self._send_data_record(header, payload)
-
-    def _stop_capture(self, pam_started, dma_started):
-        if pam_started:
-            self.pam.write_start(0)
-        if dma_started:
-            self.device.stop()
-            self._drain_until_eof()
+            idle_start_ns = now_ns()
 
     def run_once(self, params, max_blocks=-1, capture_time_sec=0):
         self._stop_event.clear()
@@ -477,6 +482,16 @@ class PaCaptureWorker:
         dma_started = False
         device_opened = False
         start_ns = now_ns()
+
+        def stop_capture():
+            nonlocal pam_started, dma_started
+            if pam_started:
+                self.pam.write_start(0)
+                pam_started = False
+            if dma_started:
+                self.device.stop()
+                dma_started = False
+                self._drain_until_eof()
 
         try:
             self.pam.program(params)
@@ -520,9 +535,7 @@ class PaCaptureWorker:
             if not self.stats["end_reason"]:
                 self.stats["end_reason"] = "complete"
 
-            self._stop_capture(pam_started, dma_started)
-            pam_started = False
-            dma_started = False
+            stop_capture()
             self.stats["running"] = False
             self._send_json_record(RECORD_TYPE_END, dict(self.stats))
             return dict(self.stats)
@@ -530,9 +543,7 @@ class PaCaptureWorker:
             self.stats["last_error"] = str(exc)
             self.stats["end_reason"] = "error"
             try:
-                self._stop_capture(pam_started, dma_started)
-                pam_started = False
-                dma_started = False
+                stop_capture()
             except Exception as stop_exc:
                 if self.stats["last_error"]:
                     self.stats["last_error"] += f"; stop failed: {stop_exc}"
