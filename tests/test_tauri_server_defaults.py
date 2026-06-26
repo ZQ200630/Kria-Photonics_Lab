@@ -168,6 +168,24 @@ class SlowJoinablePaWorker(JoinablePaWorker):
         return dict(self.stats)
 
 
+class SlowCleanStopPaWorker(SlowJoinablePaWorker):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+        self.stats["running"] = True
+        self.run_entered.set()
+        self.stop_requested.wait(1.0)
+        self.release_exit.wait(1.0)
+        self.stats.update({
+            "running": False,
+            "blocks_sent": 4,
+            "frames_sent": 9,
+            "bytes_sent": 2048,
+            "last_error": "",
+            "end_reason": "stop_requested",
+        })
+        self.run_exited.set()
+        return dict(self.stats)
+
+
 class CountingStopPaWorker(JoinablePaWorker):
     def run_once(self, params, max_blocks=-1, capture_time_sec=0):
         self.stats["running"] = True
@@ -216,6 +234,29 @@ class BrokenPipeAfterStopPaWorker(JoinablePaWorker):
         })
         self.run_exited.set()
         raise BrokenPipeError("broken pipe")
+
+
+class EnrichedErrorPaWorker:
+    def __init__(self):
+        self.stats = {
+            "running": False,
+            "blocks_sent": 1,
+            "frames_sent": 2,
+            "bytes_sent": 3,
+            "last_error": "",
+            "end_reason": "",
+        }
+
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+        self.stats.update({
+            "running": False,
+            "last_error": "send failed; stop failed: dma",
+            "end_reason": "error",
+        })
+        raise RuntimeError("send failed")
+
+    def request_stop(self):
+        pass
 
 
 class PaServiceTests(unittest.TestCase):
@@ -467,6 +508,45 @@ class PaServiceTests(unittest.TestCase):
         self.assertIn("timed out", status["last_error"])
         worker.release_exit.set()
         service.disconnect(join_timeout=None)
+
+    def test_pa_service_clears_resolved_stop_timeout_after_clean_worker_exit(self):
+        worker = SlowCleanStopPaWorker()
+        service, _writer, _created = self.make_service(worker)
+        service.attach_socket(FakePaSocket())
+        service.start(pa.PamCaptureParams())
+        self.assertTrue(worker.run_entered.wait(0.5))
+
+        timeout_status = service.stop(join_timeout=0.01)
+        self.assertTrue(timeout_status["running"])
+        self.assertEqual(timeout_status["end_reason"], "stop_timeout")
+        self.assertIn("timed out", timeout_status["last_error"])
+
+        worker_thread = service.worker_thread
+        worker.release_exit.set()
+        worker_thread.join(0.5)
+        final_status = service.status()
+
+        self.assertFalse(final_status["running"])
+        self.assertEqual(final_status["blocks_sent"], 4)
+        self.assertEqual(final_status["frames_sent"], 9)
+        self.assertEqual(final_status["bytes_sent"], 2048)
+        self.assertEqual(final_status["end_reason"], "stop_requested")
+        self.assertEqual(final_status["last_error"], "")
+
+    def test_pa_service_prefers_enriched_worker_error_stats(self):
+        worker = EnrichedErrorPaWorker()
+        service, _writer, _created = self.make_service(worker)
+        service.attach_socket(FakePaSocket())
+        service.start(pa.PamCaptureParams())
+        worker_thread = service.worker_thread
+        if worker_thread is not None:
+            worker_thread.join(0.5)
+
+        status = service.status()
+
+        self.assertFalse(status["running"])
+        self.assertEqual(status["last_error"], "send failed; stop failed: dma")
+        self.assertEqual(status["end_reason"], "error")
 
     def test_pa_service_disconnect_without_timeout_waits_for_worker_exit(self):
         worker = SlowJoinablePaWorker()
@@ -864,11 +944,32 @@ class FakeServingHttpd(FakeHttpd):
         raise KeyboardInterrupt
 
 
+class FailingServeHttpd(FakeHttpd):
+    def serve_forever(self, poll_interval=0.2):
+        raise RuntimeError("serve failed")
+
+    def server_close(self):
+        self.server_closed = True
+        raise RuntimeError("server close failed")
+
+
 class FakeSystemForMain(FakeCloseable):
     tec = object()
 
     def close(self):
         self.closed = True
+
+
+class RaisingSystemForMain(FakeSystemForMain):
+    def close(self):
+        self.closed = True
+        raise RuntimeError("system close failed")
+
+
+class RaisingCloseable(FakeCloseable):
+    def close(self):
+        self.closed = True
+        raise RuntimeError("pa regs close failed")
 
 
 class FakePaTcpListenerForMain:
@@ -881,6 +982,18 @@ class FakePaTcpListenerForMain:
 
     def stop(self):
         self.stopped = True
+
+
+class RaisingPaTcpListenerForMain(FakePaTcpListenerForMain):
+    instances = []
+
+    def __init__(self, host, port, service, stop_event):
+        super().__init__(host, port, service, stop_event)
+        RaisingPaTcpListenerForMain.instances.append(self)
+
+    def stop(self):
+        self.stopped = True
+        raise RuntimeError("listener stop failed")
 
 
 class RunningPaServiceForMain:
@@ -898,6 +1011,26 @@ class RunningPaServiceForMain:
             "last_error": "PA shutdown timed out",
             "end_reason": "shutdown_timeout",
         }
+
+
+class RaisingPaServiceForMain:
+    instances = []
+
+    def __init__(self, _pa_regs, capture_dev_path="/dev/axis_capture0"):
+        self.disconnect_timeout = "not called"
+        self.disconnect_called = False
+        RaisingPaServiceForMain.instances.append(self)
+
+    def disconnect(self, join_timeout=0):
+        self.disconnect_timeout = join_timeout
+        self.disconnect_called = True
+        raise RuntimeError("pa disconnect failed")
+
+
+class RaisingRamp(FakeRamp):
+    def stop(self):
+        self.stop_called = True
+        raise RuntimeError("ramp stop failed")
 
 
 class MainCleanupTests(unittest.TestCase):
@@ -1038,6 +1171,72 @@ class MainCleanupTests(unittest.TestCase):
         self.assertTrue(system.closed)
         self.assertTrue(pa_regs.closed)
         self.assertTrue(httpd_instances[0].server_closed)
+
+    def test_legacy_main_cleanup_errors_do_not_mask_original_failure_or_skip_later_cleanup(self):
+        system = RaisingSystemForMain()
+        pa_regs = RaisingCloseable()
+        ramp = RaisingRamp()
+        httpd_instances = []
+        RaisingPaTcpListenerForMain.instances = []
+        RaisingPaServiceForMain.instances = []
+
+        def httpd_factory(addr, handler):
+            httpd = FailingServeHttpd(addr, handler)
+            httpd_instances.append(httpd)
+            return httpd
+
+        with mock.patch.object(legacy, "ButterflyLaserSystem", return_value=system):
+            with mock.patch.object(legacy, "AxiMap", return_value=pa_regs):
+                with mock.patch.object(legacy, "ThreadingHTTPServer", side_effect=httpd_factory):
+                    with mock.patch.object(legacy, "load_settings", return_value={}):
+                        with mock.patch.object(legacy, "tec_ramp_from_settings", return_value=ramp):
+                            with mock.patch.object(legacy, "initialize_pl_parameters"):
+                                with mock.patch.object(legacy, "PaTcpListener", RaisingPaTcpListenerForMain):
+                                    with mock.patch.object(legacy, "PaService", RaisingPaServiceForMain):
+                                        with mock.patch("sys.argv", ["butterfly_laser_server.py"]):
+                                            with self.assertRaisesRegex(RuntimeError, "serve failed"):
+                                                with redirect_stdout(io.StringIO()):
+                                                    legacy.main()
+
+        self.assertTrue(RaisingPaTcpListenerForMain.instances[0].stopped)
+        self.assertTrue(RaisingPaServiceForMain.instances[0].disconnect_called)
+        self.assertTrue(ramp.stop_called)
+        self.assertTrue(httpd_instances[0].server_closed)
+        self.assertTrue(pa_regs.closed)
+        self.assertTrue(system.closed)
+
+    def test_tauri_main_cleanup_errors_do_not_mask_original_failure_or_skip_later_cleanup(self):
+        system = RaisingSystemForMain()
+        pa_regs = RaisingCloseable()
+        ramp = RaisingRamp()
+        httpd_instances = []
+        RaisingPaTcpListenerForMain.instances = []
+        RaisingPaServiceForMain.instances = []
+
+        def httpd_factory(addr, handler):
+            httpd = FailingServeHttpd(addr, handler)
+            httpd_instances.append(httpd)
+            return httpd
+
+        with mock.patch.object(tauri_server, "ButterflyLaserSystem", return_value=system):
+            with mock.patch.object(tauri_server, "AxiMap", return_value=pa_regs):
+                with mock.patch.object(tauri_server, "ThreadingHTTPServer", side_effect=httpd_factory):
+                    with mock.patch.object(tauri_server, "load_settings", return_value={}):
+                        with mock.patch.object(tauri_server, "tec_ramp_from_settings", return_value=ramp):
+                            with mock.patch.object(tauri_server, "initialize_pl_parameters"):
+                                with mock.patch.object(tauri_server, "PaTcpListener", RaisingPaTcpListenerForMain):
+                                    with mock.patch.object(tauri_server, "PaService", RaisingPaServiceForMain):
+                                        with mock.patch("sys.argv", ["butterfly_laser_server_tauri.py"]):
+                                            with self.assertRaisesRegex(RuntimeError, "serve failed"):
+                                                with redirect_stdout(io.StringIO()):
+                                                    tauri_server.main()
+
+        self.assertTrue(RaisingPaTcpListenerForMain.instances[0].stopped)
+        self.assertTrue(RaisingPaServiceForMain.instances[0].disconnect_called)
+        self.assertTrue(ramp.stop_called)
+        self.assertTrue(httpd_instances[0].server_closed)
+        self.assertTrue(pa_regs.closed)
+        self.assertTrue(system.closed)
 
 
 if __name__ == "__main__":

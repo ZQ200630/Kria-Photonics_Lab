@@ -31,6 +31,7 @@ from butterfly_laser_server import (
     PaService,
     PaTcpListener,
     build_parser as build_legacy_parser,
+    cleanup_call,
     initialize_pl_parameters,
     load_settings,
     server_status,
@@ -268,21 +269,24 @@ def main():
                 stop_event.set()
             pa_tcp_listener = getattr(httpd, "pa_tcp_listener", None)
             if pa_tcp_listener is not None:
-                pa_tcp_listener.stop()
+                cleanup_call("PA TCP listener", pa_tcp_listener.stop)
             pa_service = getattr(httpd, "pa_service", None)
             if pa_service is not None:
-                pa_status = pa_service.disconnect(join_timeout=PA_SHUTDOWN_JOIN_TIMEOUT_S)
-                if pa_status.get("running"):
+                pa_status = cleanup_call(
+                    "PA service",
+                    lambda: pa_service.disconnect(join_timeout=PA_SHUTDOWN_JOIN_TIMEOUT_S),
+                )
+                if pa_status is not None and pa_status.get("running"):
                     error = pa_status.get("last_error") or "PA shutdown timed out"
                     print(error, flush=True)
             tec_ramp = getattr(httpd, "tec_ramp", None)
             if tec_ramp is not None:
-                tec_ramp.stop()
-            httpd.server_close()
+                cleanup_call("TEC ramp", tec_ramp.stop)
+            cleanup_call("HTTP server", httpd.server_close)
         if pa_regs is not None:
-            pa_regs.close()
+            cleanup_call("PA AXI map", pa_regs.close)
         if system is not None:
-            system.close()
+            cleanup_call("laser system", system.close)
         print("Tauri server stopped.", flush=True)
 
 

@@ -514,7 +514,7 @@ class PaService:
                     self.last_error = ""
                     self._mark_worker_disconnected(worker)
                 elif self.worker is worker and self.worker_token is worker_token:
-                    self.last_error = str(exc)
+                    self.last_error = self._worker_last_error(worker) or str(exc)
                 writer = self.writer if self.writer is worker_writer and self.writer_token is writer_token else None
                 if writer is not None:
                     self.writer = None
@@ -532,6 +532,7 @@ class PaService:
                     stats = self._snapshot_worker_stats(worker)
                     if self.worker_token is worker_token:
                         self.last_stats = stats
+                        self.last_error = str(stats.get("last_error", "") or "")
                     self.worker = None
                     self.worker_thread = None
                     self.worker_token = None
@@ -569,11 +570,28 @@ class PaService:
 
     def _snapshot_worker_stats(self, worker):
         stats = self._new_stats()
-        stats.update(dict(getattr(worker, "stats", {}) or {}))
+        worker_stats = dict(getattr(worker, "stats", {}) or {})
+        stats.update(worker_stats)
         stats["running"] = False
-        if self.last_error:
+        worker_last_error = str(worker_stats.get("last_error", "") or "")
+        if worker_last_error:
+            stats["last_error"] = worker_last_error
+        elif self.last_error and not self._resolved_timeout_stats(stats):
             stats["last_error"] = self.last_error
         return stats
+
+    def _worker_last_error(self, worker):
+        stats = getattr(worker, "stats", None)
+        if isinstance(stats, dict):
+            return str(stats.get("last_error", "") or "")
+        return ""
+
+    def _resolved_timeout_stats(self, stats):
+        end_reason = str(stats.get("end_reason", "") or "")
+        return (
+            "timed out" in str(self.last_error).lower()
+            and end_reason not in ("stop_timeout", "shutdown_timeout")
+        )
 
     def _is_expected_disconnect_error(self, exc):
         if isinstance(exc, (BrokenPipeError, ConnectionResetError)):
@@ -715,6 +733,14 @@ def server_status(server):
     if pa_service is not None:
         status["pa"] = pa_service.status()
     return status
+
+
+def cleanup_call(label, func):
+    try:
+        return func()
+    except Exception as exc:
+        print(f"{label} cleanup failed: {exc}", flush=True)
+        return None
 
 
 def apply_saved_settings(system, settings):
@@ -1476,21 +1502,24 @@ def main():
                 stop_event.set()
             pa_tcp_listener = getattr(httpd, "pa_tcp_listener", None)
             if pa_tcp_listener is not None:
-                pa_tcp_listener.stop()
+                cleanup_call("PA TCP listener", pa_tcp_listener.stop)
             pa_service = getattr(httpd, "pa_service", None)
             if pa_service is not None:
-                pa_status = pa_service.disconnect(join_timeout=PA_SHUTDOWN_JOIN_TIMEOUT_S)
-                if pa_status.get("running"):
+                pa_status = cleanup_call(
+                    "PA service",
+                    lambda: pa_service.disconnect(join_timeout=PA_SHUTDOWN_JOIN_TIMEOUT_S),
+                )
+                if pa_status is not None and pa_status.get("running"):
                     error = pa_status.get("last_error") or "PA shutdown timed out"
                     print(error, flush=True)
             tec_ramp = getattr(httpd, "tec_ramp", None)
             if tec_ramp is not None:
-                tec_ramp.stop()
-            httpd.server_close()
+                cleanup_call("TEC ramp", tec_ramp.stop)
+            cleanup_call("HTTP server", httpd.server_close)
         if pa_regs is not None:
-            pa_regs.close()
+            cleanup_call("PA AXI map", pa_regs.close)
         if system is not None:
-            system.close()
+            cleanup_call("laser system", system.close)
         print("Server stopped.", flush=True)
 
 
