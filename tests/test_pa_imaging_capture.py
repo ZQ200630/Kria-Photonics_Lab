@@ -161,6 +161,19 @@ class FakeCaptureDevice:
         self.actions.append("close")
 
 
+class FailingStartPam:
+    def __init__(self):
+        self.actions = []
+
+    def program(self, params):
+        self.actions.append("program")
+
+    def write_start(self, level):
+        self.actions.append(("start", 1 if level else 0))
+        if level:
+            raise RuntimeError("start verify failed")
+
+
 class TimeoutDrainDevice(FakeCaptureDevice):
     def __init__(self, status, guard_reads=2):
         super().__init__([])
@@ -393,6 +406,20 @@ class PaWorkerTests(unittest.TestCase):
         self.assertIn(pa.RECORD_TYPE_DATA, record_types)
         self.assertEqual(writer.records[-1].record_type, pa.RECORD_TYPE_ERROR)
         self.assertIn("axis capture drain total timeout", writer.records[-1].payload.decode("utf-8"))
+
+    def test_worker_clears_pam_start_when_high_write_verification_fails(self):
+        pam = FailingStartPam()
+        device = FakeCaptureDevice([])
+        writer = FakeWriter()
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        with self.assertRaisesRegex(RuntimeError, "start verify failed"):
+            worker.run_once(pa.PamCaptureParams(), max_blocks=0, capture_time_sec=0)
+
+        self.assertEqual(pam.actions, ["program", ("start", 1), ("start", 0)])
+        self.assertEqual(device.actions.count("dma_stop"), 1)
+        self.assertEqual(writer.records[-1].record_type, pa.RECORD_TYPE_ERROR)
+        self.assertIn("start verify failed", writer.records[-1].payload.decode("utf-8"))
 
 
 class PaWriterTests(unittest.TestCase):

@@ -519,8 +519,8 @@ class PaCaptureWorker:
 
             self.device.start()
             dma_started = True
-            self.pam.write_start(1)
             pam_started = True
+            self.pam.write_start(1)
 
             while not self._stop_event.is_set():
                 if max_blocks >= 0 and self.stats["blocks_sent"] >= max_blocks:
