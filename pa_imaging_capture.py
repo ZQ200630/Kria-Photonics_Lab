@@ -493,15 +493,31 @@ class PaCaptureWorker:
         device_opened = False
         start_ns = now_ns()
 
-        def stop_capture():
+        def stop_capture(best_effort=False):
             nonlocal pam_started, dma_started
+            errors = []
             if pam_started:
-                self.pam.write_start(0)
+                try:
+                    self.pam.write_start(0)
+                except Exception as exc:
+                    errors.append(exc)
                 pam_started = False
             if dma_started:
-                self.device.stop()
+                stop_succeeded = False
+                try:
+                    self.device.stop()
+                    stop_succeeded = True
+                except Exception as exc:
+                    errors.append(exc)
                 dma_started = False
-                self._drain_until_eof()
+                if stop_succeeded:
+                    try:
+                        self._drain_until_eof()
+                    except Exception as exc:
+                        errors.append(exc)
+            if errors and not best_effort:
+                raise errors[0]
+            return errors
 
         try:
             self.pam.program(params)
@@ -552,9 +568,7 @@ class PaCaptureWorker:
         except Exception as exc:
             self.stats["last_error"] = str(exc)
             self.stats["end_reason"] = "error"
-            try:
-                stop_capture()
-            except Exception as stop_exc:
+            for stop_exc in stop_capture(best_effort=True):
                 if self.stats["last_error"]:
                     self.stats["last_error"] += f"; stop failed: {stop_exc}"
                 else:

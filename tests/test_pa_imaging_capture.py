@@ -174,6 +174,69 @@ class FailingStartPam:
             raise RuntimeError("start verify failed")
 
 
+class OrderingPam:
+    def __init__(self, actions, fail_low=False):
+        self.actions = actions
+        self.fail_low = fail_low
+
+    def program(self, params):
+        self.actions.append("program")
+
+    def write_start(self, level):
+        if level:
+            self.actions.append("pam_high")
+        else:
+            self.actions.append("pam_low")
+            if self.fail_low:
+                raise RuntimeError("pam low failed")
+
+
+class OrderingCaptureDevice(FakeCaptureDevice):
+    def __init__(self, actions, blocks):
+        super().__init__(blocks)
+        self.actions_ref = actions
+
+    def open(self):
+        self.actions_ref.append("open")
+        super().open()
+
+    def get_status(self):
+        self.actions_ref.append("status")
+        return super().get_status()
+
+    def start(self):
+        self.actions_ref.append("dma_start")
+        super().start()
+
+    def stop(self):
+        self.actions_ref.append("dma_stop")
+        super().stop()
+
+    def read_block(self, timeout=0.5):
+        self.actions_ref.append("read")
+        return super().read_block(timeout=timeout)
+
+
+class OrderingWriter:
+    def __init__(self, actions, fail_on_data=False):
+        self.actions = actions
+        self.fail_on_data = fail_on_data
+        self.records = []
+
+    def send_record(self, record):
+        if record.record_type == pa.RECORD_TYPE_METADATA:
+            self.actions.append("send_metadata")
+        elif record.record_type == pa.RECORD_TYPE_DATA:
+            self.actions.append("send_data")
+            if self.fail_on_data:
+                raise RuntimeError("data send failed")
+        elif record.record_type == pa.RECORD_TYPE_ERROR:
+            self.actions.append("send_error")
+        elif record.record_type == pa.RECORD_TYPE_END:
+            self.actions.append("send_end")
+        self.records.append(record)
+
+
 class TimeoutDrainDevice(FakeCaptureDevice):
     def __init__(self, status, guard_reads=2):
         super().__init__([])
@@ -420,6 +483,44 @@ class PaWorkerTests(unittest.TestCase):
         self.assertEqual(device.actions.count("dma_stop"), 1)
         self.assertEqual(writer.records[-1].record_type, pa.RECORD_TYPE_ERROR)
         self.assertIn("start verify failed", writer.records[-1].payload.decode("utf-8"))
+
+    def test_worker_stops_hardware_before_error_send_after_data_send_failure(self):
+        actions = []
+        block = (
+            pa.AxisBlockHeader(block_id=4, used_bytes=4, frame_count=1, first_frame_id=40, last_frame_id=40),
+            b"fail",
+        )
+        pam = OrderingPam(actions)
+        device = OrderingCaptureDevice(actions, [block])
+        writer = OrderingWriter(actions, fail_on_data=True)
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        with self.assertRaisesRegex(RuntimeError, "data send failed"):
+            worker.run_once(pa.PamCaptureParams(), max_blocks=1, capture_time_sec=0)
+
+        self.assertLess(actions.index("pam_low"), actions.index("dma_stop"))
+        self.assertLess(actions.index("dma_stop"), actions.index("send_error"))
+        self.assertEqual(actions.count("dma_stop"), 1)
+        self.assertEqual(writer.records[-1].record_type, pa.RECORD_TYPE_ERROR)
+
+    def test_worker_attempts_dma_stop_before_error_when_pam_low_cleanup_fails(self):
+        actions = []
+        block = (
+            pa.AxisBlockHeader(block_id=5, used_bytes=4, frame_count=1, first_frame_id=50, last_frame_id=50),
+            b"fail",
+        )
+        pam = OrderingPam(actions, fail_low=True)
+        device = OrderingCaptureDevice(actions, [block])
+        writer = OrderingWriter(actions, fail_on_data=True)
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        with self.assertRaisesRegex(RuntimeError, "data send failed"):
+            worker.run_once(pa.PamCaptureParams(), max_blocks=1, capture_time_sec=0)
+
+        self.assertLess(actions.index("pam_low"), actions.index("dma_stop"))
+        self.assertLess(actions.index("dma_stop"), actions.index("send_error"))
+        self.assertEqual(actions.count("dma_stop"), 1)
+        self.assertEqual(writer.records[-1].record_type, pa.RECORD_TYPE_ERROR)
 
 
 class PaWriterTests(unittest.TestCase):
