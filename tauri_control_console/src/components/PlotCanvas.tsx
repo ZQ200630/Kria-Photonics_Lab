@@ -22,6 +22,16 @@ export type PlotPoint = {
   value: number;
 };
 
+export function intersectPlotDomainWindow(window: PlotXDomain, domain: PlotXDomain): PlotXDomain | undefined {
+  const windowStart = Math.min(window.startIndex, window.endIndex);
+  const windowEnd = Math.max(window.startIndex, window.endIndex);
+  const domainStart = Math.min(domain.startIndex, domain.endIndex);
+  const domainEnd = Math.max(domain.startIndex, domain.endIndex);
+  const startIndex = Math.max(windowStart, domainStart);
+  const endIndex = Math.min(windowEnd, domainEnd);
+  return endIndex >= startIndex ? { startIndex, endIndex } : undefined;
+}
+
 export function indexFromCanvasXDomain(x: number, width: number, domain: PlotXDomain): number {
   if (width <= 0) return Math.round(domain.startIndex);
   const ratio = Math.max(0, Math.min(1, x / width));
@@ -290,8 +300,10 @@ export default function PlotCanvas({
 
     const drawDomainWindow = (window: { startIndex: number; endIndex: number; color?: string; borderColor?: string }) => {
       if (!Number.isFinite(window.startIndex) || !Number.isFinite(window.endIndex)) return;
-      const leftIndex = Math.min(window.startIndex, window.endIndex);
-      const rightIndex = Math.max(window.startIndex, window.endIndex);
+      const clippedWindow = intersectPlotDomainWindow(window, plotDomain);
+      if (!clippedWindow) return;
+      const leftIndex = clippedWindow.startIndex;
+      const rightIndex = clippedWindow.endIndex;
       const leftX = plotXFromDomainIndex(leftIndex, rect.width, plotDomain);
       const rightX = plotXFromDomainIndex(rightIndex, rect.width, plotDomain);
       const windowWidth = Math.max(2, rightX - leftX);

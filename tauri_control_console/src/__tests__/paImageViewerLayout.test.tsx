@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import PaImageViewer from "../components/PaImageViewer";
+import PaImageViewer, { shouldClearPaImageForProcessingChange, shouldClearPaTraceForProcessingChange } from "../components/PaImageViewer";
 
 describe("PA Image Viewer layout", () => {
   it("renders source controls, ROI controls, trace, and image preview", () => {
@@ -14,5 +14,13 @@ describe("PA Image Viewer layout", () => {
     expect(html).toContain("PA Image");
     expect(html).toContain("Zoom");
     expect(html).toContain("Set ROI");
+  });
+
+  it("marks processed outputs stale when processing parameters change", () => {
+    expect(shouldClearPaImageForProcessingChange("ptpStartNs")).toBe(true);
+    expect(shouldClearPaImageForProcessingChange("sampleStartIndex")).toBe(true);
+    expect(shouldClearPaTraceForProcessingChange("tzOhm")).toBe(true);
+    expect(shouldClearPaTraceForProcessingChange("vfs")).toBe(true);
+    expect(shouldClearPaTraceForProcessingChange("ptpStartNs")).toBe(false);
   });
 });

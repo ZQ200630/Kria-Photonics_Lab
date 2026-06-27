@@ -8,6 +8,30 @@ type Props = {
   active?: boolean;
 };
 
+type HeatmapLayoutInput = {
+  cssWidth: number;
+  cssHeight: number;
+  width: number;
+  height: number;
+};
+
+export function resolvePaImageHeatmapLayout({ cssWidth, cssHeight, width, height }: HeatmapLayoutInput) {
+  const marginLeft = 38;
+  const marginTop = 18;
+  const marginRight = 14;
+  const marginBottom = 34;
+  const plotWidth = Math.max(1, cssWidth - marginLeft - marginRight);
+  const plotHeight = Math.max(1, cssHeight - marginTop - marginBottom);
+  const safeWidth = Math.max(1, Math.floor(width));
+  const safeHeight = Math.max(1, Math.floor(height));
+  const cell = Math.max(0.01, Math.min(plotWidth / safeWidth, plotHeight / safeHeight));
+  const gridWidth = cell * safeWidth;
+  const gridHeight = cell * safeHeight;
+  const x0 = marginLeft + Math.max(0, (plotWidth - gridWidth) / 2);
+  const y0 = marginTop + Math.max(0, (plotHeight - gridHeight) / 2);
+  return { cell, gridHeight, gridWidth, marginBottom, marginLeft, marginRight, marginTop, plotHeight, plotWidth, safeHeight, safeWidth, x0, y0 };
+}
+
 function colorForUnit(value: number): string {
   const v = Math.max(0, Math.min(1, value));
   const r = Math.round(20 + (215 * Math.max(0, v - 0.45)) / 0.55);
@@ -44,19 +68,12 @@ export default function PaImageHeatmap({ width, height, values, counts, active =
     ctx.fillStyle = "#f8fafc";
     ctx.fillRect(0, 0, cssWidth, cssHeight);
 
-    const marginLeft = 38;
-    const marginTop = 18;
-    const marginRight = 14;
-    const marginBottom = 34;
-    const plotWidth = Math.max(1, cssWidth - marginLeft - marginRight);
-    const plotHeight = Math.max(1, cssHeight - marginTop - marginBottom);
-    const safeWidth = Math.max(1, Math.floor(width));
-    const safeHeight = Math.max(1, Math.floor(height));
-    const cell = Math.max(1, Math.floor(Math.min(plotWidth / safeWidth, plotHeight / safeHeight)));
-    const gridWidth = cell * safeWidth;
-    const gridHeight = cell * safeHeight;
-    const x0 = marginLeft + Math.max(0, (plotWidth - gridWidth) / 2);
-    const y0 = marginTop + Math.max(0, (plotHeight - gridHeight) / 2);
+    const { cell, gridHeight, gridWidth, safeHeight, safeWidth, x0, y0 } = resolvePaImageHeatmapLayout({
+      cssWidth,
+      cssHeight,
+      width,
+      height,
+    });
     const finiteValues = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value)).sort((a, b) => a - b);
     const low = percentile(finiteValues, 0.01);
     const high = percentile(finiteValues, 0.99);
@@ -76,7 +93,11 @@ export default function PaImageHeatmap({ width, height, values, counts, active =
         } else {
           ctx.fillStyle = "#e5e7eb";
         }
-        ctx.fillRect(x0 + x * cell, y0 + y * cell, cell, cell);
+        const left = x0 + x * cell;
+        const top = y0 + y * cell;
+        const right = x === safeWidth - 1 ? x0 + gridWidth : x0 + (x + 1) * cell;
+        const bottom = y === safeHeight - 1 ? y0 + gridHeight : y0 + (y + 1) * cell;
+        ctx.fillRect(left, top, right - left, bottom - top);
       }
     }
 

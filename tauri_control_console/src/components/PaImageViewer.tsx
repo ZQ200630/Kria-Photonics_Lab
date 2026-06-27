@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_PA_IMAGE_PROCESSING, indexRangeToNsWindow, type PaImageProcessing, type PaSeverity } from "../utils/paImage";
 import {
   buildPaImage,
@@ -19,6 +19,14 @@ type Props = {
 };
 
 type RoiMode = "zoom" | "roi";
+
+export function shouldClearPaImageForProcessingChange(_key: keyof PaImageProcessing): boolean {
+  return true;
+}
+
+export function shouldClearPaTraceForProcessingChange(key: keyof PaImageProcessing): boolean {
+  return key === "tzOhm" || key === "vfs";
+}
 
 function severityClass(severity?: PaSeverity): string {
   return `severity-${severity ?? "ok"}`;
@@ -57,9 +65,16 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
   const [roiMode, setRoiMode] = useState<RoiMode>("zoom");
   const [message, setMessage] = useState("Open a legacy PA binary to inspect frames and build an image.");
   const [busy, setBusy] = useState(false);
+  const lastTzOhmRef = useRef(tzOhm);
 
   useEffect(() => {
+    if (lastTzOhmRef.current === tzOhm) return;
+    lastTzOhmRef.current = tzOhm;
     setProcessing((current) => ({ ...current, tzOhm }));
+    setImage(undefined);
+    setTrace(undefined);
+    setTraceZoom(undefined);
+    setMessage("Tz Ohm changed; reload frame and rebuild image.");
   }, [tzOhm]);
 
   const traceValues = trace?.current_ua ?? [];
@@ -135,7 +150,15 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
     });
 
   const updateProcessingNumber = (key: keyof PaImageProcessing, text: string) => {
+    const nextValue = parseNumber(text, processing[key]);
+    if (Object.is(nextValue, processing[key])) return;
     setProcessing((current) => ({ ...current, [key]: parseNumber(text, current[key]) }));
+    if (shouldClearPaImageForProcessingChange(key)) setImage(undefined);
+    if (shouldClearPaTraceForProcessingChange(key)) {
+      setTrace(undefined);
+      setTraceZoom(undefined);
+    }
+    setMessage(shouldClearPaTraceForProcessingChange(key) ? "Conversion changed; reload frame and rebuild image." : "Processing changed; rebuild image.");
   };
 
   const handleTraceSelection = (startIndex: number, endIndex: number) => {
@@ -147,6 +170,8 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
     }
     const window = indexRangeToNsWindow(range.startIndex, range.endIndex, processing.sampleStartIndex, processing.sampleIntervalNs);
     setProcessing((current) => ({ ...current, ptpStartNs: window.startNs, ptpEndNs: window.endNs }));
+    setImage(undefined);
+    setMessage("PTP ROI updated; rebuild image.");
   };
 
   const restoreTraceZoom = () => setTraceZoom(undefined);

@@ -4,6 +4,7 @@ import {
   findHoveredCrossingIndex,
   indexFromCanvasX,
   indexFromCanvasXDomain,
+  intersectPlotDomainWindow,
   isThresholdHandleHit,
   plotXFromIndex,
   resolvePlotRange,
@@ -31,6 +32,18 @@ describe("indexFromCanvasX", () => {
   it("clamps custom source index domain selections", () => {
     expect(indexFromCanvasXDomain(-10, 100, { startIndex: 100, endIndex: 200 })).toBe(100);
     expect(indexFromCanvasXDomain(120, 100, { startIndex: 100, endIndex: 200 })).toBe(200);
+  });
+
+  it("clips selection windows to the visible plot domain", () => {
+    expect(intersectPlotDomainWindow({ startIndex: 0, endIndex: 20 }, { startIndex: 40, endIndex: 80 })).toBeUndefined();
+    expect(intersectPlotDomainWindow({ startIndex: 70, endIndex: 90 }, { startIndex: 40, endIndex: 80 })).toEqual({
+      startIndex: 70,
+      endIndex: 80,
+    });
+    expect(intersectPlotDomainWindow({ startIndex: 90, endIndex: 70 }, { startIndex: 40, endIndex: 80 })).toEqual({
+      startIndex: 70,
+      endIndex: 80,
+    });
   });
 
   it("uses manual y axis range when valid", () => {
