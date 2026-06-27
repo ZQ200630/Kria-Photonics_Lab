@@ -4,6 +4,8 @@ use std::{
 };
 
 const DATA_CATEGORY_DIRS: [&str; 4] = ["Idle_Spectrum", "Lock_Spectrum", "Live PD Monitor", "Raw"];
+mod pa_image;
+
 
 #[derive(serde::Deserialize)]
 struct ExperimentFile {
