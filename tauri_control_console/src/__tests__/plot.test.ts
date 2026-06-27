@@ -3,6 +3,7 @@ import {
   canvasYToValue,
   findHoveredCrossingIndex,
   indexFromCanvasX,
+  indexFromCanvasXDomain,
   isThresholdHandleHit,
   plotXFromIndex,
   resolvePlotRange,
@@ -19,6 +20,17 @@ describe("indexFromCanvasX", () => {
   it("clamps out-of-range clicks", () => {
     expect(indexFromCanvasX(-50, 100, 10)).toBe(0);
     expect(indexFromCanvasX(150, 100, 10)).toBe(9);
+  });
+
+  it("maps canvas x into a custom source index domain", () => {
+    expect(indexFromCanvasXDomain(0, 100, { startIndex: 100, endIndex: 200 })).toBe(100);
+    expect(indexFromCanvasXDomain(50, 100, { startIndex: 100, endIndex: 200 })).toBe(150);
+    expect(indexFromCanvasXDomain(100, 100, { startIndex: 100, endIndex: 200 })).toBe(200);
+  });
+
+  it("clamps custom source index domain selections", () => {
+    expect(indexFromCanvasXDomain(-10, 100, { startIndex: 100, endIndex: 200 })).toBe(100);
+    expect(indexFromCanvasXDomain(120, 100, { startIndex: 100, endIndex: 200 })).toBe(200);
   });
 
   it("uses manual y axis range when valid", () => {

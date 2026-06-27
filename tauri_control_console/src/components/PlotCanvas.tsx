@@ -12,6 +12,22 @@ export function indexFromCanvasX(x: number, width: number, count: number): numbe
   return Math.max(0, Math.min(count - 1, Math.round(ratio * (count - 1))));
 }
 
+export type PlotXDomain = {
+  startIndex: number;
+  endIndex: number;
+};
+
+export type PlotPoint = {
+  xIndex: number;
+  value: number;
+};
+
+export function indexFromCanvasXDomain(x: number, width: number, domain: PlotXDomain): number {
+  if (width <= 0) return Math.round(domain.startIndex);
+  const ratio = Math.max(0, Math.min(1, x / width));
+  return Math.round(domain.startIndex + ratio * (domain.endIndex - domain.startIndex));
+}
+
 export type PlotRange = {
   min: number;
   max: number;
@@ -49,6 +65,13 @@ export function canvasYToValue(y: number, range: PlotRange, height: number): num
 export function plotXFromIndex(index: number, width: number, count: number): number {
   if (count <= 1 || width <= 0) return PLOT_LEFT;
   return PLOT_LEFT + ((width - PLOT_LEFT - PLOT_RIGHT_PADDING) * index) / Math.max(1, count - 1);
+}
+
+function plotXFromDomainIndex(index: number, width: number, domain: PlotXDomain): number {
+  const plotWidth = Math.max(1, width - PLOT_LEFT - PLOT_RIGHT_PADDING);
+  const span = Math.max(1, domain.endIndex - domain.startIndex);
+  const ratio = Math.max(0, Math.min(1, (index - domain.startIndex) / span));
+  return PLOT_LEFT + plotWidth * ratio;
 }
 
 export function findHoveredCrossingIndex(
@@ -96,9 +119,13 @@ export function isThresholdHandleHit(x: number, y: number, width: number, thresh
 
 type Props = {
   values: number[];
+  points?: PlotPoint[];
+  xDomain?: PlotXDomain;
   color?: string;
   label?: string;
   xLabel?: string;
+  title?: string;
+  ariaLabel?: string;
   height?: number;
   yRange?: Partial<PlotRange>;
   overlays?: Array<{
@@ -123,6 +150,14 @@ type Props = {
   }>;
   searchWindowHalfspan?: number;
   onPickIndex?: (index: number) => void;
+  onSelectionComplete?: (startIndex: number, endIndex: number) => void;
+  onResetZoom?: () => void;
+  selectionWindow?: {
+    startIndex: number;
+    endIndex: number;
+    color?: string;
+    borderColor?: string;
+  };
   threshold?: number;
   onThresholdChange?: (value: number) => void;
   crossings?: LevelCrossing[];
@@ -136,9 +171,13 @@ type Props = {
 
 export default function PlotCanvas({
   values,
+  points,
+  xDomain,
   color = "#7c3aed",
   label,
   xLabel,
+  title,
+  ariaLabel,
   height = 360,
   yRange,
   overlays = [],
@@ -146,6 +185,9 @@ export default function PlotCanvas({
   highlightWindows = [],
   searchWindowHalfspan,
   onPickIndex,
+  onSelectionComplete,
+  onResetZoom,
+  selectionWindow,
   threshold,
   onThresholdChange,
   crossings = [],
@@ -158,9 +200,14 @@ export default function PlotCanvas({
 }: Props) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const draggingThreshold = useRef(false);
+  const selectingX = useRef(false);
+  const selectionStartIndex = useRef<number | undefined>(undefined);
   const [hoveredCrossing, setHoveredCrossing] = useState<number | undefined>(undefined);
   const [hoveredThresholdHandle, setHoveredThresholdHandle] = useState(false);
   const [hoveredPlotIndex, setHoveredPlotIndex] = useState<number | undefined>(undefined);
+  const [localSelectionWindow, setLocalSelectionWindow] = useState<{ startIndex: number; endIndex: number } | undefined>(undefined);
+  const primaryValues = points ? points.map((point) => point.value) : values;
+  const plotDomain = xDomain ?? { startIndex: 0, endIndex: Math.max(0, values.length - 1) };
 
   useEffect(() => {
     if (!active) return;
@@ -176,7 +223,7 @@ export default function PlotCanvas({
     ctx.clearRect(0, 0, rect.width, height);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, rect.width, height);
-    const range = resolvePlotRange(values, yRange);
+    const range = resolvePlotRange(primaryValues, yRange);
     ctx.strokeStyle = "#e2e8f0";
     ctx.lineWidth = 1;
     ctx.font = "12px Segoe UI, sans-serif";
@@ -217,6 +264,49 @@ export default function PlotCanvas({
       });
       if (hasPoint) ctx.stroke();
       ctx.restore();
+    };
+
+    const drawPointSeries = (series: PlotPoint[], seriesColor: string, lineWidth = 2, alpha = 1) => {
+      if (series.length === 0) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = seriesColor;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      let hasPoint = false;
+      series.forEach((point) => {
+        const y = valueToCanvasY(point.value, range, height);
+        const x = plotXFromDomainIndex(point.xIndex, rect.width, plotDomain);
+        if (!hasPoint) {
+          ctx.moveTo(x, y);
+          hasPoint = true;
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+      if (hasPoint) ctx.stroke();
+      ctx.restore();
+    };
+
+    const drawDomainWindow = (window: { startIndex: number; endIndex: number; color?: string; borderColor?: string }) => {
+      if (!Number.isFinite(window.startIndex) || !Number.isFinite(window.endIndex)) return;
+      const leftIndex = Math.min(window.startIndex, window.endIndex);
+      const rightIndex = Math.max(window.startIndex, window.endIndex);
+      const leftX = plotXFromDomainIndex(leftIndex, rect.width, plotDomain);
+      const rightX = plotXFromDomainIndex(rightIndex, rect.width, plotDomain);
+      const windowWidth = Math.max(2, rightX - leftX);
+      ctx.fillStyle = window.color ?? "rgba(37, 99, 235, 0.14)";
+      ctx.fillRect(leftX, PLOT_TOP, windowWidth, height - PLOT_BOTTOM_PADDING);
+      ctx.strokeStyle = window.borderColor ?? "rgba(37, 99, 235, 0.55)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(leftX, PLOT_TOP);
+      ctx.lineTo(leftX, height - PLOT_BOTTOM_PADDING);
+      ctx.moveTo(rightX, PLOT_TOP);
+      ctx.lineTo(rightX, height - PLOT_BOTTOM_PADDING);
+      ctx.stroke();
+      ctx.setLineDash([]);
     };
 
     highlightWindows.forEach((highlight) => {
@@ -269,7 +359,12 @@ export default function PlotCanvas({
       drawSeries(overlay.values, overlay.color, overlay.lineWidth ?? 2, overlay.alpha ?? 1, overlay.xOffset ?? 0, overlay.maxIndex);
     });
 
-    if (values.length > 0) {
+    const activeSelectionWindow = localSelectionWindow ?? selectionWindow;
+    if (activeSelectionWindow) drawDomainWindow(activeSelectionWindow);
+
+    if (points) {
+      drawPointSeries(points, color, 2);
+    } else if (values.length > 0) {
       drawSeries(values, color, 2);
     }
 
@@ -360,14 +455,20 @@ export default function PlotCanvas({
     if (xLabel) ctx.fillText(xLabel, PLOT_LEFT, height - 8);
   }, [
     values,
+    points,
+    xDomain,
     color,
     label,
     xLabel,
+    title,
+    ariaLabel,
     height,
     yRange,
     overlays,
     verticalMarkers,
     highlightWindows,
+    selectionWindow,
+    localSelectionWindow,
     searchWindowHalfspan,
     threshold,
     crossings,
@@ -384,29 +485,64 @@ export default function PlotCanvas({
   const updateThresholdFromPointer = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!onThresholdChange) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const range = resolvePlotRange(values, yRange);
+    const range = resolvePlotRange(primaryValues, yRange);
     onThresholdChange(canvasYToValue(event.clientY - rect.top, range, height));
+  };
+
+  const indexFromPointer = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const localX = event.clientX - rect.left - PLOT_LEFT;
+    const plotWidth = rect.width - PLOT_LEFT - PLOT_RIGHT_PADDING;
+    return indexFromCanvasXDomain(localX, plotWidth, plotDomain);
   };
 
   return (
     <canvas
       ref={ref}
       className="plot"
-      style={{ height, cursor: draggingThreshold.current || hoveredThresholdHandle ? "ns-resize" : hoveredCrossing !== undefined ? "pointer" : undefined }}
+      title={title}
+      aria-label={ariaLabel}
+      style={{
+        height,
+        cursor:
+          draggingThreshold.current || hoveredThresholdHandle
+            ? "ns-resize"
+            : onSelectionComplete
+              ? "crosshair"
+              : hoveredCrossing !== undefined
+                ? "pointer"
+                : undefined,
+      }}
       onPointerDown={(event) => {
-        if (!onThresholdChange) return;
-        if (typeof threshold !== "number" || !Number.isFinite(threshold)) return;
         const rect = event.currentTarget.getBoundingClientRect();
-        const range = resolvePlotRange(values, yRange);
-        const thresholdY = valueToCanvasY(threshold, range, height);
-        if (!isThresholdHandleHit(event.clientX - rect.left, event.clientY - rect.top, rect.width, thresholdY, 16)) return;
-        draggingThreshold.current = true;
+        if (onThresholdChange && typeof threshold === "number" && Number.isFinite(threshold)) {
+          const range = resolvePlotRange(primaryValues, yRange);
+          const thresholdY = valueToCanvasY(threshold, range, height);
+          if (isThresholdHandleHit(event.clientX - rect.left, event.clientY - rect.top, rect.width, thresholdY, 16)) {
+            draggingThreshold.current = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            updateThresholdFromPointer(event);
+            return;
+          }
+        }
+
+        if (event.button !== 0 || !onSelectionComplete) return;
+        const nextIndex = indexFromPointer(event);
+        selectingX.current = true;
+        selectionStartIndex.current = nextIndex;
+        setLocalSelectionWindow({ startIndex: nextIndex, endIndex: nextIndex });
         event.currentTarget.setPointerCapture(event.pointerId);
-        updateThresholdFromPointer(event);
       }}
       onPointerMove={(event) => {
         if (draggingThreshold.current) {
           updateThresholdFromPointer(event);
+          return;
+        }
+        if (selectingX.current && selectionStartIndex.current !== undefined) {
+          setLocalSelectionWindow({
+            startIndex: selectionStartIndex.current,
+            endIndex: indexFromPointer(event),
+          });
           return;
         }
         const rect = event.currentTarget.getBoundingClientRect();
@@ -419,7 +555,7 @@ export default function PlotCanvas({
           if (hoveredThresholdHandle) setHoveredThresholdHandle(false);
           return;
         }
-        const range = resolvePlotRange(values, yRange);
+        const range = resolvePlotRange(primaryValues, yRange);
         const thresholdY = valueToCanvasY(threshold, range, height);
         const nextHandleHovered = isThresholdHandleHit(event.clientX - rect.left, event.clientY - rect.top, rect.width, thresholdY, 16);
         if (nextHandleHovered !== hoveredThresholdHandle) setHoveredThresholdHandle(nextHandleHovered);
@@ -443,18 +579,30 @@ export default function PlotCanvas({
         if (nextHovered !== hoveredCrossing) setHoveredCrossing(nextHovered);
       }}
       onPointerUp={(event) => {
+        if (selectingX.current && selectionStartIndex.current !== undefined) {
+          onSelectionComplete?.(selectionStartIndex.current, indexFromPointer(event));
+        }
+        selectingX.current = false;
+        selectionStartIndex.current = undefined;
+        setLocalSelectionWindow(undefined);
         draggingThreshold.current = false;
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
       }}
       onPointerCancel={() => {
+        selectingX.current = false;
+        selectionStartIndex.current = undefined;
+        setLocalSelectionWindow(undefined);
         draggingThreshold.current = false;
         setHoveredCrossing(undefined);
         setHoveredThresholdHandle(false);
         setHoveredPlotIndex(undefined);
       }}
       onPointerLeave={() => {
+        selectingX.current = false;
+        selectionStartIndex.current = undefined;
+        setLocalSelectionWindow(undefined);
         draggingThreshold.current = false;
         setHoveredCrossing(undefined);
         setHoveredThresholdHandle(false);
@@ -469,7 +617,16 @@ export default function PlotCanvas({
         const rect = event.currentTarget.getBoundingClientRect();
         const localX = event.clientX - rect.left - PLOT_LEFT;
         const plotWidth = rect.width - PLOT_LEFT - PLOT_RIGHT_PADDING;
-        onPickIndex?.(indexFromCanvasX(localX, plotWidth, values.length));
+        onPickIndex?.(
+          xDomain
+            ? indexFromCanvasXDomain(localX, plotWidth, xDomain)
+            : indexFromCanvasX(localX, plotWidth, values.length),
+        );
+      }}
+      onContextMenu={(event) => {
+        if (!onResetZoom) return;
+        event.preventDefault();
+        onResetZoom();
       }}
     />
   );
