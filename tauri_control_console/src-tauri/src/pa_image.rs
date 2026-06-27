@@ -208,7 +208,33 @@ pub fn signed_code_to_current_ua(code: i16, tz_ohm: f64, vfs: f64) -> f64 {
     ((0.825 - v_adc) / tz_ohm) * 1_000_000.0
 }
 
+#[allow(dead_code)]
 pub fn compute_frame_ptp(samples: &[i16], config: &PaImageProcessingConfig) -> Result<f64, String> {
+    compute_frame_ptp_from_sample_count(samples.len(), config, |index| {
+        signed_code_to_current_ua(samples[index], config.tz_ohm, config.vfs)
+    })
+}
+
+fn compute_frame_ptp_from_sample_bytes(
+    raw: &[u8],
+    config: &PaImageProcessingConfig,
+) -> Result<f64, String> {
+    let sample_count = raw.len() / 2;
+    compute_frame_ptp_from_sample_count(sample_count, config, |index| {
+        let offset = index * 2;
+        let code = i16::from_le_bytes([raw[offset], raw[offset + 1]]);
+        signed_code_to_current_ua(code, config.tz_ohm, config.vfs)
+    })
+}
+
+fn compute_frame_ptp_from_sample_count<F>(
+    sample_count: usize,
+    config: &PaImageProcessingConfig,
+    current_at: F,
+) -> Result<f64, String>
+where
+    F: Fn(usize) -> f64,
+{
     if !config.sample_interval_ns.is_finite() || config.sample_interval_ns <= 0.0 {
         return Err("sample_interval_ns must be finite and positive".to_string());
     }
@@ -218,40 +244,42 @@ pub fn compute_frame_ptp(samples: &[i16], config: &PaImageProcessingConfig) -> R
     if !config.vfs.is_finite() {
         return Err("vfs must be finite".to_string());
     }
-    if config.sample_start_index > samples.len() {
+    if config.sample_start_index > sample_count {
         return Err("sample_start_index exceeds sample length".to_string());
     }
-    if config.sample_end_trim > samples.len().saturating_sub(config.sample_start_index) {
+    if config.sample_end_trim > sample_count.saturating_sub(config.sample_start_index) {
         return Err("sample_end_trim leaves no valid trace".to_string());
     }
 
-    let end = samples.len() - config.sample_end_trim;
-    let sliced = &samples[config.sample_start_index..end];
-    if sliced.is_empty() {
+    let end = sample_count - config.sample_end_trim;
+    let trace_len = end - config.sample_start_index;
+    if trace_len == 0 {
         return Err("trace slice is empty".to_string());
     }
 
-    let currents: Vec<f64> = sliced
-        .iter()
-        .map(|code| signed_code_to_current_ua(*code, config.tz_ohm, config.vfs))
-        .collect();
-    let baseline = mean_window(
-        &currents,
+    let (baseline_start, baseline_end) = sample_window_indices(
+        trace_len,
         config.sample_interval_ns,
         config.baseline_start_ns,
         config.baseline_end_ns,
     )?;
     let (ptp_start, ptp_end) = sample_window_indices(
-        currents.len(),
+        trace_len,
         config.sample_interval_ns,
         config.ptp_start_ns,
         config.ptp_end_ns,
     )?;
 
+    let mut baseline_sum = 0.0;
+    for index in baseline_start..baseline_end {
+        baseline_sum += current_at(config.sample_start_index + index);
+    }
+    let baseline = baseline_sum / (baseline_end - baseline_start) as f64;
+
     let mut min_value = f64::INFINITY;
     let mut max_value = f64::NEG_INFINITY;
-    for value in &currents[ptp_start..ptp_end] {
-        let corrected = *value - baseline;
+    for index in ptp_start..ptp_end {
+        let corrected = current_at(config.sample_start_index + index) - baseline;
         min_value = min_value.min(corrected);
         max_value = max_value.max(corrected);
     }
@@ -264,6 +292,10 @@ pub fn read_frame_trace_from_legacy_file(
     frame_index: u64,
     tz_ohm: f64,
 ) -> Result<PaFrameTrace, String> {
+    if !tz_ohm.is_finite() || tz_ohm == 0.0 {
+        return Err("tz_ohm must be finite and non-zero".to_string());
+    }
+
     let mut trace = None;
     visit_legacy_frames(
         path,
@@ -369,7 +401,9 @@ pub fn build_image_from_legacy_file(
                 sums = vec![0.0; pixel_count];
                 counts = vec![0; pixel_count];
             } else if width != Some(frame_width) || height != Some(frame_height) {
-                issue_state.borrow_mut().push(
+                let mut issue_state = issue_state.borrow_mut();
+                issue_state.bad_frame_count += 1;
+                issue_state.push(
                     PaSeverity::Warning,
                     format!(
                         "frame {} has inconsistent image dimension {}x{}",
@@ -378,6 +412,7 @@ pub fn build_image_from_legacy_file(
                     Some(frame.block_id),
                     Some(frame.frame_id),
                 );
+                return Ok(true);
             }
 
             let image_width = width.expect("width initialized");
@@ -399,8 +434,10 @@ pub fn build_image_from_legacy_file(
                 return Ok(true);
             }
 
-            let samples = decode_i16_samples(&frame.payload[PA_METADATA_BYTES..]);
-            let ptp = match compute_frame_ptp(&samples, config) {
+            let ptp = match compute_frame_ptp_from_sample_bytes(
+                &frame.payload[PA_METADATA_BYTES..],
+                config,
+            ) {
                 Ok(value) => value,
                 Err(err) => {
                     let mut issue_state = issue_state.borrow_mut();
@@ -867,12 +904,6 @@ fn parse_frame_header(raw: &[u8]) -> Result<AxisFrameHeader, String> {
     })
 }
 
-fn mean_window(values: &[f64], interval_ns: f64, start_ns: f64, end_ns: f64) -> Result<f64, String> {
-    let (start, end) = sample_window_indices(values.len(), interval_ns, start_ns, end_ns)?;
-    let sum: f64 = values[start..end].iter().sum();
-    Ok(sum / (end - start) as f64)
-}
-
 fn sample_window_indices(
     len: usize,
     interval_ns: f64,
@@ -1104,6 +1135,59 @@ mod tests {
     }
 
     #[test]
+    fn image_build_skips_inconsistent_dimensions() {
+        let path = write_synthetic_frame_specs(
+            "pa_mismatch_dims",
+            &[
+                SyntheticFrameSpec {
+                    width: 2,
+                    height: 2,
+                    x: 0,
+                    y: 0,
+                },
+                SyntheticFrameSpec {
+                    width: 3,
+                    height: 3,
+                    x: 1,
+                    y: 0,
+                },
+            ],
+        );
+        let config = PaImageProcessingConfig::default_for_tz(2000.0);
+
+        let image = build_image_from_legacy_file(&path, &config).expect("image");
+
+        assert_eq!(image.width, 2);
+        assert_eq!(image.height, 2);
+        assert_eq!(image.frame_count, 1);
+        assert_eq!(image.bad_frame_count, 1);
+        assert_eq!(image.counts, vec![1, 0, 0, 0]);
+        assert_eq!(image.severity, PaSeverity::Warning);
+    }
+
+    #[test]
+    fn image_build_leaves_missing_pixels_empty() {
+        let path = write_synthetic_frame_specs(
+            "pa_missing_pixel",
+            &[SyntheticFrameSpec {
+                width: 2,
+                height: 2,
+                x: 1,
+                y: 0,
+            }],
+        );
+        let config = PaImageProcessingConfig::default_for_tz(2000.0);
+
+        let image = build_image_from_legacy_file(&path, &config).expect("image");
+
+        assert_eq!(image.counts, vec![0, 1, 0, 0]);
+        assert_eq!(image.values[0], None);
+        assert!(image.values[1].is_some());
+        assert_eq!(image.values[2], None);
+        assert_eq!(image.values[3], None);
+    }
+
+    #[test]
     fn extracts_one_frame_trace_with_time_axis() {
         let path = write_synthetic_legacy_file("pa_frame_trace", 1, 5);
 
@@ -1112,6 +1196,39 @@ mod tests {
         assert_eq!(trace.samples.len(), 5);
         assert_eq!(trace.time_ns, vec![0.0, 8.0, 16.0, 24.0, 32.0]);
         assert_eq!(trace.frame_index, 0);
+    }
+
+    #[test]
+    fn trace_read_rejects_out_of_range_frame_index() {
+        let path = write_synthetic_legacy_file("pa_frame_trace_missing", 1, 5);
+
+        let err = read_frame_trace_from_legacy_file(&path, 1, 2000.0).expect_err("missing frame");
+
+        assert!(err.contains("frame index 1 not found"));
+    }
+
+    #[test]
+    fn trace_read_rejects_invalid_tz_ohm() {
+        let path = write_synthetic_legacy_file("pa_frame_trace_bad_tz", 1, 5);
+
+        let err = read_frame_trace_from_legacy_file(&path, 0, 0.0).expect_err("invalid tz");
+
+        assert!(err.contains("tz_ohm"));
+    }
+
+    #[test]
+    fn image_builder_does_not_decode_samples_to_vec() {
+        let source = include_str!("pa_image.rs");
+        let build_source = source
+            .split("pub fn build_image_from_legacy_file")
+            .nth(1)
+            .expect("build function source")
+            .split("pub fn scan_legacy_file")
+            .next()
+            .expect("build function end");
+
+        assert!(!build_source.contains("decode_i16_samples"));
+        assert!(!build_source.contains("compute_frame_ptp("));
     }
 
     #[test]
@@ -1178,6 +1295,62 @@ mod tests {
         path
     }
 
+    struct SyntheticFrameSpec {
+        width: usize,
+        height: usize,
+        x: usize,
+        y: usize,
+    }
+
+    fn write_synthetic_frame_specs(name: &str, frames: &[SyntheticFrameSpec]) -> PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "{name}_{}_{}.bin",
+            std::process::id(),
+            frames.len()
+        ));
+
+        let sample_count = 380usize;
+        let frame_payload_bytes = PA_METADATA_BYTES + sample_count * 2;
+        let frame_bytes = AXIS_FRAME_HEADER_BYTES + frame_payload_bytes;
+        let used_bytes = frames.len() * frame_bytes;
+
+        let mut file = std::fs::File::create(&path).expect("create synthetic frame spec file");
+        file.write_all(&1u64.to_le_bytes()).expect("block id");
+        file.write_all(&(used_bytes as u32).to_le_bytes()).expect("used bytes");
+        file.write_all(&(frames.len() as u32).to_le_bytes())
+            .expect("frame count");
+        file.write_all(&1u64.to_le_bytes()).expect("first frame id");
+        file.write_all(&(frames.len() as u64).to_le_bytes())
+            .expect("last frame id");
+
+        for (frame_idx, frame) in frames.iter().enumerate() {
+            file.write_all(&(frame_idx as u64 + 1).to_le_bytes())
+                .expect("frame id");
+            file.write_all(&(frame_payload_bytes as u32).to_le_bytes())
+                .expect("frame data bytes");
+            file.write_all(&0u32.to_le_bytes()).expect("frame reserved");
+
+            let mut metadata = [0u8; PA_METADATA_BYTES];
+            metadata[4..8].copy_from_slice(&(frame_idx as u32 + 1).to_le_bytes());
+            metadata[8..10].copy_from_slice(&(frame.height as u16).to_le_bytes());
+            metadata[10..12].copy_from_slice(&(frame.width as u16).to_le_bytes());
+            metadata[12..14].copy_from_slice(&(frames.len() as u16).to_le_bytes());
+            metadata[14..16].copy_from_slice(&(frame_idx as u16).to_le_bytes());
+            metadata[16..18].copy_from_slice(&(frame.y as u16).to_le_bytes());
+            metadata[18..20].copy_from_slice(&(frame.x as u16).to_le_bytes());
+            metadata[20..22].copy_from_slice(&(frame.y as i16).to_le_bytes());
+            metadata[22..24].copy_from_slice(&(frame.x as i16).to_le_bytes());
+            metadata[24..28].copy_from_slice(&99u32.to_le_bytes());
+            metadata[28..32].copy_from_slice(&PA_META_MAGIC.to_le_bytes());
+            file.write_all(&metadata).expect("metadata");
+
+            write_synthetic_ptp_samples(&mut file, sample_count);
+        }
+
+        path
+    }
+
     pub fn write_synthetic_grid_file(name: &str, width: usize, height: usize, repeats: usize) -> PathBuf {
         let mut path = std::env::temp_dir();
         path.push(format!(
@@ -1226,16 +1399,7 @@ mod tests {
                     metadata[28..32].copy_from_slice(&PA_META_MAGIC.to_le_bytes());
                     file.write_all(&metadata).expect("metadata");
 
-                    for sample in 0..sample_count {
-                        let code = if sample == 220 {
-                            -1000i16
-                        } else if sample == 260 {
-                            1000i16
-                        } else {
-                            0i16
-                        };
-                        file.write_all(&code.to_le_bytes()).expect("sample");
-                    }
+                    write_synthetic_ptp_samples(&mut file, sample_count);
 
                     frame_idx += 1;
                 }
@@ -1243,5 +1407,18 @@ mod tests {
         }
 
         path
+    }
+
+    fn write_synthetic_ptp_samples(file: &mut std::fs::File, sample_count: usize) {
+        for sample in 0..sample_count {
+            let code = if sample == 220 {
+                -1000i16
+            } else if sample == 260 {
+                1000i16
+            } else {
+                0i16
+            };
+            file.write_all(&code.to_le_bytes()).expect("sample");
+        }
     }
 }
