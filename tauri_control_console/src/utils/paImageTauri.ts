@@ -1,26 +1,47 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { PaImageProcessing, PaSeverity } from "./paImage";
 
+export type PaParseIssue = {
+  severity: PaSeverity;
+  message: string;
+  block_id: number | null;
+  frame_id: number | null;
+};
+
+export type PaFrameMetadata = {
+  reserved: number;
+  global_shot_idx: number;
+  y_points: number;
+  x_points: number;
+  frame_number: number;
+  frame_idx: number;
+  y_idx: number;
+  x_idx: number;
+  current_y: number;
+  current_x: number;
+  task_id: number;
+};
+
 export type PaFileSummary = {
   path: string;
   file_size: number;
   block_count: number;
   frame_count: number;
   bad_frame_count: number;
-  detected_x_points?: number;
-  detected_y_points?: number;
-  detected_frame_number?: number;
+  detected_x_points: number | null;
+  detected_y_points: number | null;
+  detected_frame_number: number | null;
   detected_sample_count_min: number;
   detected_sample_count_max: number;
   severity: PaSeverity;
-  issues: Array<{ severity: PaSeverity; message: string; block_id?: number; frame_id?: number }>;
+  issues: PaParseIssue[];
 };
 
 export type PaFrameTrace = {
   path: string;
   frame_index: number;
   frame_id: number;
-  metadata?: Record<string, number>;
+  metadata: PaFrameMetadata | null;
   time_ns: number[];
   samples: number[];
   current_ua: number[];
@@ -36,7 +57,7 @@ export type PaImageBuildResult = {
   frame_count: number;
   bad_frame_count: number;
   severity: PaSeverity;
-  issues: Array<{ severity: PaSeverity; message: string; block_id?: number; frame_id?: number }>;
+  issues: PaParseIssue[];
 };
 
 export function rustProcessingConfig(config: PaImageProcessing) {
