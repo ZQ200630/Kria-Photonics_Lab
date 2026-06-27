@@ -336,10 +336,6 @@ pub fn scan_legacy_file(path: &Path) -> Result<PaFileSummary, String> {
                     }
 
                     let sample_count = (data_bytes - PA_METADATA_BYTES) / 2;
-                    let sample_bytes = &payload[PA_METADATA_BYTES..PA_METADATA_BYTES + sample_count * 2];
-                    for chunk in sample_bytes.chunks_exact(2) {
-                        let _sample = i16::from_le_bytes([chunk[0], chunk[1]]);
-                    }
                     update_sample_count(&mut summary, sample_count);
                     if (data_bytes - PA_METADATA_BYTES) % 2 != 0 {
                         push_issue(
@@ -614,6 +610,20 @@ mod tests {
         let source = include_str!("pa_image.rs");
 
         assert!(!source.contains(&format!("read_to{}", "_end")));
+    }
+
+    #[test]
+    fn scanner_does_not_decode_sample_codes() {
+        let source = include_str!("pa_image.rs");
+        let scan_source = source
+            .split("pub fn scan_legacy_file")
+            .nth(1)
+            .expect("scan function source")
+            .split("fn read_exact_at")
+            .next()
+            .expect("scan function end");
+
+        assert!(!scan_source.contains("i16::from_le_bytes"));
     }
 
     pub fn write_synthetic_legacy_file(name: &str, frame_count: usize, sample_count: usize) -> PathBuf {
