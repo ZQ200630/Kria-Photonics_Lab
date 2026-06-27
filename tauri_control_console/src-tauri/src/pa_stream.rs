@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::{self, BufWriter, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::sync::{
@@ -12,7 +12,13 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 
 const STREAM_MAGIC: &[u8; 4] = b"PAI1";
+const STREAM_VERSION: u16 = 1;
 const STREAM_HEADER_BYTES: usize = 68;
+const RECORD_TYPE_DATA: u16 = 2;
+const MAX_STREAM_HEADER_BYTES: usize = 4096;
+const MAX_STREAM_DATA_PAYLOAD_BYTES: usize = 128 * 1024 * 1024;
+const MAX_STREAM_CONTROL_PAYLOAD_BYTES: usize = 16 * 1024 * 1024;
+const DRAIN_BUFFER_BYTES: usize = 64 * 1024;
 const DEFAULT_CONNECT_TIMEOUT_MS: u64 = 1_200;
 const DEFAULT_STOP_JOIN_TIMEOUT_MS: u64 = 1_000;
 
@@ -139,10 +145,15 @@ impl PaTcpReceiver {
     }
 
     pub fn request_stop(&self) -> PaReceiverStatus {
+        self.request_stop_with_timeout(Duration::from_millis(DEFAULT_STOP_JOIN_TIMEOUT_MS))
+    }
+
+    fn request_stop_with_timeout(&self, join_timeout: Duration) -> PaReceiverStatus {
         {
             let mut runtime = self.runtime.lock().expect("PA receiver runtime mutex poisoned");
             if runtime.running {
                 runtime.stop_requested = true;
+                runtime.phase = "stopping".to_string();
             }
         }
 
@@ -157,7 +168,7 @@ impl PaTcpReceiver {
 
         let worker = self.worker.lock().expect("PA receiver worker mutex poisoned").take();
         if let Some(worker) = worker {
-            let deadline = Instant::now() + Duration::from_millis(DEFAULT_STOP_JOIN_TIMEOUT_MS);
+            let deadline = Instant::now() + join_timeout;
             while !worker.is_finished() && Instant::now() < deadline {
                 std::thread::sleep(Duration::from_millis(10));
             }
@@ -169,8 +180,14 @@ impl PaTcpReceiver {
             } else {
                 let mut runtime = self.runtime.lock().expect("PA receiver runtime mutex poisoned");
                 runtime.last_error = format!(
-                    "PA receiver stop/join timed out after {DEFAULT_STOP_JOIN_TIMEOUT_MS}ms"
+                    "PA receiver stop/join timed out after {}ms",
+                    join_timeout.as_millis()
                 );
+                runtime.running = true;
+                runtime.stop_requested = true;
+                runtime.phase = "stopping".to_string();
+                *self.worker.lock().expect("PA receiver worker mutex poisoned") = Some(worker);
+                return status_from_runtime(&runtime);
             }
         }
 
@@ -271,8 +288,11 @@ fn run_receiver_loop(
     }
 
     set_receiver_phase(&runtime, "opening_output");
-    let mut output = File::create(&output_path).map_err(|err| format!("open output file failed: {err}"))?;
+    let mut output = BufWriter::new(
+        File::create(&output_path).map_err(|err| format!("open output file failed: {err}"))?,
+    );
     let mut header = [0u8; STREAM_HEADER_BYTES];
+    let mut drain_buffer = vec![0u8; DRAIN_BUFFER_BYTES];
 
     loop {
         if stop_signal.load(Ordering::SeqCst) {
@@ -283,9 +303,9 @@ fn run_receiver_loop(
         }
 
         set_receiver_phase(&runtime, "reading_header");
-        let has_header = read_exact_with_stop(&mut stream, &mut header, &stop_signal)?;
-        if !has_header {
-            break;
+        match read_exact_with_stop(&mut stream, &mut header, &stop_signal, "stream header")? {
+            ReadExactStatus::Complete => {}
+            ReadExactStatus::Stopped | ReadExactStatus::CleanEof => break,
         }
 
         if &header[0..4] != STREAM_MAGIC {
@@ -294,6 +314,13 @@ fn run_receiver_loop(
                 "invalid stream magic: {:02X}{:02X}{:02X}{:02X}",
                 header[0], header[1], header[2], header[3]
             );
+            return Err(inner.last_error.clone());
+        }
+
+        let version = u16::from_le_bytes([header[4], header[5]]);
+        if version != STREAM_VERSION {
+            let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
+            inner.last_error = format!("unsupported stream version {version}");
             return Err(inner.last_error.clone());
         }
 
@@ -358,19 +385,58 @@ fn run_receiver_loop(
             inner.last_error = format!("invalid declared header size {declared_header_bytes}");
             return Err(inner.last_error.clone());
         }
+        if declared_header_bytes > MAX_STREAM_HEADER_BYTES {
+            let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
+            inner.last_error = format!(
+                "stream header size {declared_header_bytes} exceeds limit {MAX_STREAM_HEADER_BYTES}"
+            );
+            return Err(inner.last_error.clone());
+        }
+
+        if record_type == RECORD_TYPE_DATA {
+            if payload_bytes > MAX_STREAM_DATA_PAYLOAD_BYTES {
+                let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
+                inner.last_error = format!(
+                    "data payload size {payload_bytes} exceeds limit {MAX_STREAM_DATA_PAYLOAD_BYTES}"
+                );
+                return Err(inner.last_error.clone());
+            }
+            if payload_bytes > u32::MAX as usize {
+                let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
+                inner.last_error = format!("data payload size {payload_bytes} exceeds u32 used_bytes");
+                return Err(inner.last_error.clone());
+            }
+        } else if payload_bytes > MAX_STREAM_CONTROL_PAYLOAD_BYTES {
+            let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
+            inner.last_error = format!(
+                "control payload size {payload_bytes} exceeds limit {MAX_STREAM_CONTROL_PAYLOAD_BYTES}"
+            );
+            return Err(inner.last_error.clone());
+        }
 
         if declared_header_bytes > STREAM_HEADER_BYTES {
             let mut extra_header = vec![0u8; declared_header_bytes - STREAM_HEADER_BYTES];
-            if !read_exact_with_stop(&mut stream, &mut extra_header, &stop_signal)? {
-                break;
+            match read_exact_with_stop(&mut stream, &mut extra_header, &stop_signal, "extra header")? {
+                ReadExactStatus::Complete => {}
+                ReadExactStatus::Stopped => break,
+                ReadExactStatus::CleanEof => return Err(format!(
+                    "unexpected EOF while reading extra header: read 0 of {} bytes",
+                    extra_header.len()
+                )),
             }
         }
 
-        if record_type == 2 {
+        if record_type == RECORD_TYPE_DATA {
             let mut payload = vec![0u8; payload_bytes];
             set_receiver_phase(&runtime, "reading_payload");
-            if payload_bytes > 0 && !read_exact_with_stop(&mut stream, &mut payload, &stop_signal)? {
-                break;
+            if payload_bytes > 0 {
+                match read_exact_with_stop(&mut stream, &mut payload, &stop_signal, "data payload")? {
+                    ReadExactStatus::Complete => {}
+                    ReadExactStatus::Stopped => break,
+                    ReadExactStatus::CleanEof => return Err(format!(
+                        "unexpected EOF while reading data payload: read 0 of {payload_bytes} bytes"
+                    )),
+                }
             }
 
             write_legacy_block_record(
@@ -389,9 +455,25 @@ fn run_receiver_loop(
             inner.blocks_received = inner.blocks_received.saturating_add(1);
             inner.frames_received = inner.frames_received.saturating_add(u64::from(frame_count));
         } else if payload_bytes > 0 {
-            let mut payload = vec![0u8; payload_bytes];
             set_receiver_phase(&runtime, "reading_payload");
-            if !read_exact_with_stop(&mut stream, &mut payload, &stop_signal)? {
+            let mut remaining = payload_bytes;
+            while remaining > 0 {
+                let chunk_len = remaining.min(drain_buffer.len());
+                match read_exact_with_stop(
+                    &mut stream,
+                    &mut drain_buffer[..chunk_len],
+                    &stop_signal,
+                    "control payload",
+                )? {
+                    ReadExactStatus::Complete => {}
+                    ReadExactStatus::Stopped => break,
+                    ReadExactStatus::CleanEof => return Err(format!(
+                        "unexpected EOF while reading control payload: read 0 of {remaining} bytes"
+                    )),
+                }
+                remaining -= chunk_len;
+            }
+            if remaining > 0 {
                 break;
             }
         }
@@ -409,15 +491,32 @@ fn run_receiver_loop(
     Ok(())
 }
 
-fn read_exact_with_stop(reader: &mut TcpStream, buf: &mut [u8], stop_signal: &Arc<AtomicBool>) -> Result<bool, String> {
+enum ReadExactStatus {
+    Complete,
+    Stopped,
+    CleanEof,
+}
+
+fn read_exact_with_stop(
+    reader: &mut TcpStream,
+    buf: &mut [u8],
+    stop_signal: &Arc<AtomicBool>,
+    context: &str,
+) -> Result<ReadExactStatus, String> {
     let mut offset = 0usize;
     while offset < buf.len() {
         if stop_signal.load(Ordering::SeqCst) {
-            return Ok(false);
+            return Ok(ReadExactStatus::Stopped);
         }
 
         match reader.read(&mut buf[offset..]) {
-            Ok(0) => return Ok(false),
+            Ok(0) if offset == 0 => return Ok(ReadExactStatus::CleanEof),
+            Ok(0) => {
+                return Err(format!(
+                    "unexpected EOF while reading {context}: read {offset} of {} bytes",
+                    buf.len()
+                ))
+            }
             Ok(n) => offset += n,
             Err(err) if err.kind() == io::ErrorKind::WouldBlock || err.kind() == io::ErrorKind::TimedOut => {
                 continue;
@@ -425,7 +524,7 @@ fn read_exact_with_stop(reader: &mut TcpStream, buf: &mut [u8], stop_signal: &Ar
             Err(err) => return Err(format!("{err}")),
         }
     }
-    Ok(true)
+    Ok(ReadExactStatus::Complete)
 }
 
 #[tauri::command]
@@ -451,12 +550,63 @@ pub fn pa_receiver_status(receiver: tauri::State<'_, PaTcpReceiver>) -> Result<P
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
     use std::sync::mpsc;
 
     fn temp_output_path(name: &str) -> String {
         let mut path = std::env::temp_dir();
         path.push(format!("{name}_{}.bin", std::process::id()));
         path.display().to_string()
+    }
+
+    fn encode_pai_record(
+        record_type: u16,
+        sequence: u64,
+        payload: &[u8],
+        block_id: u64,
+        frame_count: u32,
+        first_frame_id: u64,
+        last_frame_id: u64,
+    ) -> Vec<u8> {
+        let mut record = vec![0u8; STREAM_HEADER_BYTES + payload.len()];
+        record[0..4].copy_from_slice(STREAM_MAGIC);
+        record[4..6].copy_from_slice(&1u16.to_le_bytes());
+        record[6..8].copy_from_slice(&record_type.to_le_bytes());
+        record[8..12].copy_from_slice(&(STREAM_HEADER_BYTES as u32).to_le_bytes());
+        record[12..20].copy_from_slice(&(payload.len() as u64).to_le_bytes());
+        record[20..28].copy_from_slice(&sequence.to_le_bytes());
+        record[36..44].copy_from_slice(&block_id.to_le_bytes());
+        record[44..48].copy_from_slice(&frame_count.to_le_bytes());
+        record[52..60].copy_from_slice(&first_frame_id.to_le_bytes());
+        record[60..68].copy_from_slice(&last_frame_id.to_le_bytes());
+        record[STREAM_HEADER_BYTES..].copy_from_slice(payload);
+        record
+    }
+
+    fn run_socket_receiver<F>(name: &str, sender: F) -> (Result<(), String>, PaReceiverRuntime, Vec<u8>)
+    where
+        F: FnOnce(TcpStream) + Send + 'static,
+    {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let output_path = temp_output_path(name);
+        let output_for_read = output_path.clone();
+        let sender_thread = thread::spawn(move || {
+            let (stream, _) = listener.accept().expect("accept receiver connection");
+            sender(stream);
+        });
+        let runtime = Arc::new(Mutex::new(PaReceiverRuntime::default()));
+        let stop_flag = Arc::new(AtomicBool::new(false));
+
+        let result = run_receiver_loop(addr.to_string(), output_path, Arc::clone(&runtime), stop_flag);
+        sender_thread.join().expect("sender thread should exit");
+        let bytes = std::fs::read(&output_for_read).unwrap_or_default();
+        let runtime = Arc::try_unwrap(runtime)
+            .expect("runtime should have one owner")
+            .into_inner()
+            .expect("runtime mutex poisoned");
+        let _ = std::fs::remove_file(output_for_read);
+        (result, runtime, bytes)
     }
 
     #[test]
@@ -513,5 +663,106 @@ mod tests {
         assert_eq!(u64::from_le_bytes(out[16..24].try_into().unwrap()), 100);
         assert_eq!(u64::from_le_bytes(out[24..32].try_into().unwrap()), 101);
         assert_eq!(&out[32..36], &[1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn receiver_writes_only_data_records_as_legacy_blocks() {
+        let metadata = encode_pai_record(1, 10, &[9, 9], 0, 0, 0, 0);
+        let data = encode_pai_record(2, 11, &[1, 2, 3, 4], 9, 2, 100, 101);
+        let status = encode_pai_record(3, 12, &[7], 0, 0, 0, 0);
+        let expected_bytes_received = metadata.len() + data.len() + status.len();
+
+        let (result, runtime, output) =
+            run_socket_receiver("pa_receiver_socket_data_only", move |mut stream| {
+                stream.write_all(&metadata).expect("write metadata");
+                stream.write_all(&data).expect("write data");
+                stream.write_all(&status).expect("write status");
+            });
+
+        result.expect("receiver should finish cleanly");
+        assert_eq!(output.len(), 36);
+        assert_eq!(u64::from_le_bytes(output[0..8].try_into().unwrap()), 9);
+        assert_eq!(u32::from_le_bytes(output[8..12].try_into().unwrap()), 4);
+        assert_eq!(u32::from_le_bytes(output[12..16].try_into().unwrap()), 2);
+        assert_eq!(u64::from_le_bytes(output[16..24].try_into().unwrap()), 100);
+        assert_eq!(u64::from_le_bytes(output[24..32].try_into().unwrap()), 101);
+        assert_eq!(&output[32..36], &[1, 2, 3, 4]);
+        assert_eq!(runtime.blocks_received, 1);
+        assert_eq!(runtime.frames_received, 2);
+        assert_eq!(runtime.bytes_received, expected_bytes_received as u64);
+    }
+
+    #[test]
+    fn receiver_reports_unexpected_eof_mid_payload() {
+        let mut data = encode_pai_record(2, 1, &[1, 2, 3, 4], 9, 2, 100, 101);
+        data.truncate(STREAM_HEADER_BYTES + 2);
+
+        let (result, _, _) = run_socket_receiver("pa_receiver_eof_mid_payload", move |mut stream| {
+            stream.write_all(&data).expect("write partial data");
+        });
+
+        let err = result.expect_err("partial payload should fail");
+        assert!(err.contains("data payload"), "unexpected error: {err}");
+        assert!(err.contains("2") && err.contains("4"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn receiver_rejects_unsupported_stream_version() {
+        let mut data = encode_pai_record(2, 1, &[], 0, 0, 0, 0);
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+
+        let (result, _, _) = run_socket_receiver("pa_receiver_bad_version", move |mut stream| {
+            stream.write_all(&data).expect("write bad version");
+        });
+
+        let err = result.expect_err("unsupported stream version should fail");
+        assert!(err.contains("unsupported stream version"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn receiver_rejects_oversized_data_payload_before_reading_payload() {
+        let mut data = encode_pai_record(2, 1, &[], 0, 0, 0, 0);
+        data[12..20].copy_from_slice(&((MAX_STREAM_DATA_PAYLOAD_BYTES as u64) + 1).to_le_bytes());
+
+        let (result, _, _) =
+            run_socket_receiver("pa_receiver_oversized_payload", move |mut stream| {
+                stream.write_all(&data).expect("write oversized data header");
+            });
+
+        let err = result.expect_err("oversized payload should fail");
+        assert!(err.contains("payload"), "unexpected error: {err}");
+        assert!(err.contains("exceeds"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn request_stop_keeps_worker_handle_when_join_times_out() {
+        let receiver = PaTcpReceiver::new();
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let thread_stop_flag = Arc::clone(&stop_flag);
+        let worker = thread::spawn(move || {
+            while !thread_stop_flag.load(Ordering::SeqCst) {
+                thread::sleep(Duration::from_millis(1));
+            }
+            thread::sleep(Duration::from_millis(50));
+        });
+
+        {
+            let mut runtime = receiver.runtime.lock().expect("runtime mutex poisoned");
+            runtime.running = true;
+        }
+        *receiver.stop_signal.lock().expect("stop signal mutex poisoned") = Some(stop_flag);
+        *receiver.worker.lock().expect("worker mutex poisoned") = Some(worker);
+
+        let status = receiver.request_stop_with_timeout(Duration::from_millis(1));
+
+        assert!(status.running);
+        assert!(status.stop_requested);
+        assert!(receiver.worker.lock().expect("worker mutex poisoned").is_some());
+        assert!(receiver.stop_signal.lock().expect("stop signal mutex poisoned").is_some());
+
+        thread::sleep(Duration::from_millis(100));
+        let status = receiver.request_stop_with_timeout(Duration::from_millis(100));
+        assert!(!status.running);
+        assert!(receiver.worker.lock().expect("worker mutex poisoned").is_none());
     }
 }
