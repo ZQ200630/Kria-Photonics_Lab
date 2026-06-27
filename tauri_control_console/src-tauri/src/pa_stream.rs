@@ -80,10 +80,11 @@ impl PaTcpReceiver {
         }
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let endpoint_host = if host.trim().is_empty() {
+        let trimmed_host = host.trim();
+        let endpoint_host = if trimmed_host.is_empty() {
             "127.0.0.1".to_string()
         } else {
-            host
+            trimmed_host.to_string()
         };
         let endpoint = format!("{}:{}", endpoint_host, if port == 0 { 9090 } else { port });
         let output_path = output_path.trim().to_string();
@@ -645,6 +646,20 @@ mod tests {
         let status = receiver.status();
         assert_eq!(status.endpoint, "127.0.0.1:1");
         assert!(!status.phase.is_empty());
+
+        let _ = receiver.request_stop();
+    }
+
+    #[test]
+    fn start_trims_non_empty_host_before_status() {
+        let receiver = PaTcpReceiver::new();
+        let output_path = temp_output_path("pa_receiver_trim_host");
+
+        let start_status = receiver
+            .start(" 127.0.0.1 ".to_string(), 1, output_path)
+            .expect("start should return status");
+
+        assert_eq!(start_status.endpoint, "127.0.0.1:1");
 
         let _ = receiver.request_stop();
     }
