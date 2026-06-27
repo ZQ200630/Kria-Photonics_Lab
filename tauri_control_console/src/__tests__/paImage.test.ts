@@ -21,6 +21,8 @@ describe("PA image utilities", () => {
     expect(DEFAULT_PA_IMAGE_PROCESSING.baselineEndNs).toBe(400);
     expect(DEFAULT_PA_IMAGE_PROCESSING.ptpStartNs).toBe(1600);
     expect(DEFAULT_PA_IMAGE_PROCESSING.ptpEndNs).toBe(2400);
+    expect(DEFAULT_PA_IMAGE_PROCESSING.tzOhm).toBe(2000);
+    expect(DEFAULT_PA_IMAGE_PROCESSING.vfs).toBe(1);
   });
 
   it("maps selected source indices to a ns processing window after sample slicing", () => {
