@@ -76,7 +76,7 @@ export function rustProcessingConfig(config: PaImageProcessing) {
 
 export const pickPaImageFile = () => invoke<string | null>("pa_image_pick_file");
 export const scanPaImageFile = (path: string) => invoke<PaFileSummary>("pa_image_scan_path", { path });
-export const readPaFrameTrace = (path: string, frameIndex: number, tzOhm: number) =>
-  invoke<PaFrameTrace>("pa_image_read_frame_path", { path, frameIndex, tzOhm });
+export const readPaFrameTrace = (path: string, frameIndex: number, tzOhm: number, vfs: number) =>
+  invoke<PaFrameTrace>("pa_image_read_frame_path", { path, frameIndex, tzOhm, vfs });
 export const buildPaImage = (path: string, config: PaImageProcessing) =>
   invoke<PaImageBuildResult>("pa_image_build_path", { path, config: rustProcessingConfig(config) });

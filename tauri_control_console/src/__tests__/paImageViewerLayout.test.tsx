@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import PaImageViewer, { shouldClearPaImageForProcessingChange, shouldClearPaTraceForProcessingChange } from "../components/PaImageViewer";
+import PaImageViewer, {
+  isPaImageRequestCurrent,
+  shouldClearPaImageForProcessingChange,
+  shouldClearPaTraceForProcessingChange,
+} from "../components/PaImageViewer";
 
 describe("PA Image Viewer layout", () => {
   it("renders source controls, ROI controls, trace, and image preview", () => {
@@ -22,5 +26,10 @@ describe("PA Image Viewer layout", () => {
     expect(shouldClearPaTraceForProcessingChange("tzOhm")).toBe(true);
     expect(shouldClearPaTraceForProcessingChange("vfs")).toBe(true);
     expect(shouldClearPaTraceForProcessingChange("ptpStartNs")).toBe(false);
+  });
+
+  it("rejects async PA image results from an older processing generation", () => {
+    expect(isPaImageRequestCurrent(4, 4)).toBe(true);
+    expect(isPaImageRequestCurrent(4, 5)).toBe(false);
   });
 });

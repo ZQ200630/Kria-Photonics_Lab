@@ -291,9 +291,13 @@ pub fn read_frame_trace_from_legacy_file(
     path: &Path,
     frame_index: u64,
     tz_ohm: f64,
+    vfs: f64,
 ) -> Result<PaFrameTrace, String> {
     if !tz_ohm.is_finite() || tz_ohm == 0.0 {
         return Err("tz_ohm must be finite and non-zero".to_string());
+    }
+    if !vfs.is_finite() {
+        return Err("vfs must be finite".to_string());
     }
 
     let mut trace = None;
@@ -315,7 +319,7 @@ pub fn read_frame_trace_from_legacy_file(
             let time_ns: Vec<f64> = (0..samples.len()).map(|index| index as f64 * 8.0).collect();
             let current_ua = samples
                 .iter()
-                .map(|code| signed_code_to_current_ua(*code, tz_ohm, 1.0))
+                .map(|code| signed_code_to_current_ua(*code, tz_ohm, vfs))
                 .collect();
             trace = Some(PaFrameTrace {
                 path: path.display().to_string(),
@@ -1191,7 +1195,7 @@ mod tests {
     fn extracts_one_frame_trace_with_time_axis() {
         let path = write_synthetic_legacy_file("pa_frame_trace", 1, 5);
 
-        let trace = read_frame_trace_from_legacy_file(&path, 0, 2000.0).expect("trace");
+        let trace = read_frame_trace_from_legacy_file(&path, 0, 2000.0, 1.0).expect("trace");
 
         assert_eq!(trace.samples.len(), 5);
         assert_eq!(trace.time_ns, vec![0.0, 8.0, 16.0, 24.0, 32.0]);
@@ -1199,10 +1203,20 @@ mod tests {
     }
 
     #[test]
+    fn trace_read_uses_vfs_for_current_conversion() {
+        let path = write_synthetic_legacy_file("pa_frame_trace_vfs", 1, 5);
+
+        let trace_1v = read_frame_trace_from_legacy_file(&path, 0, 2000.0, 1.0).expect("trace 1v");
+        let trace_2v = read_frame_trace_from_legacy_file(&path, 0, 2000.0, 2.0).expect("trace 2v");
+
+        assert_ne!(trace_1v.current_ua[1], trace_2v.current_ua[1]);
+    }
+
+    #[test]
     fn trace_read_rejects_out_of_range_frame_index() {
         let path = write_synthetic_legacy_file("pa_frame_trace_missing", 1, 5);
 
-        let err = read_frame_trace_from_legacy_file(&path, 1, 2000.0).expect_err("missing frame");
+        let err = read_frame_trace_from_legacy_file(&path, 1, 2000.0, 1.0).expect_err("missing frame");
 
         assert!(err.contains("frame index 1 not found"));
     }
@@ -1211,7 +1225,7 @@ mod tests {
     fn trace_read_rejects_invalid_tz_ohm() {
         let path = write_synthetic_legacy_file("pa_frame_trace_bad_tz", 1, 5);
 
-        let err = read_frame_trace_from_legacy_file(&path, 0, 0.0).expect_err("invalid tz");
+        let err = read_frame_trace_from_legacy_file(&path, 0, 0.0, 1.0).expect_err("invalid tz");
 
         assert!(err.contains("tz_ohm"));
     }

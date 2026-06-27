@@ -100,8 +100,8 @@ fn pa_image_scan_path(path: String) -> Result<pa_image::PaFileSummary, String> {
 }
 
 #[tauri::command]
-fn pa_image_read_frame_path(path: String, frame_index: u64, tz_ohm: f64) -> Result<pa_image::PaFrameTrace, String> {
-    pa_image::read_frame_trace_from_legacy_file(std::path::Path::new(&path), frame_index, tz_ohm)
+fn pa_image_read_frame_path(path: String, frame_index: u64, tz_ohm: f64, vfs: f64) -> Result<pa_image::PaFrameTrace, String> {
+    pa_image::read_frame_trace_from_legacy_file(std::path::Path::new(&path), frame_index, tz_ohm, vfs)
         .map_err(|err| err.to_string())
 }
 

@@ -28,6 +28,10 @@ export function shouldClearPaTraceForProcessingChange(key: keyof PaImageProcessi
   return key === "tzOhm" || key === "vfs";
 }
 
+export function isPaImageRequestCurrent(startedGeneration: number, currentGeneration: number): boolean {
+  return startedGeneration === currentGeneration;
+}
+
 function severityClass(severity?: PaSeverity): string {
   return `severity-${severity ?? "ok"}`;
 }
@@ -66,10 +70,16 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
   const [message, setMessage] = useState("Open a legacy PA binary to inspect frames and build an image.");
   const [busy, setBusy] = useState(false);
   const lastTzOhmRef = useRef(tzOhm);
+  const requestGenerationRef = useRef(0);
+
+  const bumpRequestGeneration = () => {
+    requestGenerationRef.current += 1;
+  };
 
   useEffect(() => {
     if (lastTzOhmRef.current === tzOhm) return;
     lastTzOhmRef.current = tzOhm;
+    bumpRequestGeneration();
     setProcessing((current) => ({ ...current, tzOhm }));
     setImage(undefined);
     setTrace(undefined);
@@ -121,6 +131,7 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
       setTrace(undefined);
       setTraceZoom(undefined);
       setFrameIndexText("0");
+      bumpRequestGeneration();
       setMessage(`Loaded ${nextSummary.frame_count} frame${nextSummary.frame_count === 1 ? "" : "s"} from ${nextSummary.block_count} blocks.`);
     });
 
@@ -131,7 +142,12 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
         return;
       }
       const frameIndex = Math.max(0, Math.round(parseNumber(frameIndexText, 0)));
-      const nextTrace = await readPaFrameTrace(path, frameIndex, processing.tzOhm);
+      const startedGeneration = requestGenerationRef.current;
+      const nextTrace = await readPaFrameTrace(path, frameIndex, processing.tzOhm, processing.vfs);
+      if (!isPaImageRequestCurrent(startedGeneration, requestGenerationRef.current)) {
+        setMessage("Frame load finished after settings changed; reload frame.");
+        return;
+      }
       setTrace(nextTrace);
       setTraceZoom(undefined);
       setFrameIndexText(String(frameIndex));
@@ -144,7 +160,13 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
         setMessage("Choose a legacy PA binary before building an image.");
         return;
       }
-      const nextImage = await buildPaImage(path, processing);
+      const startedGeneration = requestGenerationRef.current;
+      const processingSnapshot = { ...processing };
+      const nextImage = await buildPaImage(path, processingSnapshot);
+      if (!isPaImageRequestCurrent(startedGeneration, requestGenerationRef.current)) {
+        setMessage("Image build finished after settings changed; rebuild image.");
+        return;
+      }
       setImage(nextImage);
       setMessage(`Built ${nextImage.width} x ${nextImage.height} PA image from ${nextImage.frame_count} frames.`);
     });
@@ -152,6 +174,7 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
   const updateProcessingNumber = (key: keyof PaImageProcessing, text: string) => {
     const nextValue = parseNumber(text, processing[key]);
     if (Object.is(nextValue, processing[key])) return;
+    bumpRequestGeneration();
     setProcessing((current) => ({ ...current, [key]: parseNumber(text, current[key]) }));
     if (shouldClearPaImageForProcessingChange(key)) setImage(undefined);
     if (shouldClearPaTraceForProcessingChange(key)) {
@@ -169,6 +192,7 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
       return;
     }
     const window = indexRangeToNsWindow(range.startIndex, range.endIndex, processing.sampleStartIndex, processing.sampleIntervalNs);
+    bumpRequestGeneration();
     setProcessing((current) => ({ ...current, ptpStartNs: window.startNs, ptpEndNs: window.endNs }));
     setImage(undefined);
     setMessage("PTP ROI updated; rebuild image.");
