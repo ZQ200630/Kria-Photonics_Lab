@@ -81,6 +81,38 @@ fn open_text_file() -> Result<Option<Vec<String>>, String> {
     Ok(Some(vec![path.display().to_string(), contents]))
 }
 
+#[tauri::command]
+fn pa_image_pick_file() -> Result<Option<String>, String> {
+    let default_dir = default_data_dir()?;
+    let Some(path) = rfd::FileDialog::new()
+        .set_directory(&default_dir)
+        .add_filter("PA legacy bin", &["bin"])
+        .pick_file()
+    else {
+        return Ok(None);
+    };
+    Ok(Some(path.display().to_string()))
+}
+
+#[tauri::command]
+fn pa_image_scan_path(path: String) -> Result<pa_image::PaFileSummary, String> {
+    pa_image::scan_legacy_file(std::path::Path::new(&path)).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn pa_image_read_frame_path(path: String, frame_index: u64, tz_ohm: f64) -> Result<pa_image::PaFrameTrace, String> {
+    pa_image::read_frame_trace_from_legacy_file(std::path::Path::new(&path), frame_index, tz_ohm)
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+fn pa_image_build_path(
+    path: String,
+    config: pa_image::PaImageProcessingConfig,
+) -> Result<pa_image::PaImageBuildResult, String> {
+    pa_image::build_image_from_legacy_file(std::path::Path::new(&path), &config).map_err(|err| err.to_string())
+}
+
 fn safe_component(value: &str, fallback: &str) -> String {
     let cleaned: String = value
         .chars()
@@ -179,7 +211,11 @@ fn main() {
             save_text_file,
             open_text_file,
             choose_data_directory,
-            save_experiment_bundle
+            save_experiment_bundle,
+            pa_image_pick_file,
+            pa_image_scan_path,
+            pa_image_read_frame_path,
+            pa_image_build_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running Butterfly Laser Control");

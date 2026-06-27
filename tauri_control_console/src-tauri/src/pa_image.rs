@@ -12,6 +12,7 @@ pub const PA_METADATA_BYTES: usize = 32;
 pub enum PaSeverity {
     Ok,
     Warning,
+    #[allow(dead_code)]
     Error,
 }
 
@@ -67,6 +68,48 @@ pub struct PaImageProcessingConfig {
     pub vfs: f64,
 }
 
+impl PaImageProcessingConfig {
+    #[allow(dead_code)]
+    pub fn default_for_tz(tz_ohm: f64) -> Self {
+        Self {
+            sample_interval_ns: 8.0,
+            sample_start_index: 10,
+            sample_end_trim: 50,
+            baseline_start_ns: 100.0,
+            baseline_end_ns: 400.0,
+            ptp_start_ns: 1600.0,
+            ptp_end_ns: 2400.0,
+            tz_ohm,
+            vfs: 1.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PaFrameTrace {
+    pub path: String,
+    pub frame_index: u64,
+    pub frame_id: u64,
+    pub metadata: Option<PaFrameMetadata>,
+    pub time_ns: Vec<f64>,
+    pub samples: Vec<i16>,
+    pub current_ua: Vec<f64>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PaImageBuildResult {
+    pub path: String,
+    pub width: usize,
+    pub height: usize,
+    pub values: Vec<Option<f64>>,
+    pub counts: Vec<u32>,
+    pub pixel_count: u64,
+    pub frame_count: u64,
+    pub bad_frame_count: u64,
+    pub severity: PaSeverity,
+    pub issues: Vec<PaParseIssue>,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct AxisBlockHeader {
     block_id: u64,
@@ -81,6 +124,55 @@ struct AxisFrameHeader {
     frame_id: u64,
     data_bytes: u32,
     reserved: u32,
+}
+
+struct LegacyFramePayload {
+    block_id: u64,
+    frame_index: u64,
+    frame_id: u64,
+    payload: Vec<u8>,
+}
+
+struct LegacyStreamWarning {
+    issue: PaParseIssue,
+    bad_frame_count: u64,
+}
+
+struct PaBuildIssueState {
+    bad_frame_count: u64,
+    severity: PaSeverity,
+    issues: Vec<PaParseIssue>,
+}
+
+impl PaBuildIssueState {
+    fn new() -> Self {
+        Self {
+            bad_frame_count: 0,
+            severity: PaSeverity::Ok,
+            issues: Vec::new(),
+        }
+    }
+
+    fn push(
+        &mut self,
+        severity: PaSeverity,
+        message: String,
+        block_id: Option<u64>,
+        frame_id: Option<u64>,
+    ) {
+        push_parse_issue_to(
+            &mut self.issues,
+            &mut self.severity,
+            severity,
+            message,
+            block_id,
+            frame_id,
+        );
+    }
+
+    fn push_existing(&mut self, issue: PaParseIssue) {
+        push_existing_issue_to(&mut self.issues, &mut self.severity, issue);
+    }
 }
 
 pub fn parse_metadata(raw: &[u8]) -> Result<PaFrameMetadata, String> {
@@ -165,6 +257,204 @@ pub fn compute_frame_ptp(samples: &[i16], config: &PaImageProcessingConfig) -> R
     }
 
     Ok(max_value - min_value)
+}
+
+pub fn read_frame_trace_from_legacy_file(
+    path: &Path,
+    frame_index: u64,
+    tz_ohm: f64,
+) -> Result<PaFrameTrace, String> {
+    let mut trace = None;
+    visit_legacy_frames(
+        path,
+        |frame| {
+            if frame.frame_index != frame_index {
+                return Ok(true);
+            }
+            if frame.payload.len() < PA_METADATA_BYTES {
+                return Err(format!(
+                    "frame {} payload shorter than metadata",
+                    frame.frame_id
+                ));
+            }
+
+            let metadata = parse_metadata(&frame.payload[..PA_METADATA_BYTES]).ok();
+            let samples = decode_i16_samples(&frame.payload[PA_METADATA_BYTES..]);
+            let time_ns: Vec<f64> = (0..samples.len()).map(|index| index as f64 * 8.0).collect();
+            let current_ua = samples
+                .iter()
+                .map(|code| signed_code_to_current_ua(*code, tz_ohm, 1.0))
+                .collect();
+            trace = Some(PaFrameTrace {
+                path: path.display().to_string(),
+                frame_index,
+                frame_id: frame.frame_id,
+                metadata,
+                time_ns,
+                samples,
+                current_ua,
+            });
+            Ok(false)
+        },
+        |_warning| {},
+    )?;
+
+    trace.ok_or_else(|| format!("frame index {frame_index} not found"))
+}
+
+pub fn build_image_from_legacy_file(
+    path: &Path,
+    config: &PaImageProcessingConfig,
+) -> Result<PaImageBuildResult, String> {
+    let mut width = None;
+    let mut height = None;
+    let mut sums = Vec::<f64>::new();
+    let mut counts = Vec::<u32>::new();
+    let mut frame_count = 0u64;
+    let issue_state = std::cell::RefCell::new(PaBuildIssueState::new());
+
+    visit_legacy_frames(
+        path,
+        |frame| {
+            if frame.payload.len() < PA_METADATA_BYTES {
+                let mut issue_state = issue_state.borrow_mut();
+                issue_state.bad_frame_count += 1;
+                issue_state.push(
+                    PaSeverity::Warning,
+                    format!("frame {} payload shorter than metadata", frame.frame_id),
+                    Some(frame.block_id),
+                    Some(frame.frame_id),
+                );
+                return Ok(true);
+            }
+
+            let metadata = match parse_metadata(&frame.payload[..PA_METADATA_BYTES]) {
+                Ok(metadata) => metadata,
+                Err(err) => {
+                    let mut issue_state = issue_state.borrow_mut();
+                    issue_state.bad_frame_count += 1;
+                    issue_state.push(
+                        PaSeverity::Warning,
+                        format!("frame {} metadata parse failed: {err}", frame.frame_id),
+                        Some(frame.block_id),
+                        Some(frame.frame_id),
+                    );
+                    return Ok(true);
+                }
+            };
+
+            if metadata.x_points == 0 || metadata.y_points == 0 {
+                let mut issue_state = issue_state.borrow_mut();
+                issue_state.bad_frame_count += 1;
+                issue_state.push(
+                    PaSeverity::Warning,
+                    format!(
+                        "frame {} has zero image dimension {}x{}",
+                        frame.frame_id, metadata.x_points, metadata.y_points
+                    ),
+                    Some(frame.block_id),
+                    Some(frame.frame_id),
+                );
+                return Ok(true);
+            }
+
+            let frame_width = usize::from(metadata.x_points);
+            let frame_height = usize::from(metadata.y_points);
+            if width.is_none() {
+                width = Some(frame_width);
+                height = Some(frame_height);
+                let pixel_count = frame_width
+                    .checked_mul(frame_height)
+                    .ok_or_else(|| "image dimensions overflow address space".to_string())?;
+                sums = vec![0.0; pixel_count];
+                counts = vec![0; pixel_count];
+            } else if width != Some(frame_width) || height != Some(frame_height) {
+                issue_state.borrow_mut().push(
+                    PaSeverity::Warning,
+                    format!(
+                        "frame {} has inconsistent image dimension {}x{}",
+                        frame.frame_id, metadata.x_points, metadata.y_points
+                    ),
+                    Some(frame.block_id),
+                    Some(frame.frame_id),
+                );
+            }
+
+            let image_width = width.expect("width initialized");
+            let image_height = height.expect("height initialized");
+            let x = usize::from(metadata.x_idx);
+            let y = usize::from(metadata.y_idx);
+            if x >= image_width || y >= image_height {
+                let mut issue_state = issue_state.borrow_mut();
+                issue_state.bad_frame_count += 1;
+                issue_state.push(
+                    PaSeverity::Warning,
+                    format!(
+                        "frame {} pixel index {},{} outside {}x{} image",
+                        frame.frame_id, metadata.x_idx, metadata.y_idx, image_width, image_height
+                    ),
+                    Some(frame.block_id),
+                    Some(frame.frame_id),
+                );
+                return Ok(true);
+            }
+
+            let samples = decode_i16_samples(&frame.payload[PA_METADATA_BYTES..]);
+            let ptp = match compute_frame_ptp(&samples, config) {
+                Ok(value) => value,
+                Err(err) => {
+                    let mut issue_state = issue_state.borrow_mut();
+                    issue_state.bad_frame_count += 1;
+                    issue_state.push(
+                        PaSeverity::Warning,
+                        format!("frame {} ptp failed: {err}", frame.frame_id),
+                        Some(frame.block_id),
+                        Some(frame.frame_id),
+                    );
+                    return Ok(true);
+                }
+            };
+
+            let pixel_index = y * image_width + x;
+            sums[pixel_index] += ptp;
+            counts[pixel_index] += 1;
+            frame_count += 1;
+            Ok(true)
+        },
+        |warning| {
+            let mut issue_state = issue_state.borrow_mut();
+            issue_state.bad_frame_count += warning.bad_frame_count;
+            issue_state.push_existing(warning.issue);
+        },
+    )?;
+
+    let width = width.ok_or_else(|| "no valid PA frame metadata found".to_string())?;
+    let height = height.expect("height initialized with width");
+    let issue_state = issue_state.into_inner();
+    let values = sums
+        .iter()
+        .zip(&counts)
+        .map(|(sum, count)| {
+            if *count == 0 {
+                None
+            } else {
+                Some(*sum / f64::from(*count))
+            }
+        })
+        .collect();
+
+    Ok(PaImageBuildResult {
+        path: path.display().to_string(),
+        width,
+        height,
+        values,
+        counts,
+        pixel_count: (width * height) as u64,
+        frame_count,
+        bad_frame_count: issue_state.bad_frame_count,
+        severity: issue_state.severity,
+        issues: issue_state.issues,
+    })
 }
 
 pub fn scan_legacy_file(path: &Path) -> Result<PaFileSummary, String> {
@@ -398,6 +688,161 @@ fn skip_exact_at<R: Read>(reader: &mut R, byte_count: usize, offset: u64, label:
     Ok(())
 }
 
+fn visit_legacy_frames<F, W>(path: &Path, mut on_frame: F, mut on_warning: W) -> Result<(), String>
+where
+    F: FnMut(LegacyFramePayload) -> Result<bool, String>,
+    W: FnMut(LegacyStreamWarning),
+{
+    let file = File::open(path).map_err(|err| format!("open {} failed: {err}", path.display()))?;
+    let file_size = file
+        .metadata()
+        .map_err(|err| format!("metadata {} failed: {err}", path.display()))?
+        .len();
+    let mut reader = BufReader::new(file);
+    let mut offset = 0u64;
+    let mut global_frame_index = 0u64;
+
+    while offset < file_size {
+        if file_size - offset < AXIS_BLOCK_HEADER_BYTES as u64 {
+            return Err(format!(
+                "short block header at byte {offset}: {} bytes remain",
+                file_size - offset
+            ));
+        }
+
+        let mut block_header = [0u8; AXIS_BLOCK_HEADER_BYTES];
+        read_exact_at(&mut reader, &mut block_header, offset, "block header")?;
+        let block = parse_block_header(&block_header)?;
+        offset += AXIS_BLOCK_HEADER_BYTES as u64;
+
+        let block_payload_bytes = usize::try_from(block.used_bytes)
+            .map_err(|_| format!("block {} payload size is not addressable", block.block_id))?;
+        let block_end = offset.checked_add(u64::from(block.used_bytes)).ok_or_else(|| {
+            format!("block {} size overflows address space", block.block_id)
+        })?;
+        if block_end > file_size {
+            return Err(format!(
+                "block {} declares {} payload bytes but only {} remain",
+                block.block_id,
+                block_payload_bytes,
+                file_size.saturating_sub(offset)
+            ));
+        }
+        if block.frame_count > 0 && block.last_frame_id < block.first_frame_id {
+            on_warning(LegacyStreamWarning {
+                issue: make_parse_issue(
+                    PaSeverity::Warning,
+                    format!(
+                        "block {} has invalid frame id range {}..{}",
+                        block.block_id, block.first_frame_id, block.last_frame_id
+                    ),
+                    Some(block.block_id),
+                    None,
+                ),
+                bad_frame_count: 0,
+            });
+        }
+
+        let mut block_remaining = block_payload_bytes;
+        for frame_index in 0..block.frame_count {
+            if block_remaining < AXIS_FRAME_HEADER_BYTES {
+                on_warning(LegacyStreamWarning {
+                    issue: make_parse_issue(
+                        PaSeverity::Warning,
+                        format!(
+                            "block {} ended before frame {} header",
+                            block.block_id, frame_index
+                        ),
+                        Some(block.block_id),
+                        None,
+                    ),
+                    bad_frame_count: u64::from(block.frame_count - frame_index),
+                });
+                skip_exact_at(&mut reader, block_remaining, offset, "trailing block payload")?;
+                offset += block_remaining as u64;
+                block_remaining = 0;
+                break;
+            }
+
+            let mut frame_header = [0u8; AXIS_FRAME_HEADER_BYTES];
+            read_exact_at(&mut reader, &mut frame_header, offset, "frame header")?;
+            let frame = parse_frame_header(&frame_header)?;
+            offset += AXIS_FRAME_HEADER_BYTES as u64;
+            block_remaining -= AXIS_FRAME_HEADER_BYTES;
+
+            let data_bytes = frame.data_bytes as usize;
+            if frame.reserved != 0 {
+                on_warning(LegacyStreamWarning {
+                    issue: make_parse_issue(
+                        PaSeverity::Warning,
+                        format!("frame {} reserved header field is non-zero", frame.frame_id),
+                        Some(block.block_id),
+                        Some(frame.frame_id),
+                    ),
+                    bad_frame_count: 0,
+                });
+            }
+            if data_bytes > block_remaining {
+                on_warning(LegacyStreamWarning {
+                    issue: make_parse_issue(
+                        PaSeverity::Warning,
+                        format!("frame {} payload exceeds block payload", frame.frame_id),
+                        Some(block.block_id),
+                        Some(frame.frame_id),
+                    ),
+                    bad_frame_count: 1,
+                });
+                skip_exact_at(&mut reader, block_remaining, offset, "trailing block payload")?;
+                offset += block_remaining as u64;
+                block_remaining = 0;
+                break;
+            }
+
+            let mut payload = vec![0u8; data_bytes];
+            read_exact_at(&mut reader, &mut payload, offset, "frame payload")?;
+            offset += data_bytes as u64;
+            block_remaining -= data_bytes;
+
+            let should_continue = on_frame(LegacyFramePayload {
+                block_id: block.block_id,
+                frame_index: global_frame_index,
+                frame_id: frame.frame_id,
+                payload,
+            })?;
+            global_frame_index += 1;
+            if !should_continue {
+                return Ok(());
+            }
+        }
+
+        if block_remaining > 0 {
+            on_warning(LegacyStreamWarning {
+                issue: make_parse_issue(
+                    PaSeverity::Warning,
+                    format!(
+                        "block {} has {} unused payload bytes",
+                        block.block_id, block_remaining
+                    ),
+                    Some(block.block_id),
+                    None,
+                ),
+                bad_frame_count: 0,
+            });
+            skip_exact_at(&mut reader, block_remaining, offset, "unused block payload")?;
+        }
+
+        offset = block_end;
+    }
+
+    Ok(())
+}
+
+fn decode_i16_samples(raw: &[u8]) -> Vec<i16> {
+    raw.chunks_exact(2)
+        .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
+        .collect()
+}
+
 fn parse_block_header(raw: &[u8]) -> Result<AxisBlockHeader, String> {
     if raw.len() < AXIS_BLOCK_HEADER_BYTES {
         return Err("short block header".to_string());
@@ -488,15 +933,54 @@ fn push_issue(
     block_id: Option<u64>,
     frame_id: Option<u64>,
 ) {
-    if severity_rank(severity) > severity_rank(summary.severity) {
-        summary.severity = severity;
-    }
-    summary.issues.push(PaParseIssue {
+    push_parse_issue_to(
+        &mut summary.issues,
+        &mut summary.severity,
         severity,
         message,
         block_id,
         frame_id,
-    });
+    );
+}
+
+fn push_parse_issue_to(
+    issues: &mut Vec<PaParseIssue>,
+    current_severity: &mut PaSeverity,
+    severity: PaSeverity,
+    message: String,
+    block_id: Option<u64>,
+    frame_id: Option<u64>,
+) {
+    push_existing_issue_to(
+        issues,
+        current_severity,
+        make_parse_issue(severity, message, block_id, frame_id),
+    );
+}
+
+fn push_existing_issue_to(
+    issues: &mut Vec<PaParseIssue>,
+    current_severity: &mut PaSeverity,
+    issue: PaParseIssue,
+) {
+    if severity_rank(issue.severity) > severity_rank(*current_severity) {
+        *current_severity = issue.severity;
+    }
+    issues.push(issue);
+}
+
+fn make_parse_issue(
+    severity: PaSeverity,
+    message: String,
+    block_id: Option<u64>,
+    frame_id: Option<u64>,
+) -> PaParseIssue {
+    PaParseIssue {
+        severity,
+        message,
+        block_id,
+        frame_id,
+    }
 }
 
 fn severity_rank(severity: PaSeverity) -> u8 {
@@ -606,6 +1090,31 @@ mod tests {
     }
 
     #[test]
+    fn builds_image_from_synthetic_repeated_pixels() {
+        let path = write_synthetic_grid_file("pa_build_image", 2, 2, 2);
+        let config = PaImageProcessingConfig::default_for_tz(2000.0);
+
+        let image = build_image_from_legacy_file(&path, &config).expect("image");
+
+        assert_eq!(image.width, 2);
+        assert_eq!(image.height, 2);
+        assert_eq!(image.pixel_count, 4);
+        assert_eq!(image.frame_count, 8);
+        assert_eq!(image.counts, vec![2, 2, 2, 2]);
+    }
+
+    #[test]
+    fn extracts_one_frame_trace_with_time_axis() {
+        let path = write_synthetic_legacy_file("pa_frame_trace", 1, 5);
+
+        let trace = read_frame_trace_from_legacy_file(&path, 0, 2000.0).expect("trace");
+
+        assert_eq!(trace.samples.len(), 5);
+        assert_eq!(trace.time_ns, vec![0.0, 8.0, 16.0, 24.0, 32.0]);
+        assert_eq!(trace.frame_index, 0);
+    }
+
+    #[test]
     fn scanner_does_not_use_whole_file_read() {
         let source = include_str!("pa_image.rs");
 
@@ -663,6 +1172,73 @@ mod tests {
 
             for sample in 0..sample_count {
                 file.write_all(&(sample as i16).to_le_bytes()).expect("sample");
+            }
+        }
+
+        path
+    }
+
+    pub fn write_synthetic_grid_file(name: &str, width: usize, height: usize, repeats: usize) -> PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "{name}_{}_{}_{}_{}.bin",
+            std::process::id(),
+            width,
+            height,
+            repeats
+        ));
+
+        let frame_count = width * height * repeats;
+        let sample_count = 380usize;
+        let frame_payload_bytes = PA_METADATA_BYTES + sample_count * 2;
+        let frame_bytes = AXIS_FRAME_HEADER_BYTES + frame_payload_bytes;
+        let used_bytes = frame_count * frame_bytes;
+
+        let mut file = std::fs::File::create(&path).expect("create synthetic grid file");
+        file.write_all(&1u64.to_le_bytes()).expect("block id");
+        file.write_all(&(used_bytes as u32).to_le_bytes()).expect("used bytes");
+        file.write_all(&(frame_count as u32).to_le_bytes()).expect("frame count");
+        file.write_all(&1u64.to_le_bytes()).expect("first frame id");
+        file.write_all(&(frame_count as u64).to_le_bytes())
+            .expect("last frame id");
+
+        let mut frame_idx = 0usize;
+        for repeat in 0..repeats {
+            for y in 0..height {
+                for x in 0..width {
+                    file.write_all(&(frame_idx as u64 + 1).to_le_bytes())
+                        .expect("frame id");
+                    file.write_all(&(frame_payload_bytes as u32).to_le_bytes())
+                        .expect("frame data bytes");
+                    file.write_all(&0u32.to_le_bytes()).expect("frame reserved");
+
+                    let mut metadata = [0u8; PA_METADATA_BYTES];
+                    metadata[4..8].copy_from_slice(&(frame_idx as u32 + 1).to_le_bytes());
+                    metadata[8..10].copy_from_slice(&(height as u16).to_le_bytes());
+                    metadata[10..12].copy_from_slice(&(width as u16).to_le_bytes());
+                    metadata[12..14].copy_from_slice(&(frame_count as u16).to_le_bytes());
+                    metadata[14..16].copy_from_slice(&(repeat as u16).to_le_bytes());
+                    metadata[16..18].copy_from_slice(&(y as u16).to_le_bytes());
+                    metadata[18..20].copy_from_slice(&(x as u16).to_le_bytes());
+                    metadata[20..22].copy_from_slice(&(y as i16).to_le_bytes());
+                    metadata[22..24].copy_from_slice(&(x as i16).to_le_bytes());
+                    metadata[24..28].copy_from_slice(&99u32.to_le_bytes());
+                    metadata[28..32].copy_from_slice(&PA_META_MAGIC.to_le_bytes());
+                    file.write_all(&metadata).expect("metadata");
+
+                    for sample in 0..sample_count {
+                        let code = if sample == 220 {
+                            -1000i16
+                        } else if sample == 260 {
+                            1000i16
+                        } else {
+                            0i16
+                        };
+                        file.write_all(&code.to_le_bytes()).expect("sample");
+                    }
+
+                    frame_idx += 1;
+                }
             }
         }
 
