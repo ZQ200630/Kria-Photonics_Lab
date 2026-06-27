@@ -8,7 +8,7 @@ The final saved capture file must be Python-compatible legacy `.bin`:
 
 ```text
 [32-byte block header]
-  [16-byte frame header][32-byte META][2048 int16 samples]
+  [16-byte frame header][32-byte META][remaining bytes as int16 samples]
   ...
 [32-byte block header]
   ...
@@ -33,6 +33,8 @@ The legacy parser expects a stream of AXIS capture blocks:
 - Frame payload:
   - 32-byte metadata.
   - remaining bytes as little-endian signed int16 ADC samples.
+
+Do not hard-code the per-frame sample count. Existing files can use `data_bytes=4096`, where 32 bytes are metadata and the remaining 4064 bytes are 2032 ADC samples.
 
 Metadata is 32 bytes and uses magic `0x4D455441` (`META`). The fields are:
 
