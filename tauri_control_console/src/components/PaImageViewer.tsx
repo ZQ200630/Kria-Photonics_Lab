@@ -248,7 +248,7 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
             xDomain={visibleDomain}
             color="#2563eb"
             label="current"
-            xLabel={`sample index · frame ${trace?.frame_id ?? "-"} · ${frameSampleReadout}`}
+            xLabel="sample index"
             title={roiMode === "zoom" ? "Left-drag to zoom X; right-click to restore." : "Left-drag to set PTP ROI; right-click to restore zoom."}
             ariaLabel="PA frame trace"
             height={300}
@@ -260,6 +260,7 @@ export default function PaImageViewer({ active = true, tzOhm, onBack }: Props) {
           />
           <div className="pa-image-readouts">
             <span>Trace frame {trace?.frame_id ?? "-"}</span>
+            <span>{frameSampleReadout}</span>
             <span>{traceValues.length} current samples</span>
             <span>
               ROI {processing.ptpStartNs}-{processing.ptpEndNs} ns
