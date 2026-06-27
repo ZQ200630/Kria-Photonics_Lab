@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufReader, Read};
 use std::path::Path;
 
 pub const PA_META_MAGIC: u32 = 0x4D45_5441;
@@ -168,14 +168,12 @@ pub fn compute_frame_ptp(samples: &[i16], config: &PaImageProcessingConfig) -> R
 }
 
 pub fn scan_legacy_file(path: &Path) -> Result<PaFileSummary, String> {
-    let mut file = File::open(path).map_err(|err| format!("open {} failed: {err}", path.display()))?;
+    let file = File::open(path).map_err(|err| format!("open {} failed: {err}", path.display()))?;
     let file_size = file
         .metadata()
         .map_err(|err| format!("metadata {} failed: {err}", path.display()))?
         .len();
-    let mut raw = Vec::new();
-    file.read_to_end(&mut raw)
-        .map_err(|err| format!("read {} failed: {err}", path.display()))?;
+    let mut reader = BufReader::new(file);
 
     let mut summary = PaFileSummary {
         path: path.display().to_string(),
@@ -192,29 +190,32 @@ pub fn scan_legacy_file(path: &Path) -> Result<PaFileSummary, String> {
         issues: Vec::new(),
     };
 
-    let mut offset = 0usize;
-    while offset < raw.len() {
-        if raw.len() - offset < AXIS_BLOCK_HEADER_BYTES {
+    let mut offset = 0u64;
+    while offset < file_size {
+        if file_size - offset < AXIS_BLOCK_HEADER_BYTES as u64 {
             return Err(format!(
                 "short block header at byte {offset}: {} bytes remain",
-                raw.len() - offset
+                file_size - offset
             ));
         }
 
-        let block = parse_block_header(&raw[offset..offset + AXIS_BLOCK_HEADER_BYTES])?;
-        offset += AXIS_BLOCK_HEADER_BYTES;
+        let mut block_header = [0u8; AXIS_BLOCK_HEADER_BYTES];
+        read_exact_at(&mut reader, &mut block_header, offset, "block header")?;
+        let block = parse_block_header(&block_header)?;
+        offset += AXIS_BLOCK_HEADER_BYTES as u64;
         summary.block_count += 1;
 
-        let block_payload_bytes = block.used_bytes as usize;
-        let block_end = offset.checked_add(block_payload_bytes).ok_or_else(|| {
+        let block_payload_bytes = usize::try_from(block.used_bytes)
+            .map_err(|_| format!("block {} payload size is not addressable", block.block_id))?;
+        let block_end = offset.checked_add(u64::from(block.used_bytes)).ok_or_else(|| {
             format!("block {} size overflows address space", block.block_id)
         })?;
-        if block_end > raw.len() {
+        if block_end > file_size {
             return Err(format!(
                 "block {} declares {} payload bytes but only {} remain",
                 block.block_id,
                 block_payload_bytes,
-                raw.len().saturating_sub(offset)
+                file_size.saturating_sub(offset)
             ));
         }
         if block.frame_count > 0 && block.last_frame_id < block.first_frame_id {
@@ -230,9 +231,9 @@ pub fn scan_legacy_file(path: &Path) -> Result<PaFileSummary, String> {
             );
         }
 
-        let mut frame_offset = offset;
+        let mut block_remaining = block_payload_bytes;
         for frame_index in 0..block.frame_count {
-            if block_end - frame_offset < AXIS_FRAME_HEADER_BYTES {
+            if block_remaining < AXIS_FRAME_HEADER_BYTES {
                 push_issue(
                     &mut summary,
                     PaSeverity::Warning,
@@ -244,12 +245,17 @@ pub fn scan_legacy_file(path: &Path) -> Result<PaFileSummary, String> {
                     None,
                 );
                 summary.bad_frame_count += u64::from(block.frame_count - frame_index);
-                frame_offset = block_end;
+                skip_exact_at(&mut reader, block_remaining, offset, "trailing block payload")?;
+                offset += block_remaining as u64;
+                block_remaining = 0;
                 break;
             }
 
-            let frame = parse_frame_header(&raw[frame_offset..frame_offset + AXIS_FRAME_HEADER_BYTES])?;
-            frame_offset += AXIS_FRAME_HEADER_BYTES;
+            let mut frame_header = [0u8; AXIS_FRAME_HEADER_BYTES];
+            read_exact_at(&mut reader, &mut frame_header, offset, "frame header")?;
+            let frame = parse_frame_header(&frame_header)?;
+            offset += AXIS_FRAME_HEADER_BYTES as u64;
+            block_remaining -= AXIS_FRAME_HEADER_BYTES;
 
             let data_bytes = frame.data_bytes as usize;
             if frame.reserved != 0 {
@@ -261,21 +267,25 @@ pub fn scan_legacy_file(path: &Path) -> Result<PaFileSummary, String> {
                     Some(frame.frame_id),
                 );
             }
-            let frame_end = match frame_offset.checked_add(data_bytes) {
-                Some(value) => value,
-                None => {
-                    push_issue(
-                        &mut summary,
-                        PaSeverity::Warning,
-                        "frame size overflows address space".to_string(),
-                        Some(block.block_id),
-                        Some(frame.frame_id),
-                    );
-                    summary.bad_frame_count += 1;
-                    frame_offset = block_end;
-                    break;
-                }
-            };
+            if data_bytes > block_remaining {
+                push_issue(
+                    &mut summary,
+                    PaSeverity::Warning,
+                    format!("frame {} payload exceeds block payload", frame.frame_id),
+                    Some(block.block_id),
+                    Some(frame.frame_id),
+                );
+                summary.bad_frame_count += 1;
+                skip_exact_at(&mut reader, block_remaining, offset, "trailing block payload")?;
+                offset += block_remaining as u64;
+                block_remaining = 0;
+                break;
+            }
+
+            let mut payload = vec![0u8; data_bytes];
+            read_exact_at(&mut reader, &mut payload, offset, "frame payload")?;
+            offset += data_bytes as u64;
+            block_remaining -= data_bytes;
 
             if data_bytes < PA_METADATA_BYTES {
                 push_issue(
@@ -286,27 +296,9 @@ pub fn scan_legacy_file(path: &Path) -> Result<PaFileSummary, String> {
                     Some(frame.frame_id),
                 );
                 summary.bad_frame_count += 1;
-                if frame_end <= block_end {
-                    frame_offset = frame_end;
-                    continue;
-                }
-                frame_offset = block_end;
-                break;
-            }
-            if frame_end > block_end {
-                push_issue(
-                    &mut summary,
-                    PaSeverity::Warning,
-                    format!("frame {} payload exceeds block payload", frame.frame_id),
-                    Some(block.block_id),
-                    Some(frame.frame_id),
-                );
-                summary.bad_frame_count += 1;
-                frame_offset = block_end;
-                break;
+                continue;
             }
 
-            let payload = &raw[frame_offset..frame_end];
             match parse_metadata(&payload[..PA_METADATA_BYTES]) {
                 Ok(metadata) => {
                     summary.frame_count += 1;
@@ -345,10 +337,9 @@ pub fn scan_legacy_file(path: &Path) -> Result<PaFileSummary, String> {
 
                     let sample_count = (data_bytes - PA_METADATA_BYTES) / 2;
                     let sample_bytes = &payload[PA_METADATA_BYTES..PA_METADATA_BYTES + sample_count * 2];
-                    let _samples: Vec<i16> = sample_bytes
-                        .chunks_exact(2)
-                        .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
-                        .collect();
+                    for chunk in sample_bytes.chunks_exact(2) {
+                        let _sample = i16::from_le_bytes([chunk[0], chunk[1]]);
+                    }
                     update_sample_count(&mut summary, sample_count);
                     if (data_bytes - PA_METADATA_BYTES) % 2 != 0 {
                         push_issue(
@@ -371,28 +362,44 @@ pub fn scan_legacy_file(path: &Path) -> Result<PaFileSummary, String> {
                     summary.bad_frame_count += 1;
                 }
             }
-
-            frame_offset = frame_end;
         }
 
-        if frame_offset < block_end {
+        if block_remaining > 0 {
             push_issue(
                 &mut summary,
                 PaSeverity::Warning,
                 format!(
                     "block {} has {} unused payload bytes",
                     block.block_id,
-                    block_end - frame_offset
+                    block_remaining
                 ),
                 Some(block.block_id),
                 None,
             );
+            skip_exact_at(&mut reader, block_remaining, offset, "unused block payload")?;
         }
 
         offset = block_end;
     }
 
     Ok(summary)
+}
+
+fn read_exact_at<R: Read>(reader: &mut R, buf: &mut [u8], offset: u64, label: &str) -> Result<(), String> {
+    reader
+        .read_exact(buf)
+        .map_err(|err| format!("read {label} at byte {offset} failed: {err}"))
+}
+
+fn skip_exact_at<R: Read>(reader: &mut R, byte_count: usize, offset: u64, label: &str) -> Result<(), String> {
+    let mut remaining = byte_count;
+    let mut scratch = [0u8; 8192];
+    while remaining > 0 {
+        let chunk_len = remaining.min(scratch.len());
+        read_exact_at(reader, &mut scratch[..chunk_len], offset + (byte_count - remaining) as u64, label)?;
+        remaining -= chunk_len;
+    }
+    Ok(())
 }
 
 fn parse_block_header(raw: &[u8]) -> Result<AxisBlockHeader, String> {
@@ -600,6 +607,13 @@ mod tests {
         assert_eq!(summary.frame_count, 2);
         assert_eq!(summary.detected_sample_count_min, 6);
         assert_eq!(summary.detected_sample_count_max, 6);
+    }
+
+    #[test]
+    fn scanner_does_not_use_whole_file_read() {
+        let source = include_str!("pa_image.rs");
+
+        assert!(!source.contains(&format!("read_to{}", "_end")));
     }
 
     pub fn write_synthetic_legacy_file(name: &str, frame_count: usize, sample_count: usize) -> PathBuf {
