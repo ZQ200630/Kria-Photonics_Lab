@@ -5,6 +5,7 @@ import {
   inferPolarityInvertForMarker,
   nudgeNumberText,
   normalizeLevelForSeries,
+  nextLockYRange,
   paddedRangeForSeries,
   relativeIntensityToRawAdc,
   scanCodeAtSpectrumIndex,
@@ -56,11 +57,40 @@ describe("lock spectrum helpers", () => {
     expect(paddedRangeForSeries([[5, 5]], 0.1)).toEqual({ min: 4.5, max: 5.5 });
   });
 
+  it("adds margin around large plotted series without flattening or spreading all samples", () => {
+    const values = Array.from({ length: 200_000 }, (_, index) => (index === 75_000 ? -40 : index === 140_000 ? 60 : 10));
+
+    expect(paddedRangeForSeries([values], 0.1)).toEqual({ min: -50, max: 70 });
+  });
+
   it("recenters a lock level that is outside the current spectrum range", () => {
     expect(normalizeLevelForSeries(undefined, [10, 20, 30])).toBe(20);
     expect(normalizeLevelForSeries(25, [10, 20, 30])).toBe(25);
     expect(normalizeLevelForSeries(80, [10, 20, 30])).toBe(20);
     expect(normalizeLevelForSeries(-20, [10, 20, 30])).toBe(20);
+  });
+
+  it("recenters lock level for large spectra without spreading all samples", () => {
+    const values = Array.from({ length: 200_000 }, (_, index) => (index === 12_345 ? -20 : index === 150_000 ? 80 : 20));
+
+    expect(normalizeLevelForSeries(undefined, values)).toBe(30);
+  });
+
+  it("refreshes lock y limits when a new live spectrum moves outside the current range", () => {
+    const oldFlatRange = { min: 42000, max: 42100 };
+    const newLiveSpectrum = [[43148, 47438]];
+
+    expect(nextLockYRange(oldFlatRange, newLiveSpectrum, false, 0.1)).toEqual(
+      paddedRangeForSeries(newLiveSpectrum, 0.1),
+    );
+    expect(nextLockYRange({ min: 43000, max: 48000 }, newLiveSpectrum, false, 0.1)).toEqual({
+      min: 43000,
+      max: 48000,
+    });
+    expect(nextLockYRange({ min: 43000, max: 48000 }, [[44000, 45000]], true, 0.1)).toEqual({
+      min: 43900,
+      max: 45100,
+    });
   });
 
   it("estimates sliding frame shift for acquisition overlays", () => {

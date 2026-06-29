@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { samplesCsv, spectrumCsv } from "../utils/csv";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { downloadText, samplesCsv, spectrumCsv } from "../utils/csv";
 import { adcCodeToInputCurrentMicroamp } from "../utils/ada4355";
 import type { Spectrum } from "../api/types";
 
 describe("CSV helpers", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
   it("exports raw ADC samples with photodiode current", () => {
     expect(samplesCsv([0xffff, 0xfffd], 1_000_000)).toBe(
       "index,time_us,adc_code,pd_current_uA\n" +
@@ -28,12 +33,50 @@ describe("CSV helpers", () => {
     );
   });
 
-  it("applies a photodiode current offset to exported currents", () => {
-    const expectedCurrent = (adcCodeToInputCurrentMicroamp(0xffff, 2000) - 519).toFixed(6);
+  it("applies a photodiode zero ADC code to exported currents", () => {
+    const zeroAdcCode = 29620;
+    const expectedCurrent = adcCodeToInputCurrentMicroamp(0xffff, 2000, zeroAdcCode).toFixed(6);
 
-    expect(samplesCsv([0xffff], 1_000_000, 2000, 519)).toBe(
+    expect(samplesCsv([0xffff], 1_000_000, 2000, zeroAdcCode)).toBe(
       "index,time_us,adc_code,pd_current_uA\n" +
         `0,0.000000,65535,${expectedCurrent}\n`,
     );
+  });
+
+  it("downloads text through an attached link and revokes the object URL after click", () => {
+    vi.useFakeTimers();
+    const click = vi.fn();
+    const link = { href: "", download: "", style: { display: "" }, click };
+    const appended: unknown[] = [];
+    const removed: unknown[] = [];
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("document", {
+      createElement: (tag: string) => {
+        expect(tag).toBe("a");
+        return link;
+      },
+      body: {
+        appendChild: (node: unknown) => appended.push(node),
+        removeChild: (node: unknown) => removed.push(node),
+      },
+    });
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:download"),
+      revokeObjectURL,
+    });
+
+    downloadText("manual.md", "# Manual", "text/markdown;charset=utf-8");
+
+    expect(link.href).toBe("blob:download");
+    expect(link.download).toBe("manual.md");
+    expect(link.style.display).toBe("none");
+    expect(appended).toEqual([link]);
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    vi.runAllTimers();
+
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:download");
+    expect(removed).toEqual([link]);
   });
 });

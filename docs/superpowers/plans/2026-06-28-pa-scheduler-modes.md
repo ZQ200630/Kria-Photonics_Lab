@@ -372,10 +372,12 @@ Run:
 
 ```bash
 cd /home/qian/xilinx/Xilinx/Vivado_Projects/Demo1013/IPs/ip_repo/axi_pam_image_acq_1_0
-xvlog -sv hdl/pam_image_acq_controller_core.v tb/tb_pam_scheduler_modes.sv
+xvlog -sv -d PA_SCHED_TEST_FAST_TIMEOUT_CYCLES=64 hdl/pam_image_acq_controller_core.v tb/tb_pam_scheduler_modes.sv
 ```
 
-Expected: FAIL because `pam_image_acq_controller_core` does not yet expose the new scheduler ports.
+Expected: `xvlog` parses successfully, then `xelab tb_pam_scheduler_modes`
+FAILS because `pam_image_acq_controller_core` does not yet expose the new
+scheduler ports. Vivado reports named-port mismatches during elaboration.
 
 - [ ] **Step 3: Commit the failing testbench**
 
@@ -790,7 +792,7 @@ Run:
 
 ```bash
 cd /home/qian/xilinx/Xilinx/Vivado_Projects/Demo1013/IPs/ip_repo/axi_pam_image_acq_1_0
-xvlog -sv hdl/pam_image_acq_controller_core.v tb/tb_pam_scheduler_modes.sv
+xvlog -sv -d PA_SCHED_TEST_FAST_TIMEOUT_CYCLES=64 hdl/pam_image_acq_controller_core.v tb/tb_pam_scheduler_modes.sv
 xelab tb_pam_scheduler_modes -s tb_pam_scheduler_modes
 xsim tb_pam_scheduler_modes -runall
 ```
@@ -928,7 +930,7 @@ Run:
 
 ```bash
 cd /home/qian/xilinx/Xilinx/Vivado_Projects/Demo1013/IPs/ip_repo/axi_pam_image_acq_1_0
-xvlog -sv hdl/pam_image_acq_controller_core.v hdl/axi_pam_image_acq_v1_0_S00_AXI.v hdl/axi_pam_image_acq_v1_0.v tb/tb_pam_scheduler_modes.sv
+xvlog -sv -d PA_SCHED_TEST_FAST_TIMEOUT_CYCLES=64 hdl/pam_image_acq_controller_core.v hdl/axi_pam_image_acq_v1_0_S00_AXI.v hdl/axi_pam_image_acq_v1_0.v tb/tb_pam_scheduler_modes.sv
 ```
 
 Expected: exit 0.
@@ -950,7 +952,7 @@ Expected: commit contains only wrapper/register bank changes if the HDL tree is 
 - Modify: `/home/qian/Portable_System_Project/Butterfly_Laser_Driver/tests/test_pa_imaging_capture.py`
 - Modify: `/home/qian/Portable_System_Project/Butterfly_Laser_Driver/pa_imaging_capture.py`
 
-- [ ] **Step 1: Add failing Python tests for scheduler constants and packing**
+- [x] **Step 1: Add failing Python tests for scheduler constants and packing**
 
 Append to `PaProtocolTests` in `tests/test_pa_imaging_capture.py`:
 
@@ -1014,7 +1016,7 @@ Append to `PaProtocolTests` in `tests/test_pa_imaging_capture.py`:
         self.assertEqual(status["shot_count"], 7)
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run:
 
@@ -1025,7 +1027,7 @@ python -m unittest tests.test_pa_imaging_capture.PaProtocolTests -v
 
 Expected: FAIL because `PamSchedulerConfig` and scheduler constants do not exist.
 
-- [ ] **Step 3: Add scheduler constants and dataclasses**
+- [x] **Step 3: Add scheduler constants and dataclasses**
 
 In `pa_imaging_capture.py`, add constants after existing PA register constants:
 
@@ -1185,7 +1187,7 @@ class PamSchedulerConfig:
 
 Ensure `fields` is imported from `dataclasses`.
 
-- [ ] **Step 4: Add scheduler status decoding**
+- [x] **Step 4: Add scheduler status decoding**
 
 Add:
 
@@ -1229,7 +1231,7 @@ def decode_scheduler_status(counters):
     }
 ```
 
-- [ ] **Step 5: Run Python protocol tests**
+- [x] **Step 5: Run Python protocol tests**
 
 Run:
 
@@ -1258,7 +1260,7 @@ Expected: commit includes register constants, dataclass, status decoder, and tes
 - Modify: `/home/qian/Portable_System_Project/Butterfly_Laser_Driver/tests/test_pa_imaging_capture.py`
 - Modify: `/home/qian/Portable_System_Project/Butterfly_Laser_Driver/pa_imaging_capture.py`
 
-- [ ] **Step 1: Add failing controller tests**
+- [x] **Step 1: Add failing controller tests**
 
 Append to `PaProtocolTests`:
 
@@ -1290,7 +1292,7 @@ Append to `PaProtocolTests`:
         self.assertIn((pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_ABORT_AND_PARK), regs.writes)
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 ```bash
 cd /home/qian/Portable_System_Project/Butterfly_Laser_Driver
@@ -1299,7 +1301,7 @@ python -m unittest tests.test_pa_imaging_capture.PaProtocolTests -v
 
 Expected: FAIL because `PamSchedulerController` does not exist.
 
-- [ ] **Step 3: Add controller**
+- [x] **Step 3: Add controller**
 
 Add below `PamAxiController`:
 
@@ -1363,7 +1365,7 @@ class PamSchedulerController:
         return decode_scheduler_status(self.read_scheduler_counters())
 ```
 
-- [ ] **Step 4: Run Python protocol tests**
+- [x] **Step 4: Run Python protocol tests**
 
 ```bash
 cd /home/qian/Portable_System_Project/Butterfly_Laser_Driver
@@ -1391,7 +1393,7 @@ Expected: commit includes controller and tests.
 - Modify: `/home/qian/Portable_System_Project/Butterfly_Laser_Driver/butterfly_laser_server.py`
 - Modify: `/home/qian/Portable_System_Project/Butterfly_Laser_Driver/pa_imaging_capture.py`
 
-- [ ] **Step 1: Add failing server endpoint tests**
+- [x] **Step 1: Add failing server endpoint tests**
 
 Add this helper class near the other fake PA test classes in
 `tests/test_tauri_server_defaults.py`:
@@ -1451,7 +1453,7 @@ Append to `TauriServerDefaultsTests`:
         self.assertIn((pa.PAM_REG_SCHED_MODE, pa.PAM_SCHED_MODE_AUTO_SCAN_CAPTURE), regs.writes)
 ```
 
-- [ ] **Step 2: Run server tests and verify failure**
+- [x] **Step 2: Run server tests and verify failure**
 
 ```bash
 cd /home/qian/Portable_System_Project/Butterfly_Laser_Driver
@@ -1460,7 +1462,7 @@ python -m unittest tests.test_tauri_server_defaults.TauriServerDefaultsTests -v
 
 Expected: FAIL because scheduler endpoints and `PaSchedulerService` do not exist.
 
-- [ ] **Step 3: Add `PaSchedulerService`**
+- [x] **Step 3: Add `PaSchedulerService`**
 
 In `butterfly_laser_server.py`, import `PamSchedulerConfig`, `PamSchedulerController`, and scheduler constants from `pa_imaging_capture.py`. Add:
 
@@ -1524,7 +1526,7 @@ class PaSchedulerService:
 
 Import `asdict` from `dataclasses` if not already present.
 
-- [ ] **Step 4: Initialize scheduler service**
+- [x] **Step 4: Initialize scheduler service**
 
 Where `pa_service` is created on the server object, add:
 
@@ -1534,7 +1536,7 @@ self.pa_scheduler = PaSchedulerService(self.pam_regs)
 
 Use the same register object passed to `PaCaptureService`.
 
-- [ ] **Step 5: Add endpoints to `/api/endpoints` and handlers**
+- [x] **Step 5: Add endpoints to `/api/endpoints` and handlers**
 
 Add the six scheduler endpoint strings to the endpoint list. Extend `handle_pa_post`:
 
@@ -1573,7 +1575,7 @@ In `do_GET`, add:
                 self.reply_json({"ok": True, "scheduler": self.server.pa_scheduler.status()})
 ```
 
-- [ ] **Step 6: Integrate compatibility auto scan start and stop**
+- [x] **Step 6: Integrate compatibility auto scan start and stop**
 
 Before `pa_service.start(...)` inside `/api/pa/start`, program scheduler mode:
 
@@ -1593,7 +1595,7 @@ Before existing PA stop/disconnect and `/api/stop-all` stop path, call:
 self.server.pa_scheduler.abort_and_park()
 ```
 
-- [ ] **Step 7: Run server tests**
+- [x] **Step 7: Run server tests**
 
 ```bash
 cd /home/qian/Portable_System_Project/Butterfly_Laser_Driver
@@ -1621,7 +1623,7 @@ Expected: commit includes server service, endpoint tests, and compatibility star
 - Modify: `/home/qian/Portable_System_Project/Butterfly_Laser_Driver/tauri_control_console/src/api/client.ts`
 - Create: `/home/qian/Portable_System_Project/Butterfly_Laser_Driver/tauri_control_console/src/__tests__/paScheduler.test.ts`
 
-- [ ] **Step 1: Add failing TypeScript API tests**
+- [x] **Step 1: Add failing TypeScript API tests**
 
 Create `tauri_control_console/src/__tests__/paScheduler.test.ts`:
 
@@ -1684,7 +1686,7 @@ describe("PA scheduler API client", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 ```bash
 cd /home/qian/Portable_System_Project/Butterfly_Laser_Driver/tauri_control_console
@@ -1693,7 +1695,7 @@ PATH=/home/qian/.local/nodejs/bin:$PATH npm test -- paScheduler.test.ts
 
 Expected: FAIL because scheduler client methods do not exist.
 
-- [ ] **Step 3: Add TypeScript types**
+- [x] **Step 3: Add TypeScript types**
 
 In `types.ts`, add:
 
@@ -1753,7 +1755,7 @@ export type PaSchedulerStatus = {
 };
 ```
 
-- [ ] **Step 4: Add client methods**
+- [x] **Step 4: Add client methods**
 
 In `client.ts`, import `PaSchedulerConfig` and `PaSchedulerStatus`, then add methods:
 
@@ -1783,7 +1785,7 @@ In `client.ts`, import `PaSchedulerConfig` and `PaSchedulerStatus`, then add met
   }
 ```
 
-- [ ] **Step 5: Run API tests**
+- [x] **Step 5: Run API tests**
 
 ```bash
 cd /home/qian/Portable_System_Project/Butterfly_Laser_Driver/tauri_control_console
@@ -2207,7 +2209,7 @@ Expected: PASS.
 
 ```bash
 cd /home/qian/xilinx/Xilinx/Vivado_Projects/Demo1013/IPs/ip_repo/axi_pam_image_acq_1_0
-xvlog -sv hdl/pam_image_acq_controller_core.v hdl/axi_pam_image_acq_v1_0_S00_AXI.v hdl/axi_pam_image_acq_v1_0.v tb/tb_pam_scheduler_modes.sv
+xvlog -sv -d PA_SCHED_TEST_FAST_TIMEOUT_CYCLES=64 hdl/pam_image_acq_controller_core.v hdl/axi_pam_image_acq_v1_0_S00_AXI.v hdl/axi_pam_image_acq_v1_0.v tb/tb_pam_scheduler_modes.sv
 xelab tb_pam_scheduler_modes -s tb_pam_scheduler_modes
 xsim tb_pam_scheduler_modes -runall
 ```

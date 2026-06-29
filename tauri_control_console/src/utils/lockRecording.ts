@@ -1,4 +1,4 @@
-import { DEFAULT_TZ_OHM, adcCodeToInputCurrentMicroamp } from "./ada4355";
+import { DEFAULT_PD_ZERO_ADC_CODE, DEFAULT_TZ_OHM, adcCodeToInputCurrentMicroamp } from "./ada4355";
 import type { MonitorSample } from "./monitorSamples";
 
 export type RecordingSpectrumFrame = {
@@ -40,8 +40,8 @@ export function ch1CurrentMilliamp(code: number): number {
   return (Math.max(0, Math.min(0xffff, code)) * 10.0) / 65535.0;
 }
 
-function pdCurrentMicroamp(adcCode: number, tzOhm: number, currentOffsetMicroamp: number): number {
-  return adcCodeToInputCurrentMicroamp(adcCode, tzOhm, currentOffsetMicroamp);
+function pdCurrentMicroamp(adcCode: number, tzOhm: number, zeroAdcCode: number): number {
+  return adcCodeToInputCurrentMicroamp(adcCode, tzOhm, zeroAdcCode);
 }
 
 export function codeAtIndex(index: number, count: number, startCode: number, stopCode: number): number {
@@ -55,7 +55,7 @@ export function spectrumFrameCsv(
   startCode: number,
   stopCode: number,
   tzOhm = DEFAULT_TZ_OHM,
-  currentOffsetMicroamp = 0,
+  zeroAdcCode = DEFAULT_PD_ZERO_ADC_CODE,
 ): string {
   const lines = ["ch1_current_mA,pd_current_uA,ch1_code,adc_count,relative_intensity,index,time_ms"];
   const count = Math.max(1, frame.count || frame.values.length);
@@ -67,7 +67,7 @@ export function spectrumFrameCsv(
     lines.push(
       [
         ch1CurrentMilliamp(code).toFixed(6),
-        pdCurrentMicroamp(adc, tzOhm, currentOffsetMicroamp).toFixed(6),
+        pdCurrentMicroamp(adc, tzOhm, zeroAdcCode).toFixed(6),
         code,
         adc,
         Math.round(relative),
@@ -84,7 +84,7 @@ export function spectrumFramesCsv(
   startCode: number,
   stopCode: number,
   tzOhm = DEFAULT_TZ_OHM,
-  currentOffsetMicroamp = 0,
+  zeroAdcCode = DEFAULT_PD_ZERO_ADC_CODE,
 ): string {
   const lines = ["ch1_current_mA,pd_current_uA,record_index,frame_counter,index,time_ms,ch1_code,adc_count,relative_intensity"];
   frames.forEach((frame, recordIndex) => {
@@ -97,7 +97,7 @@ export function spectrumFramesCsv(
       lines.push(
         [
           ch1CurrentMilliamp(code).toFixed(6),
-          pdCurrentMicroamp(adc, tzOhm, currentOffsetMicroamp).toFixed(6),
+          pdCurrentMicroamp(adc, tzOhm, zeroAdcCode).toFixed(6),
           recordIndex,
           frame.frameCounter ?? "",
           index,
@@ -119,7 +119,7 @@ export function lockSweepPartialCsv(
   maxIndex: number,
   referenceOffset = 0,
   tzOhm = DEFAULT_TZ_OHM,
-  currentOffsetMicroamp = 0,
+  zeroAdcCode = DEFAULT_PD_ZERO_ADC_CODE,
 ): string {
   const lines = ["ch1_current_mA,pd_current_uA,ch1_code,adc_count,relative_intensity,current_index,reference_index,time_ms"];
   const count = Math.max(1, frame.count || frame.values.length);
@@ -133,7 +133,7 @@ export function lockSweepPartialCsv(
     lines.push(
       [
         ch1CurrentMilliamp(code).toFixed(6),
-        pdCurrentMicroamp(adc, tzOhm, currentOffsetMicroamp).toFixed(6),
+        pdCurrentMicroamp(adc, tzOhm, zeroAdcCode).toFixed(6),
         code,
         adc,
         Math.round(relative),
@@ -158,7 +158,7 @@ export function preLockPdValues(samples: RecordingTrendSample[], lockTime: numbe
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
 }
 
-export function monitorCsv(samples: RecordingTrendSample[], lockTime: number, tzOhm = DEFAULT_TZ_OHM, currentOffsetMicroamp = 0): string {
+export function monitorCsv(samples: RecordingTrendSample[], lockTime: number, tzOhm = DEFAULT_TZ_OHM, zeroAdcCode = DEFAULT_PD_ZERO_ADC_CODE): string {
   const lines = ["relative_time_s,timestamp_s,laser_mode,pd_adc,pd_current_uA,temp_filtered_c,temp_measured_c,temp_target_c,temp_error_c,tec_dac_code,tec_raw_adc"];
   samples.forEach((sample) => {
     const pd = typeof sample.pd === "number" && Number.isFinite(sample.pd) ? sample.pd : undefined;
@@ -168,7 +168,7 @@ export function monitorCsv(samples: RecordingTrendSample[], lockTime: number, tz
         sample.t.toFixed(6),
         laserModeLabel(sample.laserMode),
         pd ?? "",
-        pd === undefined ? "" : pdCurrentMicroamp(pd, tzOhm, currentOffsetMicroamp).toFixed(6),
+        pd === undefined ? "" : pdCurrentMicroamp(pd, tzOhm, zeroAdcCode).toFixed(6),
         csvNumber(sample.temp),
         csvNumber(sample.tempMeasured),
         csvNumber(sample.target),
@@ -181,7 +181,7 @@ export function monitorCsv(samples: RecordingTrendSample[], lockTime: number, tz
   return `${lines.join("\n")}\n`;
 }
 
-export function lockStatusCsv(samples: RecordingTrendSample[], lockTime: number, tzOhm = DEFAULT_TZ_OHM, currentOffsetMicroamp = 0): string {
+export function lockStatusCsv(samples: RecordingTrendSample[], lockTime: number, tzOhm = DEFAULT_TZ_OHM, zeroAdcCode = DEFAULT_PD_ZERO_ADC_CODE): string {
   const lines = ["relative_time_s,timestamp_s,target_adc,lock_error,output_ch1_code,pd_adc,pd_current_uA"];
   samples.forEach((sample) => {
     const pd = typeof sample.pd === "number" && Number.isFinite(sample.pd) ? sample.pd : undefined;
@@ -193,7 +193,7 @@ export function lockStatusCsv(samples: RecordingTrendSample[], lockTime: number,
         sample.lockError ?? "",
         sample.lockOutputCh1 ?? "",
         pd ?? "",
-        pd === undefined ? "" : pdCurrentMicroamp(pd, tzOhm, currentOffsetMicroamp).toFixed(6),
+        pd === undefined ? "" : pdCurrentMicroamp(pd, tzOhm, zeroAdcCode).toFixed(6),
       ].join(","),
     );
   });

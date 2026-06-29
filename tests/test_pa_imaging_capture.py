@@ -1,4 +1,5 @@
 import json
+import errno
 import struct
 import threading
 import unittest
@@ -56,6 +57,269 @@ class PaProtocolTests(unittest.TestCase):
         self.assertIn((pa.PAM_REG_X_STEP, 2), regs.writes)
         self.assertIn((pa.PAM_REG_X_POINTS, 3), regs.writes)
 
+    def test_pam_params_include_return_mode_register(self):
+        params = pa.PamCaptureParams(return_mode=1)
+
+        packed = params.register_values()
+
+        self.assertEqual(packed[pa.PAM_REG_RETURN_MODE], 1)
+
+    def test_pam_pl_counter_registers_are_read_in_order(self):
+        regs = FakeRegs()
+        for name, offset in pa.PAM_DEBUG_COUNTER_REGS:
+            regs.values[offset] = offset + 1
+
+        counters = pa.PamAxiController(regs).read_pl_counters()
+
+        self.assertEqual(counters["status"], 0x81)
+        self.assertEqual(counters["fault_code"], 0x85)
+        self.assertEqual(counters["accepted_trigger_count"], 0x8D)
+
+    def test_pam_pl_counter_clear_pulses_control_register(self):
+        regs = FakeRegs()
+
+        pa.PamAxiController(regs).clear_pl_counters()
+
+        self.assertEqual(
+            regs.writes[-2:],
+            [(pa.PAM_REG_DBG_CONTROL, 1), (pa.PAM_REG_DBG_CONTROL, 0)],
+        )
+
+    def test_scheduler_config_packs_signed_and_packed_fields(self):
+        config = pa.PamSchedulerConfig(
+            mode=pa.PAM_SCHED_MODE_CONTINUOUS_POINT_CAPTURE,
+            control=pa.PAM_SCHED_CTRL_LD_ENABLE
+            | pa.PAM_SCHED_CTRL_ADC_ENABLE
+            | pa.PAM_SCHED_CTRL_CAPTURE_ENABLE
+            | pa.PAM_SCHED_CTRL_RESPECT_DOWNSTREAM_BUSY,
+            period_cycles=1234,
+            manual_x=-12,
+            manual_y=34,
+            shot_limit=99,
+            ld_delay_cycles=2,
+            ld_width_cycles=3,
+            adc_delay_cycles=4,
+            adc_width_cycles=1,
+            waveform_x_min=-100,
+            waveform_x_max=100,
+            waveform_y_min=-50,
+            waveform_y_max=50,
+            waveform_x_step=5,
+            waveform_y_step=-6,
+        )
+
+        values = config.register_values()
+
+        self.assertEqual(values[pa.PAM_REG_SCHED_MODE], pa.PAM_SCHED_MODE_CONTINUOUS_POINT_CAPTURE)
+        self.assertEqual(values[pa.PAM_REG_MANUAL_X], 0xFFF4)
+        self.assertEqual(values[pa.PAM_REG_MANUAL_Y], 34)
+        self.assertEqual(values[pa.PAM_REG_WAVEFORM_X_RANGE], 0x0064FF9C)
+        self.assertEqual(values[pa.PAM_REG_WAVEFORM_Y_RANGE], 0x0032FFCE)
+        self.assertEqual(values[pa.PAM_REG_WAVEFORM_STEP_XY], 0xFFFA0005)
+
+    def test_scheduler_config_coerces_zero_period_and_adc_width_to_one(self):
+        config = pa.PamSchedulerConfig(period_cycles=0, adc_width_cycles=0)
+
+        values = config.register_values()
+
+        self.assertEqual(values[pa.PAM_REG_SCHED_PERIOD_CYCLES], 1)
+        self.assertEqual(values[pa.PAM_REG_MANUAL_ADC_WIDTH_CYCLES], 1)
+
+    def test_scheduler_config_rejects_negative_period_and_adc_width(self):
+        invalid_configs = (
+            pa.PamSchedulerConfig(period_cycles=-1),
+            pa.PamSchedulerConfig(adc_width_cycles=-1),
+        )
+
+        for config in invalid_configs:
+            with self.subTest(config=config):
+                with self.assertRaises(ValueError):
+                    config.register_values()
+
+    def test_scheduler_config_accepts_defined_control_masks(self):
+        config = pa.PamSchedulerConfig(
+            control=pa.PAM_SCHED_CTRL_ALLOWED_MASK,
+            waveform_control=pa.PAM_WAVEFORM_CONTROL_ALLOWED_MASK,
+        )
+
+        values = config.register_values()
+
+        self.assertEqual(values[pa.PAM_REG_SCHED_CONTROL], pa.PAM_SCHED_CTRL_ALLOWED_MASK)
+        self.assertEqual(values[pa.PAM_REG_WAVEFORM_CONTROL], pa.PAM_WAVEFORM_CONTROL_ALLOWED_MASK)
+
+    def test_scheduler_config_rejects_invalid_signed_and_reserved_values(self):
+        invalid_configs = (
+            pa.PamSchedulerConfig(manual_x=40000),
+            pa.PamSchedulerConfig(waveform_y_step=-40000),
+            pa.PamSchedulerConfig(mode=9),
+            pa.PamSchedulerConfig(control=1 << 6),
+            pa.PamSchedulerConfig(control=1 << 7),
+            pa.PamSchedulerConfig(control=1 << 10),
+            pa.PamSchedulerConfig(control=1 << 11),
+            pa.PamSchedulerConfig(control=1 << 12),
+            pa.PamSchedulerConfig(waveform_control=1 << 11),
+            pa.PamSchedulerConfig(waveform_control=1 << 12),
+        )
+
+        for config in invalid_configs:
+            with self.subTest(config=config):
+                with self.assertRaises(ValueError):
+                    config.register_values()
+
+    def test_scheduler_status_decodes_mode_flags_and_signed_xy(self):
+        counters = {
+            "sched_version": 0x0001007F,
+            "sched_state": (
+                pa.PAM_SCHED_MODE_MANUAL_PULSE_NO_CAPTURE
+                | (2 << 4)
+                | pa.PAM_SCHED_STATE_ACTIVE
+                | pa.PAM_SCHED_STATE_RUNNING_WITHOUT_CAPTURE
+            ),
+            "sched_current_xy": 0xFFCE0064,
+            "sched_current_index_xy": 0x00120034,
+            "sched_shot_count": 7,
+            "sched_capture_count": 0,
+            "sched_fault_detail": 0,
+        }
+
+        status = pa.decode_scheduler_status(counters)
+
+        self.assertEqual(status["mode"], pa.PAM_SCHED_MODE_MANUAL_PULSE_NO_CAPTURE)
+        self.assertEqual(status["mode_name"], "manual_pulse_no_capture")
+        self.assertEqual(status["fsm_state"], 2)
+        self.assertTrue(status["active"])
+        self.assertFalse(status["capture_required"])
+        self.assertEqual(status["current_x"], 100)
+        self.assertEqual(status["current_y"], -50)
+        self.assertEqual(status["x_idx"], 0x34)
+        self.assertEqual(status["y_idx"], 0x12)
+        self.assertEqual(status["x_index"], 0x34)
+        self.assertEqual(status["y_index"], 0x12)
+        self.assertEqual(status["shot_count"], 7)
+
+    def test_scheduler_controller_programs_config_and_pulses_start(self):
+        regs = FakeRegs()
+        controller = pa.PamSchedulerController(regs)
+        config = pa.PamSchedulerConfig(
+            mode=pa.PAM_SCHED_MODE_MANUAL_GALVO_HOLD,
+            manual_x=11,
+            manual_y=-12,
+        )
+
+        controller.program(config, verify=True)
+        controller.command(pa.PAM_SCHED_CMD_START)
+
+        self.assertIn((pa.PAM_REG_SCHED_MODE, pa.PAM_SCHED_MODE_MANUAL_GALVO_HOLD), regs.writes)
+        self.assertIn((pa.PAM_REG_MANUAL_X, 11), regs.writes)
+        self.assertIn((pa.PAM_REG_MANUAL_Y, 0xFFF4), regs.writes)
+        self.assertEqual(regs.writes[-1], (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_START))
+
+    def test_scheduler_controller_command_helpers_write_expected_pulses(self):
+        regs = FakeRegs()
+        controller = pa.PamSchedulerController(regs)
+
+        controller.start()
+        controller.stop()
+        controller.clear_fault()
+        controller.apply_manual()
+        controller.single_pulse()
+
+        self.assertEqual(
+            regs.writes,
+            [
+                (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_START),
+                (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_STOP),
+                (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_CLEAR_FAULT),
+                (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_APPLY_MANUAL),
+                (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_SINGLE_PULSE),
+            ],
+        )
+
+    def test_scheduler_controller_manual_position_preserves_active_mode(self):
+        regs = FakeRegs()
+        controller = pa.PamSchedulerController(regs)
+
+        controller.manual_position(123, -45)
+
+        self.assertEqual(
+            regs.writes,
+            [
+                (pa.PAM_REG_MANUAL_X, 123),
+                (pa.PAM_REG_MANUAL_Y, 0xFFD3),
+                (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_APPLY_MANUAL),
+            ],
+        )
+
+    def test_scheduler_controller_rejects_reserved_command_bits(self):
+        regs = FakeRegs()
+        controller = pa.PamSchedulerController(regs)
+
+        with self.assertRaises(ValueError):
+            controller.command(pa.PAM_SCHED_CMD_ALLOWED_MASK | (1 << 7))
+
+        self.assertEqual(regs.writes, [])
+
+    def test_scheduler_controller_abort_and_park_uses_new_command_and_legacy_start_low(self):
+        regs = FakeRegs()
+        controller = pa.PamSchedulerController(regs)
+
+        controller.abort_and_park()
+
+        self.assertEqual(
+            regs.writes,
+            [
+                (pa.PAM_REG_START, 0),
+                (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_ABORT_AND_PARK),
+            ],
+        )
+
+    def test_scheduler_controller_reads_counters_and_decodes_status(self):
+        regs = FakeRegs()
+        regs.values[pa.PAM_REG_SCHED_STATE] = (
+            pa.PAM_SCHED_MODE_MANUAL_GALVO_HOLD
+            | (1 << 4)
+            | pa.PAM_SCHED_STATE_ACTIVE
+            | pa.PAM_SCHED_STATE_PARKED
+        )
+        regs.values[pa.PAM_REG_SCHED_CURRENT_XY] = 0xFFF4000B
+        regs.values[pa.PAM_REG_SCHED_CURRENT_INDEX_XY] = 0x00030002
+        regs.values[pa.PAM_REG_SCHED_SHOT_COUNT] = 5
+        controller = pa.PamSchedulerController(regs)
+
+        counters = controller.read_scheduler_counters()
+        status = controller.status()
+
+        self.assertEqual(list(counters.keys()), [name for name, _offset in pa.PAM_SCHED_STATUS_REGS])
+        self.assertEqual(counters["sched_shot_count"], 5)
+        self.assertEqual(status["mode"], pa.PAM_SCHED_MODE_MANUAL_GALVO_HOLD)
+        self.assertEqual(status["current_x"], 11)
+        self.assertEqual(status["current_y"], -12)
+        self.assertEqual(status["x_idx"], 2)
+        self.assertEqual(status["y_idx"], 3)
+        self.assertTrue(status["parked"])
+
+    def test_pam_wait_not_busy_returns_when_debug_busy_bit_is_clear(self):
+        regs = FakeRegs()
+        regs.values[pa.PAM_REG_DBG_STATUS] = 0x10
+
+        status = pa.PamAxiController(regs).wait_not_busy(timeout_s=0)
+
+        self.assertEqual(status, 0x10)
+
+    def test_pam_wait_not_busy_times_out_when_debug_busy_bit_stays_set(self):
+        regs = FakeRegs()
+        regs.values[pa.PAM_REG_DBG_STATUS] = 0x2
+
+        with self.assertRaises(TimeoutError):
+            pa.PamAxiController(regs).wait_not_busy(timeout_s=0)
+
+    def test_pam_wait_not_busy_times_out_when_downstream_busy_bit_stays_set(self):
+        regs = FakeRegs()
+        regs.values[pa.PAM_REG_DBG_STATUS] = 0x20
+
+        with self.assertRaises(TimeoutError):
+            pa.PamAxiController(regs).wait_not_busy(timeout_s=0)
+
     def test_stream_record_header_is_little_endian_and_self_describing(self):
         record = pa.PaStreamRecord(
             record_type=pa.RECORD_TYPE_DATA,
@@ -108,6 +372,58 @@ class PaProtocolTests(unittest.TestCase):
         self.assertEqual(status.dropped_frames, 9)
         self.assertEqual(status.dropped_blocks, 10)
         self.assertTrue(status.draining_done)
+        self.assertEqual(status.submit_count, 0)
+
+    def test_axis_status_v2_unpack_includes_dma_health_counters(self):
+        raw = struct.pack(
+            "<28I",
+            1,
+            0,
+            0,
+            4096,
+            33554432,
+            31,
+            2,
+            3,
+            4,
+            100,
+            99,
+            8,
+            1,
+            2,
+            0,
+            1000,
+            990,
+            958,
+            7,
+            6,
+            5,
+            4,
+            3,
+            2,
+            1,
+            9,
+            8,
+            7,
+        )
+
+        status = pa.AxisCaptureStatus.unpack_v2(raw)
+
+        self.assertTrue(status.running)
+        self.assertEqual(status.active_dma_count, 31)
+        self.assertEqual(status.submit_count, 1000)
+        self.assertEqual(status.callback_count, 990)
+        self.assertEqual(status.rearm_count, 958)
+        self.assertEqual(status.done_q_high_watermark, 7)
+        self.assertEqual(status.ready_block_high_watermark, 6)
+        self.assertEqual(status.free_block_low_watermark, 5)
+        self.assertEqual(status.active_dma_low_watermark, 4)
+        self.assertEqual(status.active_dma_zero_events, 3)
+        self.assertEqual(status.done_q_overflow_count, 2)
+        self.assertEqual(status.aggregate_fail_count, 1)
+        self.assertEqual(status.rearm_fail_count, 9)
+        self.assertEqual(status.abort_count, 8)
+        self.assertEqual(status.copy_to_user_fault_count, 7)
 
     def test_axis_block_header_unpack_matches_superblock_driver_layout(self):
         raw = struct.pack("<QIIQQ", 5, 12, 3, 20, 22)
@@ -278,6 +594,33 @@ class RequestStopDevice(OrderingCaptureDevice):
         return pa.AXIS_READ_TIMEOUT
 
 
+class PartialBlockAfterStopDevice(OrderingCaptureDevice):
+    def __init__(self, actions, final_block, max_live_reads=3):
+        super().__init__(actions, [])
+        self.final_block = final_block
+        self.final_sent = False
+        self.max_live_reads = max_live_reads
+        self.live_reads = 0
+        self.stopped = False
+
+    def stop(self):
+        self.stopped = True
+        super().stop()
+
+    def read_block(self, timeout=0.5):
+        self.actions_ref.append("read")
+        self.actions.append("read")
+        if not self.stopped:
+            self.live_reads += 1
+            if self.live_reads > self.max_live_reads:
+                raise RuntimeError("test guard: expected-frame flush did not stop")
+            return pa.AXIS_READ_TIMEOUT
+        if not self.final_sent:
+            self.final_sent = True
+            return self.final_block
+        return None
+
+
 class OrderingWriter:
     def __init__(self, actions, fail_on_data=False):
         self.actions = actions
@@ -428,8 +771,65 @@ class AxisCaptureDeviceTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     device.read_block()
 
+    def test_get_status_falls_back_to_v1_when_v2_ioctl_is_not_available(self):
+        device = pa.AxisCaptureDevice()
+        device.fd = 123
+        raw_v1 = struct.pack("<15I", 1, 0, 0, 4096, 33554432, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1)
+        calls = []
+
+        def fake_ioctl(fd, cmd, buf=None, mutate_flag=True):
+            calls.append(cmd)
+            if cmd == pa.AXIS_CAP_IOC_GET_STATUS_V2:
+                raise OSError(errno.ENOTTY, "not supported")
+            self.assertEqual(cmd, pa.AXIS_CAP_IOC_GET_STATUS)
+            for idx, value in enumerate(raw_v1):
+                buf[idx] = value
+            return 0
+
+        with mock.patch.object(pa.fcntl, "ioctl", side_effect=fake_ioctl):
+            status = device.get_status()
+
+        self.assertEqual(calls, [pa.AXIS_CAP_IOC_GET_STATUS_V2, pa.AXIS_CAP_IOC_GET_STATUS])
+        self.assertEqual(status.completed_frames, 6)
+        self.assertEqual(status.submit_count, 0)
+
+    def test_get_status_uses_v2_when_available(self):
+        device = pa.AxisCaptureDevice()
+        device.fd = 123
+        raw_v2 = struct.pack(
+            "<28I",
+            1, 0, 0, 4096, 33554432, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1,
+            101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113,
+        )
+
+        def fake_ioctl(fd, cmd, buf=None, mutate_flag=True):
+            self.assertEqual(cmd, pa.AXIS_CAP_IOC_GET_STATUS_V2)
+            for idx, value in enumerate(raw_v2):
+                buf[idx] = value
+            return 0
+
+        with mock.patch.object(pa.fcntl, "ioctl", side_effect=fake_ioctl):
+            status = device.get_status()
+
+        self.assertEqual(status.submit_count, 101)
+        self.assertEqual(status.copy_to_user_fault_count, 113)
+
 
 class PaWorkerTests(unittest.TestCase):
+    def valid_frame_block(self, block_id=1, frame_id=0, global_shot_idx=0):
+        metadata = struct.pack("<8I", 0, global_shot_idx, 0, 0, 0, 0, 0, pa.PA_META_MAGIC)
+        payload = struct.pack("<QII", frame_id, len(metadata), 0) + metadata
+        return (
+            pa.AxisBlockHeader(
+                block_id=block_id,
+                used_bytes=len(payload),
+                frame_count=1,
+                first_frame_id=frame_id,
+                last_frame_id=frame_id,
+            ),
+            payload,
+        )
+
     def test_worker_sends_metadata_data_and_end_records(self):
         regs = FakeRegs()
         pam = pa.PamAxiController(regs)
@@ -452,6 +852,58 @@ class PaWorkerTests(unittest.TestCase):
         self.assertEqual(writer.records[1].block_id, 1)
         self.assertEqual(summary["blocks_sent"], 1)
 
+    def test_worker_stops_after_expected_frames(self):
+        regs = FakeRegs()
+        pam = pa.PamAxiController(regs)
+        first_block = (
+            pa.AxisBlockHeader(block_id=1, used_bytes=4, frame_count=2, first_frame_id=10, last_frame_id=11),
+            b"abcd",
+        )
+        second_block = (
+            pa.AxisBlockHeader(block_id=2, used_bytes=4, frame_count=2, first_frame_id=12, last_frame_id=13),
+            b"wxyz",
+        )
+        device = FakeCaptureDevice([first_block, second_block])
+        writer = FakeWriter()
+        worker = pa.PaCaptureWorker(pam, device, writer)
+
+        summary = worker.run_once(pa.PamCaptureParams(), expected_frames=3, capture_time_sec=0)
+
+        self.assertEqual(summary["end_reason"], "expected_frames")
+        self.assertEqual(summary["expected_frames"], 3)
+        self.assertEqual(summary["blocks_sent"], 2)
+        self.assertEqual(summary["frames_sent"], 4)
+        self.assertEqual([record.record_type for record in writer.records], [
+            pa.RECORD_TYPE_METADATA,
+            pa.RECORD_TYPE_DATA,
+            pa.RECORD_TYPE_DATA,
+            pa.RECORD_TYPE_END,
+        ])
+
+    def test_worker_expected_frames_flushes_final_partial_block_without_capture_time(self):
+        actions = []
+        pam = OrderingPam(actions)
+        device = PartialBlockAfterStopDevice(actions, self.valid_frame_block())
+        writer = OrderingWriter(actions)
+        worker = pa.PaCaptureWorker(
+            pam,
+            device,
+            writer,
+            expected_flush_min_margin_s=0.0,
+            expected_flush_margin_fraction=0.0,
+        )
+
+        summary = worker.run_once(pa.PamCaptureParams(gap_time=0), expected_frames=1, capture_time_sec=0)
+
+        self.assertEqual(summary["end_reason"], "expected_frames")
+        self.assertEqual(summary["frames_sent"], 1)
+        self.assertEqual([record.record_type for record in writer.records], [
+            pa.RECORD_TYPE_METADATA,
+            pa.RECORD_TYPE_DATA,
+            pa.RECORD_TYPE_END,
+        ])
+        self.assertLess(actions.index("pam_low"), actions.index("dma_stop"))
+
     def test_worker_stop_order_matches_axis_capture_app(self):
         regs = FakeRegs()
         pam = pa.PamAxiController(regs)
@@ -464,6 +916,31 @@ class PaWorkerTests(unittest.TestCase):
         self.assertIn((pa.PAM_REG_START, 0), regs.writes)
         self.assertLess(device.actions.index("dma_start"), device.actions.index("dma_stop"))
         self.assertEqual(regs.writes[-1], (pa.PAM_REG_START, 0))
+
+    def test_worker_capture_hooks_start_scheduler_without_legacy_start_high(self):
+        actions = []
+        pam = OrderingPam(actions)
+        block = (
+            pa.AxisBlockHeader(block_id=1, used_bytes=4, frame_count=1, first_frame_id=10, last_frame_id=10),
+            b"abcd",
+        )
+        device = OrderingCaptureDevice(actions, [block])
+        writer = OrderingWriter(actions)
+        worker = pa.PaCaptureWorker(pam, device, writer)
+        worker.configure_capture_hooks(
+            start=lambda: actions.append("scheduler_start"),
+            stop=lambda: actions.append("scheduler_abort"),
+            expected_frame_period_counts=33333,
+        )
+
+        summary = worker.run_once(pa.PamCaptureParams(), expected_frames=1, capture_time_sec=0)
+
+        self.assertEqual(summary["end_reason"], "expected_frames")
+        self.assertIn("scheduler_start", actions)
+        self.assertIn("scheduler_abort", actions)
+        self.assertNotIn("pam_high", actions)
+        self.assertLess(actions.index("dma_start"), actions.index("scheduler_start"))
+        self.assertLess(actions.index("scheduler_abort"), actions.index("dma_stop"))
 
     def test_worker_stop_requested_before_run_skips_hardware_start(self):
         actions = []

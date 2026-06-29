@@ -1,0 +1,37 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2023.2.2 (lin64) Build 4126759 Thu Feb  8 23:52:05 MST 2024
+| Date         : Sat Jun 27 02:37:27 2026
+| Host         : qian-MS-7E25 running 64-bit Ubuntu 22.04.5 LTS
+| Command      : report_qor_suggestions -file /home/qian/Portable_System_Project/Butterfly_Laser_Driver/milestones/vivado_warning_cleanup_20260626_180839/timing_debug_after_axi_ada4355_delay_clk_300/qor_suggestions.rpt
+| Design       : design_top
+| Device       : xck26
+| Design State : Routed
+| ML Models    : v2021.2.0
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Report QoR Suggestions
+
+Table of Contents
+-----------------
+1. QoR Suggestions Report Summary
+2. ML Strategies
+
+1. QoR Suggestions Report Summary
+---------------------------------
+
++------+----+--------+--------------+----------------+-----------+-------+----------------------+------------------------------------------------------------------------------------------+--------+
+| Name | Id | Status | Generated At | Applicable For | Automatic | Scope | Incremental Friendly |                                        Description                                       | Source |
++------+----+--------+--------------+----------------+-----------+-------+----------------------+------------------------------------------------------------------------------------------+--------+
+* No QoR suggestions are provided when the fully routed design is assessed to easily meet timing.
+
+
+2. ML Strategies
+----------------
+
++---+----+---------+---------+
+| # | Id | Command | Options |
++---+----+---------+---------+
+* ML Strategies are not generated as the design meets setup timing
+
+

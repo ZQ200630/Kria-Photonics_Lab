@@ -1,0 +1,1256 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2023.2.2 (lin64) Build 4126759 Thu Feb  8 23:52:05 MST 2024
+| Date              : Sat Jun 27 07:00:48 2026
+| Host              : qian-MS-7E25 running 64-bit Ubuntu 22.04.5 LTS
+| Command           : report_timing -setup -max_paths 10 -sort_by slack -file /home/qian/Portable_System_Project/Butterfly_Laser_Driver/milestones/vivado_warning_cleanup_20260626_180839/timing_margin_experiments/impl_margin_perf_explore/setup_paths.rpt
+| Design            : design_top
+| Device            : xck26-sfvc784
+| Speed File        : -2LVI  PRODUCTION 1.30 05-15-2022
+| Design State      : Physopt postRoute
+| Temperature Grade : I
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             0.362ns  (required time - arrival time)
+  Source:                 u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+                            (rising edge-triggered cell FDRE clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/DSP_A_B_DATA_INST/A[0]
+                            (rising edge-triggered cell DSP_A_B_DATA clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk_pl_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk_pl_0 rise@10.000ns - clk_pl_0 rise@0.000ns)
+  Data Path Delay:        8.824ns  (logic 5.821ns (65.966%)  route 3.003ns (34.034%))
+  Logic Levels:           25  (CARRY8=11 DSP_A_B_DATA=1 DSP_ALU=2 DSP_M_DATA=1 DSP_MULTIPLIER=1 DSP_OUTPUT=2 DSP_PREADD_DATA=1 LUT2=4 LUT4=1 LUT5=1)
+  Clock Path Skew:        -0.119ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.133ns = ( 13.133 - 10.000 ) 
+    Source Clock Delay      (SCD):    3.503ns
+    Clock Pessimism Removal (CPR):    0.251ns
+  Clock Uncertainty:      0.130ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.250ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      3.236ns (routing 1.671ns, distribution 1.565ns)
+  Clock Net Delay (Destination): 2.917ns (routing 1.527ns, distribution 1.390ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_pl_0 rise edge)
+                                                      0.000     0.000 r  
+    PS8_X0Y0             PS8                          0.000     0.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.229     0.229    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.038     0.267 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       3.236     3.503    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/s00_axi_aclk
+    SLICE_X13Y75         FDRE                                         r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X13Y75         FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.113     3.616 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/Q
+                         net (fo=5, routed)           0.260     3.875    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic[0]
+    SLICE_X11Y75         LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.152     4.027 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27/O
+                         net (fo=1, routed)           0.014     4.041    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27_n_0
+    SLICE_X11Y75         CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278     4.319 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3/CO[7]
+                         net (fo=1, routed)           0.030     4.349    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3_n_0
+    SLICE_X11Y76         CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.161     4.510 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_2/O[5]
+                         net (fo=1, routed)           0.362     4.872    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/A[13]
+    DSP48E2_X3Y30        DSP_A_B_DATA (Prop_DSP_A_B_DATA_DSP48E2_A[13]_A2_DATA[13])
+                                                      0.258     5.130 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA_INST/A2_DATA[13]
+                         net (fo=1, routed)           0.000     5.130    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA.A2_DATA<13>
+    DSP48E2_X3Y30        DSP_PREADD_DATA (Prop_DSP_PREADD_DATA_DSP48E2_A2_DATA[13]_A2A1[13])
+                                                      0.114     5.244 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA_INST/A2A1[13]
+                         net (fo=1, routed)           0.000     5.244    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA.A2A1<13>
+    DSP48E2_X3Y30        DSP_MULTIPLIER (Prop_DSP_MULTIPLIER_DSP48E2_A2A1[13]_U[34])
+                                                      0.700     5.944 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER_INST/U[34]
+                         net (fo=1, routed)           0.000     5.944    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER.U<34>
+    DSP48E2_X3Y30        DSP_M_DATA (Prop_DSP_M_DATA_DSP48E2_U[34]_U_DATA[34])
+                                                      0.067     6.011 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA_INST/U_DATA[34]
+                         net (fo=1, routed)           0.000     6.011    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA.U_DATA<34>
+    DSP48E2_X3Y30        DSP_ALU (Prop_DSP_ALU_DSP48E2_U_DATA[34]_ALU_OUT[47])
+                                                      0.727     6.738 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU_INST/ALU_OUT[47]
+                         net (fo=1, routed)           0.000     6.738    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU.ALU_OUT<47>
+    DSP48E2_X3Y30        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[47]_PCOUT[47])
+                                                      0.167     6.905 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_OUTPUT_INST/PCOUT[47]
+                         net (fo=1, routed)           0.014     6.919    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/PCIN[47]
+    DSP48E2_X3Y31        DSP_ALU (Prop_DSP_ALU_DSP48E2_PCIN[47]_ALU_OUT[3])
+                                                      0.739     7.658 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU_INST/ALU_OUT[3]
+                         net (fo=1, routed)           0.000     7.658    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU.ALU_OUT<3>
+    DSP48E2_X3Y31        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[3]_P[3])
+                                                      0.146     7.804 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_OUTPUT_INST/P[3]
+                         net (fo=3, routed)           0.262     8.066    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/p_0_in[4]
+    SLICE_X12Y79         LUT2 (Prop_E6LUT_SLICEM_I1_O)
+                                                      0.187     8.253 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15/O
+                         net (fo=1, routed)           0.018     8.271    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15_n_0
+    SLICE_X12Y79         CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.236     8.507 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.537    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11_n_0
+    SLICE_X12Y80         CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.065     8.602 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.632    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11_n_0
+    SLICE_X12Y81         CARRY8 (Prop_CARRY8_SLICEM_CI_O[7])
+                                                      0.171     8.803 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[23]_i_11/O[7]
+                         net (fo=1, routed)           0.269     9.072    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next0[23]
+    SLICE_X11Y82         LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.153     9.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3/O
+                         net (fo=1, routed)           0.015     9.240    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3_n_0
+    SLICE_X11Y82         CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172     9.412 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2/CO[7]
+                         net (fo=1, routed)           0.030     9.442    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2_n_0
+    SLICE_X11Y83         CARRY8 (Prop_CARRY8_SLICEL_CI_O[7])
+                                                      0.171     9.613 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[31]_i_5/O[7]
+                         net (fo=5, routed)           0.412    10.025    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic0[31]
+    SLICE_X9Y84          LUT2 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.227    10.252 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7/O
+                         net (fo=1, routed)           0.015    10.267    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7_n_0
+    SLICE_X9Y84          CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172    10.439 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2/CO[7]
+                         net (fo=1, routed)           0.030    10.469    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2_n_0
+    SLICE_X9Y85          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[0])
+                                                      0.074    10.543 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74/CO[0]
+                         net (fo=64, routed)          0.308    10.851    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74_n_7
+    SLICE_X9Y88          LUT2 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.082    10.933 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_91/O
+                         net (fo=1, routed)           0.014    10.947    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_91_n_0
+    SLICE_X9Y88          CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278    11.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_39/CO[7]
+                         net (fo=1, routed)           0.030    11.255    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_39_n_0
+    SLICE_X9Y89          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.073    11.328 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_5/CO[7]
+                         net (fo=32, routed)          0.523    11.851    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/integral_next10_in
+    SLICE_X7Y82          LUT5 (Prop_A5LUT_SLICEM_I2_O)
+                                                      0.138    11.989 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[0]_i_1/O
+                         net (fo=3, routed)           0.338    12.327    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/A[0]
+    DSP48E2_X2Y35        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/DSP_A_B_DATA_INST/A[0]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_pl_0 rise edge)
+                                                     10.000    10.000 r  
+    PS8_X0Y0             PS8                          0.000    10.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.181    10.181    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.035    10.216 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       2.917    13.133    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/CLK
+    DSP48E2_X2Y35        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/DSP_A_B_DATA_INST/CLK
+                         clock pessimism              0.251    13.384    
+                         clock uncertainty           -0.130    13.254    
+    DSP48E2_X2Y35        DSP_A_B_DATA (Setup_DSP_A_B_DATA_DSP48E2_CLK_A[0])
+                                                     -0.565    12.689    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/DSP_A_B_DATA_INST
+  -------------------------------------------------------------------
+                         required time                         12.689    
+                         arrival time                         -12.327    
+  -------------------------------------------------------------------
+                         slack                                  0.362    
+
+Slack (MET) :             0.377ns  (required time - arrival time)
+  Source:                 u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+                            (rising edge-triggered cell FDRE clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/DSP_A_B_DATA_INST/B[17]
+                            (rising edge-triggered cell DSP_A_B_DATA clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk_pl_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk_pl_0 rise@10.000ns - clk_pl_0 rise@0.000ns)
+  Data Path Delay:        8.875ns  (logic 5.744ns (64.717%)  route 3.131ns (35.283%))
+  Logic Levels:           25  (CARRY8=11 DSP_A_B_DATA=1 DSP_ALU=2 DSP_M_DATA=1 DSP_MULTIPLIER=1 DSP_OUTPUT=2 DSP_PREADD_DATA=1 LUT2=4 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.119ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.132ns = ( 13.132 - 10.000 ) 
+    Source Clock Delay      (SCD):    3.503ns
+    Clock Pessimism Removal (CPR):    0.251ns
+  Clock Uncertainty:      0.130ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.250ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      3.236ns (routing 1.671ns, distribution 1.565ns)
+  Clock Net Delay (Destination): 2.916ns (routing 1.527ns, distribution 1.389ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_pl_0 rise edge)
+                                                      0.000     0.000 r  
+    PS8_X0Y0             PS8                          0.000     0.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.229     0.229    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.038     0.267 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       3.236     3.503    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/s00_axi_aclk
+    SLICE_X13Y75         FDRE                                         r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X13Y75         FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.113     3.616 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/Q
+                         net (fo=5, routed)           0.260     3.875    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic[0]
+    SLICE_X11Y75         LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.152     4.027 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27/O
+                         net (fo=1, routed)           0.014     4.041    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27_n_0
+    SLICE_X11Y75         CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278     4.319 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3/CO[7]
+                         net (fo=1, routed)           0.030     4.349    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3_n_0
+    SLICE_X11Y76         CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.161     4.510 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_2/O[5]
+                         net (fo=1, routed)           0.362     4.872    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/A[13]
+    DSP48E2_X3Y30        DSP_A_B_DATA (Prop_DSP_A_B_DATA_DSP48E2_A[13]_A2_DATA[13])
+                                                      0.258     5.130 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA_INST/A2_DATA[13]
+                         net (fo=1, routed)           0.000     5.130    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA.A2_DATA<13>
+    DSP48E2_X3Y30        DSP_PREADD_DATA (Prop_DSP_PREADD_DATA_DSP48E2_A2_DATA[13]_A2A1[13])
+                                                      0.114     5.244 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA_INST/A2A1[13]
+                         net (fo=1, routed)           0.000     5.244    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA.A2A1<13>
+    DSP48E2_X3Y30        DSP_MULTIPLIER (Prop_DSP_MULTIPLIER_DSP48E2_A2A1[13]_U[34])
+                                                      0.700     5.944 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER_INST/U[34]
+                         net (fo=1, routed)           0.000     5.944    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER.U<34>
+    DSP48E2_X3Y30        DSP_M_DATA (Prop_DSP_M_DATA_DSP48E2_U[34]_U_DATA[34])
+                                                      0.067     6.011 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA_INST/U_DATA[34]
+                         net (fo=1, routed)           0.000     6.011    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA.U_DATA<34>
+    DSP48E2_X3Y30        DSP_ALU (Prop_DSP_ALU_DSP48E2_U_DATA[34]_ALU_OUT[47])
+                                                      0.727     6.738 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU_INST/ALU_OUT[47]
+                         net (fo=1, routed)           0.000     6.738    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU.ALU_OUT<47>
+    DSP48E2_X3Y30        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[47]_PCOUT[47])
+                                                      0.167     6.905 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_OUTPUT_INST/PCOUT[47]
+                         net (fo=1, routed)           0.014     6.919    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/PCIN[47]
+    DSP48E2_X3Y31        DSP_ALU (Prop_DSP_ALU_DSP48E2_PCIN[47]_ALU_OUT[3])
+                                                      0.739     7.658 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU_INST/ALU_OUT[3]
+                         net (fo=1, routed)           0.000     7.658    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU.ALU_OUT<3>
+    DSP48E2_X3Y31        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[3]_P[3])
+                                                      0.146     7.804 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_OUTPUT_INST/P[3]
+                         net (fo=3, routed)           0.262     8.066    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/p_0_in[4]
+    SLICE_X12Y79         LUT2 (Prop_E6LUT_SLICEM_I1_O)
+                                                      0.187     8.253 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15/O
+                         net (fo=1, routed)           0.018     8.271    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15_n_0
+    SLICE_X12Y79         CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.236     8.507 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.537    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11_n_0
+    SLICE_X12Y80         CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.065     8.602 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.632    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11_n_0
+    SLICE_X12Y81         CARRY8 (Prop_CARRY8_SLICEM_CI_O[7])
+                                                      0.171     8.803 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[23]_i_11/O[7]
+                         net (fo=1, routed)           0.269     9.072    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next0[23]
+    SLICE_X11Y82         LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.153     9.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3/O
+                         net (fo=1, routed)           0.015     9.240    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3_n_0
+    SLICE_X11Y82         CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172     9.412 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2/CO[7]
+                         net (fo=1, routed)           0.030     9.442    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2_n_0
+    SLICE_X11Y83         CARRY8 (Prop_CARRY8_SLICEL_CI_O[7])
+                                                      0.171     9.613 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[31]_i_5/O[7]
+                         net (fo=5, routed)           0.412    10.025    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic0[31]
+    SLICE_X9Y84          LUT2 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.227    10.252 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7/O
+                         net (fo=1, routed)           0.015    10.267    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7_n_0
+    SLICE_X9Y84          CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172    10.439 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2/CO[7]
+                         net (fo=1, routed)           0.030    10.469    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2_n_0
+    SLICE_X9Y85          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[0])
+                                                      0.074    10.543 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74/CO[0]
+                         net (fo=64, routed)          0.403    10.946    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74_n_7
+    SLICE_X7Y87          LUT2 (Prop_A6LUT_SLICEM_I1_O)
+                                                      0.083    11.029 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72/O
+                         net (fo=1, routed)           0.017    11.046    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72_n_0
+    SLICE_X7Y87          CARRY8 (Prop_CARRY8_SLICEM_S[0]_CO[7])
+                                                      0.281    11.327 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15/CO[7]
+                         net (fo=1, routed)           0.030    11.357    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15_n_0
+    SLICE_X7Y88          CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.073    11.430 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_3/CO[7]
+                         net (fo=32, routed)          0.473    11.903    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/integral_next1
+    SLICE_X10Y89         LUT6 (Prop_G6LUT_SLICEM_I2_O)
+                                                      0.057    11.960 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_1/O
+                         net (fo=9, routed)           0.418    12.378    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/B[17]
+    DSP48E2_X2Y36        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/DSP_A_B_DATA_INST/B[17]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_pl_0 rise edge)
+                                                     10.000    10.000 r  
+    PS8_X0Y0             PS8                          0.000    10.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.181    10.181    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.035    10.216 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       2.916    13.132    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/CLK
+    DSP48E2_X2Y36        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/DSP_A_B_DATA_INST/CLK
+                         clock pessimism              0.251    13.383    
+                         clock uncertainty           -0.130    13.253    
+    DSP48E2_X2Y36        DSP_A_B_DATA (Setup_DSP_A_B_DATA_DSP48E2_CLK_B[17])
+                                                     -0.498    12.755    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/DSP_A_B_DATA_INST
+  -------------------------------------------------------------------
+                         required time                         12.755    
+                         arrival time                         -12.378    
+  -------------------------------------------------------------------
+                         slack                                  0.377    
+
+Slack (MET) :             0.380ns  (required time - arrival time)
+  Source:                 u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+                            (rising edge-triggered cell FDRE clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/DSP_A_B_DATA_INST/B[16]
+                            (rising edge-triggered cell DSP_A_B_DATA clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk_pl_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk_pl_0 rise@10.000ns - clk_pl_0 rise@0.000ns)
+  Data Path Delay:        8.873ns  (logic 5.744ns (64.732%)  route 3.129ns (35.268%))
+  Logic Levels:           25  (CARRY8=11 DSP_A_B_DATA=1 DSP_ALU=2 DSP_M_DATA=1 DSP_MULTIPLIER=1 DSP_OUTPUT=2 DSP_PREADD_DATA=1 LUT2=4 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.119ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.132ns = ( 13.132 - 10.000 ) 
+    Source Clock Delay      (SCD):    3.503ns
+    Clock Pessimism Removal (CPR):    0.251ns
+  Clock Uncertainty:      0.130ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.250ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      3.236ns (routing 1.671ns, distribution 1.565ns)
+  Clock Net Delay (Destination): 2.916ns (routing 1.527ns, distribution 1.389ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_pl_0 rise edge)
+                                                      0.000     0.000 r  
+    PS8_X0Y0             PS8                          0.000     0.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.229     0.229    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.038     0.267 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       3.236     3.503    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/s00_axi_aclk
+    SLICE_X13Y75         FDRE                                         r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X13Y75         FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.113     3.616 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/Q
+                         net (fo=5, routed)           0.260     3.875    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic[0]
+    SLICE_X11Y75         LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.152     4.027 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27/O
+                         net (fo=1, routed)           0.014     4.041    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27_n_0
+    SLICE_X11Y75         CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278     4.319 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3/CO[7]
+                         net (fo=1, routed)           0.030     4.349    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3_n_0
+    SLICE_X11Y76         CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.161     4.510 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_2/O[5]
+                         net (fo=1, routed)           0.362     4.872    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/A[13]
+    DSP48E2_X3Y30        DSP_A_B_DATA (Prop_DSP_A_B_DATA_DSP48E2_A[13]_A2_DATA[13])
+                                                      0.258     5.130 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA_INST/A2_DATA[13]
+                         net (fo=1, routed)           0.000     5.130    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA.A2_DATA<13>
+    DSP48E2_X3Y30        DSP_PREADD_DATA (Prop_DSP_PREADD_DATA_DSP48E2_A2_DATA[13]_A2A1[13])
+                                                      0.114     5.244 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA_INST/A2A1[13]
+                         net (fo=1, routed)           0.000     5.244    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA.A2A1<13>
+    DSP48E2_X3Y30        DSP_MULTIPLIER (Prop_DSP_MULTIPLIER_DSP48E2_A2A1[13]_U[34])
+                                                      0.700     5.944 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER_INST/U[34]
+                         net (fo=1, routed)           0.000     5.944    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER.U<34>
+    DSP48E2_X3Y30        DSP_M_DATA (Prop_DSP_M_DATA_DSP48E2_U[34]_U_DATA[34])
+                                                      0.067     6.011 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA_INST/U_DATA[34]
+                         net (fo=1, routed)           0.000     6.011    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA.U_DATA<34>
+    DSP48E2_X3Y30        DSP_ALU (Prop_DSP_ALU_DSP48E2_U_DATA[34]_ALU_OUT[47])
+                                                      0.727     6.738 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU_INST/ALU_OUT[47]
+                         net (fo=1, routed)           0.000     6.738    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU.ALU_OUT<47>
+    DSP48E2_X3Y30        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[47]_PCOUT[47])
+                                                      0.167     6.905 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_OUTPUT_INST/PCOUT[47]
+                         net (fo=1, routed)           0.014     6.919    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/PCIN[47]
+    DSP48E2_X3Y31        DSP_ALU (Prop_DSP_ALU_DSP48E2_PCIN[47]_ALU_OUT[3])
+                                                      0.739     7.658 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU_INST/ALU_OUT[3]
+                         net (fo=1, routed)           0.000     7.658    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU.ALU_OUT<3>
+    DSP48E2_X3Y31        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[3]_P[3])
+                                                      0.146     7.804 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_OUTPUT_INST/P[3]
+                         net (fo=3, routed)           0.262     8.066    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/p_0_in[4]
+    SLICE_X12Y79         LUT2 (Prop_E6LUT_SLICEM_I1_O)
+                                                      0.187     8.253 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15/O
+                         net (fo=1, routed)           0.018     8.271    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15_n_0
+    SLICE_X12Y79         CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.236     8.507 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.537    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11_n_0
+    SLICE_X12Y80         CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.065     8.602 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.632    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11_n_0
+    SLICE_X12Y81         CARRY8 (Prop_CARRY8_SLICEM_CI_O[7])
+                                                      0.171     8.803 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[23]_i_11/O[7]
+                         net (fo=1, routed)           0.269     9.072    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next0[23]
+    SLICE_X11Y82         LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.153     9.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3/O
+                         net (fo=1, routed)           0.015     9.240    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3_n_0
+    SLICE_X11Y82         CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172     9.412 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2/CO[7]
+                         net (fo=1, routed)           0.030     9.442    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2_n_0
+    SLICE_X11Y83         CARRY8 (Prop_CARRY8_SLICEL_CI_O[7])
+                                                      0.171     9.613 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[31]_i_5/O[7]
+                         net (fo=5, routed)           0.412    10.025    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic0[31]
+    SLICE_X9Y84          LUT2 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.227    10.252 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7/O
+                         net (fo=1, routed)           0.015    10.267    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7_n_0
+    SLICE_X9Y84          CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172    10.439 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2/CO[7]
+                         net (fo=1, routed)           0.030    10.469    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2_n_0
+    SLICE_X9Y85          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[0])
+                                                      0.074    10.543 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74/CO[0]
+                         net (fo=64, routed)          0.403    10.946    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74_n_7
+    SLICE_X7Y87          LUT2 (Prop_A6LUT_SLICEM_I1_O)
+                                                      0.083    11.029 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72/O
+                         net (fo=1, routed)           0.017    11.046    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72_n_0
+    SLICE_X7Y87          CARRY8 (Prop_CARRY8_SLICEM_S[0]_CO[7])
+                                                      0.281    11.327 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15/CO[7]
+                         net (fo=1, routed)           0.030    11.357    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15_n_0
+    SLICE_X7Y88          CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.073    11.430 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_3/CO[7]
+                         net (fo=32, routed)          0.473    11.903    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/integral_next1
+    SLICE_X10Y89         LUT6 (Prop_G6LUT_SLICEM_I2_O)
+                                                      0.057    11.960 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_1/O
+                         net (fo=9, routed)           0.416    12.376    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/B[16]
+    DSP48E2_X2Y36        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/DSP_A_B_DATA_INST/B[16]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_pl_0 rise edge)
+                                                     10.000    10.000 r  
+    PS8_X0Y0             PS8                          0.000    10.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.181    10.181    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.035    10.216 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       2.916    13.132    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/CLK
+    DSP48E2_X2Y36        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/DSP_A_B_DATA_INST/CLK
+                         clock pessimism              0.251    13.383    
+                         clock uncertainty           -0.130    13.253    
+    DSP48E2_X2Y36        DSP_A_B_DATA (Setup_DSP_A_B_DATA_DSP48E2_CLK_B[16])
+                                                     -0.497    12.756    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/DSP_A_B_DATA_INST
+  -------------------------------------------------------------------
+                         required time                         12.756    
+                         arrival time                         -12.376    
+  -------------------------------------------------------------------
+                         slack                                  0.380    
+
+Slack (MET) :             0.385ns  (required time - arrival time)
+  Source:                 u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_delay_cntrl/i_delay_rst_reg/rst_reg/C
+                            (rising edge-triggered cell FDRE clocked by clk_pl_1  {rise@0.000ns fall@1.666ns period=3.333ns})
+  Destination:            u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/i_delay_ctrl_REPLICATED_0/RST
+                            (recovery check against rising-edge clock clk_pl_1  {rise@0.000ns fall@1.666ns period=3.333ns})
+  Path Group:             **async_default**
+  Path Type:              Recovery (Max at Slow Process Corner)
+  Requirement:            3.333ns  (clk_pl_1 rise@3.333ns - clk_pl_1 rise@0.000ns)
+  Data Path Delay:        2.463ns  (logic 0.114ns (4.628%)  route 2.349ns (95.372%))
+  Logic Levels:           0  
+  Clock Path Skew:        0.036ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    1.998ns = ( 5.331 - 3.333 ) 
+    Source Clock Delay      (SCD):    2.114ns
+    Clock Pessimism Removal (CPR):    0.152ns
+  Clock Uncertainty:      0.104ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.195ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      1.847ns (routing 0.768ns, distribution 1.079ns)
+  Clock Net Delay (Destination): 1.782ns (routing 0.702ns, distribution 1.080ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_pl_1 rise edge)
+                                                      0.000     0.000 r  
+    PS8_X0Y0             PS8                          0.000     0.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[1]
+                         net (fo=1, routed)           0.229     0.229    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[1]
+    BUFG_PS_X0Y80        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.038     0.267 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_1.PL_CLK_1_BUFG/O
+    X0Y2 (CLOCK_ROOT)    net (fo=7, routed)           1.847     2.114    u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_delay_cntrl/i_delay_rst_reg/delay_clk
+    SLICE_X22Y152        FDRE                                         r  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_delay_cntrl/i_delay_rst_reg/rst_reg/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X22Y152        FDRE (Prop_EFF_SLICEL_C_Q)
+                                                      0.114     2.228 f  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_delay_cntrl/i_delay_rst_reg/rst_reg/Q
+                         net (fo=2, routed)           2.349     4.577    u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/delay_rst
+    BITSLICE_CONTROL_X0Y21
+                         IDELAYCTRL                                   f  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/i_delay_ctrl_REPLICATED_0/RST
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_pl_1 rise edge)
+                                                      3.333     3.333 r  
+    PS8_X0Y0             PS8                          0.000     3.333 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[1]
+                         net (fo=1, routed)           0.181     3.514    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[1]
+    BUFG_PS_X0Y80        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.035     3.549 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_1.PL_CLK_1_BUFG/O
+    X0Y2 (CLOCK_ROOT)    net (fo=7, routed)           1.782     5.331    u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/delay_clk
+    BITSLICE_CONTROL_X0Y21
+                         IDELAYCTRL                                   r  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/i_delay_ctrl_REPLICATED_0/REFCLK
+                         clock pessimism              0.152     5.483    
+                         clock uncertainty           -0.104     5.379    
+    BITSLICE_CONTROL_X0Y21
+                         IDELAYCTRL (Recov_CONTROL_BITSLICE_CONTROL_REFCLK_RST)
+                                                     -0.417     4.962    u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/i_delay_ctrl_REPLICATED_0
+  -------------------------------------------------------------------
+                         required time                          4.962    
+                         arrival time                          -4.577    
+  -------------------------------------------------------------------
+                         slack                                  0.385    
+
+Slack (MET) :             0.397ns  (required time - arrival time)
+  Source:                 u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+                            (rising edge-triggered cell FDRE clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST/B[14]
+                            (rising edge-triggered cell DSP_A_B_DATA clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk_pl_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk_pl_0 rise@10.000ns - clk_pl_0 rise@0.000ns)
+  Data Path Delay:        8.864ns  (logic 5.744ns (64.805%)  route 3.120ns (35.196%))
+  Logic Levels:           25  (CARRY8=11 DSP_A_B_DATA=1 DSP_ALU=2 DSP_M_DATA=1 DSP_MULTIPLIER=1 DSP_OUTPUT=2 DSP_PREADD_DATA=1 LUT2=4 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.100ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.151ns = ( 13.151 - 10.000 ) 
+    Source Clock Delay      (SCD):    3.503ns
+    Clock Pessimism Removal (CPR):    0.251ns
+  Clock Uncertainty:      0.130ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.250ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      3.236ns (routing 1.671ns, distribution 1.565ns)
+  Clock Net Delay (Destination): 2.935ns (routing 1.527ns, distribution 1.408ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_pl_0 rise edge)
+                                                      0.000     0.000 r  
+    PS8_X0Y0             PS8                          0.000     0.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.229     0.229    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.038     0.267 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       3.236     3.503    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/s00_axi_aclk
+    SLICE_X13Y75         FDRE                                         r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X13Y75         FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.113     3.616 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/Q
+                         net (fo=5, routed)           0.260     3.875    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic[0]
+    SLICE_X11Y75         LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.152     4.027 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27/O
+                         net (fo=1, routed)           0.014     4.041    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27_n_0
+    SLICE_X11Y75         CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278     4.319 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3/CO[7]
+                         net (fo=1, routed)           0.030     4.349    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3_n_0
+    SLICE_X11Y76         CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.161     4.510 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_2/O[5]
+                         net (fo=1, routed)           0.362     4.872    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/A[13]
+    DSP48E2_X3Y30        DSP_A_B_DATA (Prop_DSP_A_B_DATA_DSP48E2_A[13]_A2_DATA[13])
+                                                      0.258     5.130 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA_INST/A2_DATA[13]
+                         net (fo=1, routed)           0.000     5.130    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA.A2_DATA<13>
+    DSP48E2_X3Y30        DSP_PREADD_DATA (Prop_DSP_PREADD_DATA_DSP48E2_A2_DATA[13]_A2A1[13])
+                                                      0.114     5.244 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA_INST/A2A1[13]
+                         net (fo=1, routed)           0.000     5.244    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA.A2A1<13>
+    DSP48E2_X3Y30        DSP_MULTIPLIER (Prop_DSP_MULTIPLIER_DSP48E2_A2A1[13]_U[34])
+                                                      0.700     5.944 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER_INST/U[34]
+                         net (fo=1, routed)           0.000     5.944    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER.U<34>
+    DSP48E2_X3Y30        DSP_M_DATA (Prop_DSP_M_DATA_DSP48E2_U[34]_U_DATA[34])
+                                                      0.067     6.011 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA_INST/U_DATA[34]
+                         net (fo=1, routed)           0.000     6.011    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA.U_DATA<34>
+    DSP48E2_X3Y30        DSP_ALU (Prop_DSP_ALU_DSP48E2_U_DATA[34]_ALU_OUT[47])
+                                                      0.727     6.738 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU_INST/ALU_OUT[47]
+                         net (fo=1, routed)           0.000     6.738    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU.ALU_OUT<47>
+    DSP48E2_X3Y30        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[47]_PCOUT[47])
+                                                      0.167     6.905 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_OUTPUT_INST/PCOUT[47]
+                         net (fo=1, routed)           0.014     6.919    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/PCIN[47]
+    DSP48E2_X3Y31        DSP_ALU (Prop_DSP_ALU_DSP48E2_PCIN[47]_ALU_OUT[3])
+                                                      0.739     7.658 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU_INST/ALU_OUT[3]
+                         net (fo=1, routed)           0.000     7.658    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU.ALU_OUT<3>
+    DSP48E2_X3Y31        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[3]_P[3])
+                                                      0.146     7.804 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_OUTPUT_INST/P[3]
+                         net (fo=3, routed)           0.262     8.066    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/p_0_in[4]
+    SLICE_X12Y79         LUT2 (Prop_E6LUT_SLICEM_I1_O)
+                                                      0.187     8.253 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15/O
+                         net (fo=1, routed)           0.018     8.271    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15_n_0
+    SLICE_X12Y79         CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.236     8.507 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.537    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11_n_0
+    SLICE_X12Y80         CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.065     8.602 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.632    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11_n_0
+    SLICE_X12Y81         CARRY8 (Prop_CARRY8_SLICEM_CI_O[7])
+                                                      0.171     8.803 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[23]_i_11/O[7]
+                         net (fo=1, routed)           0.269     9.072    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next0[23]
+    SLICE_X11Y82         LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.153     9.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3/O
+                         net (fo=1, routed)           0.015     9.240    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3_n_0
+    SLICE_X11Y82         CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172     9.412 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2/CO[7]
+                         net (fo=1, routed)           0.030     9.442    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2_n_0
+    SLICE_X11Y83         CARRY8 (Prop_CARRY8_SLICEL_CI_O[7])
+                                                      0.171     9.613 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[31]_i_5/O[7]
+                         net (fo=5, routed)           0.412    10.025    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic0[31]
+    SLICE_X9Y84          LUT2 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.227    10.252 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7/O
+                         net (fo=1, routed)           0.015    10.267    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7_n_0
+    SLICE_X9Y84          CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172    10.439 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2/CO[7]
+                         net (fo=1, routed)           0.030    10.469    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2_n_0
+    SLICE_X9Y85          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[0])
+                                                      0.074    10.543 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74/CO[0]
+                         net (fo=64, routed)          0.403    10.946    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74_n_7
+    SLICE_X7Y87          LUT2 (Prop_A6LUT_SLICEM_I1_O)
+                                                      0.083    11.029 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72/O
+                         net (fo=1, routed)           0.017    11.046    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72_n_0
+    SLICE_X7Y87          CARRY8 (Prop_CARRY8_SLICEM_S[0]_CO[7])
+                                                      0.281    11.327 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15/CO[7]
+                         net (fo=1, routed)           0.030    11.357    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15_n_0
+    SLICE_X7Y88          CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.073    11.430 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_3/CO[7]
+                         net (fo=32, routed)          0.473    11.903    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/integral_next1
+    SLICE_X10Y89         LUT6 (Prop_G6LUT_SLICEM_I2_O)
+                                                      0.057    11.960 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_1/O
+                         net (fo=9, routed)           0.406    12.366    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/B[14]
+    DSP48E2_X2Y33        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST/B[14]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_pl_0 rise edge)
+                                                     10.000    10.000 r  
+    PS8_X0Y0             PS8                          0.000    10.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.181    10.181    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.035    10.216 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       2.935    13.151    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/CLK
+    DSP48E2_X2Y33        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST/CLK
+                         clock pessimism              0.251    13.402    
+                         clock uncertainty           -0.130    13.273    
+    DSP48E2_X2Y33        DSP_A_B_DATA (Setup_DSP_A_B_DATA_DSP48E2_CLK_B[14])
+                                                     -0.509    12.764    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST
+  -------------------------------------------------------------------
+                         required time                         12.764    
+                         arrival time                         -12.366    
+  -------------------------------------------------------------------
+                         slack                                  0.397    
+
+Slack (MET) :             0.415ns  (required time - arrival time)
+  Source:                 u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+                            (rising edge-triggered cell FDRE clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/DSP_A_B_DATA_INST/B[1]
+                            (rising edge-triggered cell DSP_A_B_DATA clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk_pl_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk_pl_0 rise@10.000ns - clk_pl_0 rise@0.000ns)
+  Data Path Delay:        8.827ns  (logic 5.873ns (66.534%)  route 2.954ns (33.466%))
+  Logic Levels:           25  (CARRY8=11 DSP_A_B_DATA=1 DSP_ALU=2 DSP_M_DATA=1 DSP_MULTIPLIER=1 DSP_OUTPUT=2 DSP_PREADD_DATA=1 LUT2=4 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.098ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.153ns = ( 13.153 - 10.000 ) 
+    Source Clock Delay      (SCD):    3.503ns
+    Clock Pessimism Removal (CPR):    0.251ns
+  Clock Uncertainty:      0.130ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.250ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      3.236ns (routing 1.671ns, distribution 1.565ns)
+  Clock Net Delay (Destination): 2.937ns (routing 1.527ns, distribution 1.410ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_pl_0 rise edge)
+                                                      0.000     0.000 r  
+    PS8_X0Y0             PS8                          0.000     0.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.229     0.229    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.038     0.267 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       3.236     3.503    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/s00_axi_aclk
+    SLICE_X13Y75         FDRE                                         r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X13Y75         FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.113     3.616 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/Q
+                         net (fo=5, routed)           0.260     3.875    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic[0]
+    SLICE_X11Y75         LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.152     4.027 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27/O
+                         net (fo=1, routed)           0.014     4.041    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27_n_0
+    SLICE_X11Y75         CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278     4.319 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3/CO[7]
+                         net (fo=1, routed)           0.030     4.349    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3_n_0
+    SLICE_X11Y76         CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.161     4.510 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_2/O[5]
+                         net (fo=1, routed)           0.362     4.872    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/A[13]
+    DSP48E2_X3Y30        DSP_A_B_DATA (Prop_DSP_A_B_DATA_DSP48E2_A[13]_A2_DATA[13])
+                                                      0.258     5.130 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA_INST/A2_DATA[13]
+                         net (fo=1, routed)           0.000     5.130    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA.A2_DATA<13>
+    DSP48E2_X3Y30        DSP_PREADD_DATA (Prop_DSP_PREADD_DATA_DSP48E2_A2_DATA[13]_A2A1[13])
+                                                      0.114     5.244 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA_INST/A2A1[13]
+                         net (fo=1, routed)           0.000     5.244    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA.A2A1<13>
+    DSP48E2_X3Y30        DSP_MULTIPLIER (Prop_DSP_MULTIPLIER_DSP48E2_A2A1[13]_U[34])
+                                                      0.700     5.944 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER_INST/U[34]
+                         net (fo=1, routed)           0.000     5.944    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER.U<34>
+    DSP48E2_X3Y30        DSP_M_DATA (Prop_DSP_M_DATA_DSP48E2_U[34]_U_DATA[34])
+                                                      0.067     6.011 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA_INST/U_DATA[34]
+                         net (fo=1, routed)           0.000     6.011    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA.U_DATA<34>
+    DSP48E2_X3Y30        DSP_ALU (Prop_DSP_ALU_DSP48E2_U_DATA[34]_ALU_OUT[47])
+                                                      0.727     6.738 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU_INST/ALU_OUT[47]
+                         net (fo=1, routed)           0.000     6.738    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU.ALU_OUT<47>
+    DSP48E2_X3Y30        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[47]_PCOUT[47])
+                                                      0.167     6.905 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_OUTPUT_INST/PCOUT[47]
+                         net (fo=1, routed)           0.014     6.919    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/PCIN[47]
+    DSP48E2_X3Y31        DSP_ALU (Prop_DSP_ALU_DSP48E2_PCIN[47]_ALU_OUT[3])
+                                                      0.739     7.658 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU_INST/ALU_OUT[3]
+                         net (fo=1, routed)           0.000     7.658    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU.ALU_OUT<3>
+    DSP48E2_X3Y31        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[3]_P[3])
+                                                      0.146     7.804 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_OUTPUT_INST/P[3]
+                         net (fo=3, routed)           0.262     8.066    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/p_0_in[4]
+    SLICE_X12Y79         LUT2 (Prop_E6LUT_SLICEM_I1_O)
+                                                      0.187     8.253 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15/O
+                         net (fo=1, routed)           0.018     8.271    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15_n_0
+    SLICE_X12Y79         CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.236     8.507 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.537    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11_n_0
+    SLICE_X12Y80         CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.065     8.602 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.632    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11_n_0
+    SLICE_X12Y81         CARRY8 (Prop_CARRY8_SLICEM_CI_O[7])
+                                                      0.171     8.803 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[23]_i_11/O[7]
+                         net (fo=1, routed)           0.269     9.072    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next0[23]
+    SLICE_X11Y82         LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.153     9.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3/O
+                         net (fo=1, routed)           0.015     9.240    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3_n_0
+    SLICE_X11Y82         CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172     9.412 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2/CO[7]
+                         net (fo=1, routed)           0.030     9.442    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2_n_0
+    SLICE_X11Y83         CARRY8 (Prop_CARRY8_SLICEL_CI_O[7])
+                                                      0.171     9.613 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[31]_i_5/O[7]
+                         net (fo=5, routed)           0.412    10.025    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic0[31]
+    SLICE_X9Y84          LUT2 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.227    10.252 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7/O
+                         net (fo=1, routed)           0.015    10.267    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7_n_0
+    SLICE_X9Y84          CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172    10.439 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2/CO[7]
+                         net (fo=1, routed)           0.030    10.469    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2_n_0
+    SLICE_X9Y85          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[0])
+                                                      0.074    10.543 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74/CO[0]
+                         net (fo=64, routed)          0.403    10.946    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74_n_7
+    SLICE_X7Y87          LUT2 (Prop_A6LUT_SLICEM_I1_O)
+                                                      0.083    11.029 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72/O
+                         net (fo=1, routed)           0.017    11.046    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72_n_0
+    SLICE_X7Y87          CARRY8 (Prop_CARRY8_SLICEM_S[0]_CO[7])
+                                                      0.281    11.327 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15/CO[7]
+                         net (fo=1, routed)           0.030    11.357    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15_n_0
+    SLICE_X7Y88          CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.073    11.430 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_3/CO[7]
+                         net (fo=32, routed)          0.294    11.724    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/integral_next1
+    SLICE_X5Y86          LUT6 (Prop_F6LUT_SLICEM_I2_O)
+                                                      0.186    11.910 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[1]_i_1/O
+                         net (fo=3, routed)           0.420    12.330    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/B[1]
+    DSP48E2_X2Y32        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/DSP_A_B_DATA_INST/B[1]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_pl_0 rise edge)
+                                                     10.000    10.000 r  
+    PS8_X0Y0             PS8                          0.000    10.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.181    10.181    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.035    10.216 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       2.937    13.153    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/CLK
+    DSP48E2_X2Y32        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/DSP_A_B_DATA_INST/CLK
+                         clock pessimism              0.251    13.404    
+                         clock uncertainty           -0.130    13.275    
+    DSP48E2_X2Y32        DSP_A_B_DATA (Setup_DSP_A_B_DATA_DSP48E2_CLK_B[1])
+                                                     -0.530    12.745    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/DSP_A_B_DATA_INST
+  -------------------------------------------------------------------
+                         required time                         12.745    
+                         arrival time                         -12.330    
+  -------------------------------------------------------------------
+                         slack                                  0.415    
+
+Slack (MET) :             0.451ns  (required time - arrival time)
+  Source:                 u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+                            (rising edge-triggered cell FDRE clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST/B[16]
+                            (rising edge-triggered cell DSP_A_B_DATA clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk_pl_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk_pl_0 rise@10.000ns - clk_pl_0 rise@0.000ns)
+  Data Path Delay:        8.822ns  (logic 5.744ns (65.113%)  route 3.078ns (34.887%))
+  Logic Levels:           25  (CARRY8=11 DSP_A_B_DATA=1 DSP_ALU=2 DSP_M_DATA=1 DSP_MULTIPLIER=1 DSP_OUTPUT=2 DSP_PREADD_DATA=1 LUT2=4 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.100ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.151ns = ( 13.151 - 10.000 ) 
+    Source Clock Delay      (SCD):    3.503ns
+    Clock Pessimism Removal (CPR):    0.251ns
+  Clock Uncertainty:      0.130ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.250ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      3.236ns (routing 1.671ns, distribution 1.565ns)
+  Clock Net Delay (Destination): 2.935ns (routing 1.527ns, distribution 1.408ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_pl_0 rise edge)
+                                                      0.000     0.000 r  
+    PS8_X0Y0             PS8                          0.000     0.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.229     0.229    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.038     0.267 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       3.236     3.503    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/s00_axi_aclk
+    SLICE_X13Y75         FDRE                                         r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X13Y75         FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.113     3.616 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/Q
+                         net (fo=5, routed)           0.260     3.875    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic[0]
+    SLICE_X11Y75         LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.152     4.027 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27/O
+                         net (fo=1, routed)           0.014     4.041    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27_n_0
+    SLICE_X11Y75         CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278     4.319 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3/CO[7]
+                         net (fo=1, routed)           0.030     4.349    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3_n_0
+    SLICE_X11Y76         CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.161     4.510 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_2/O[5]
+                         net (fo=1, routed)           0.362     4.872    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/A[13]
+    DSP48E2_X3Y30        DSP_A_B_DATA (Prop_DSP_A_B_DATA_DSP48E2_A[13]_A2_DATA[13])
+                                                      0.258     5.130 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA_INST/A2_DATA[13]
+                         net (fo=1, routed)           0.000     5.130    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA.A2_DATA<13>
+    DSP48E2_X3Y30        DSP_PREADD_DATA (Prop_DSP_PREADD_DATA_DSP48E2_A2_DATA[13]_A2A1[13])
+                                                      0.114     5.244 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA_INST/A2A1[13]
+                         net (fo=1, routed)           0.000     5.244    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA.A2A1<13>
+    DSP48E2_X3Y30        DSP_MULTIPLIER (Prop_DSP_MULTIPLIER_DSP48E2_A2A1[13]_U[34])
+                                                      0.700     5.944 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER_INST/U[34]
+                         net (fo=1, routed)           0.000     5.944    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER.U<34>
+    DSP48E2_X3Y30        DSP_M_DATA (Prop_DSP_M_DATA_DSP48E2_U[34]_U_DATA[34])
+                                                      0.067     6.011 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA_INST/U_DATA[34]
+                         net (fo=1, routed)           0.000     6.011    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA.U_DATA<34>
+    DSP48E2_X3Y30        DSP_ALU (Prop_DSP_ALU_DSP48E2_U_DATA[34]_ALU_OUT[47])
+                                                      0.727     6.738 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU_INST/ALU_OUT[47]
+                         net (fo=1, routed)           0.000     6.738    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU.ALU_OUT<47>
+    DSP48E2_X3Y30        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[47]_PCOUT[47])
+                                                      0.167     6.905 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_OUTPUT_INST/PCOUT[47]
+                         net (fo=1, routed)           0.014     6.919    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/PCIN[47]
+    DSP48E2_X3Y31        DSP_ALU (Prop_DSP_ALU_DSP48E2_PCIN[47]_ALU_OUT[3])
+                                                      0.739     7.658 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU_INST/ALU_OUT[3]
+                         net (fo=1, routed)           0.000     7.658    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU.ALU_OUT<3>
+    DSP48E2_X3Y31        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[3]_P[3])
+                                                      0.146     7.804 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_OUTPUT_INST/P[3]
+                         net (fo=3, routed)           0.262     8.066    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/p_0_in[4]
+    SLICE_X12Y79         LUT2 (Prop_E6LUT_SLICEM_I1_O)
+                                                      0.187     8.253 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15/O
+                         net (fo=1, routed)           0.018     8.271    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15_n_0
+    SLICE_X12Y79         CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.236     8.507 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.537    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11_n_0
+    SLICE_X12Y80         CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.065     8.602 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.632    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11_n_0
+    SLICE_X12Y81         CARRY8 (Prop_CARRY8_SLICEM_CI_O[7])
+                                                      0.171     8.803 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[23]_i_11/O[7]
+                         net (fo=1, routed)           0.269     9.072    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next0[23]
+    SLICE_X11Y82         LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.153     9.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3/O
+                         net (fo=1, routed)           0.015     9.240    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3_n_0
+    SLICE_X11Y82         CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172     9.412 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2/CO[7]
+                         net (fo=1, routed)           0.030     9.442    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2_n_0
+    SLICE_X11Y83         CARRY8 (Prop_CARRY8_SLICEL_CI_O[7])
+                                                      0.171     9.613 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[31]_i_5/O[7]
+                         net (fo=5, routed)           0.412    10.025    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic0[31]
+    SLICE_X9Y84          LUT2 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.227    10.252 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7/O
+                         net (fo=1, routed)           0.015    10.267    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7_n_0
+    SLICE_X9Y84          CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172    10.439 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2/CO[7]
+                         net (fo=1, routed)           0.030    10.469    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2_n_0
+    SLICE_X9Y85          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[0])
+                                                      0.074    10.543 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74/CO[0]
+                         net (fo=64, routed)          0.403    10.946    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74_n_7
+    SLICE_X7Y87          LUT2 (Prop_A6LUT_SLICEM_I1_O)
+                                                      0.083    11.029 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72/O
+                         net (fo=1, routed)           0.017    11.046    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72_n_0
+    SLICE_X7Y87          CARRY8 (Prop_CARRY8_SLICEM_S[0]_CO[7])
+                                                      0.281    11.327 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15/CO[7]
+                         net (fo=1, routed)           0.030    11.357    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15_n_0
+    SLICE_X7Y88          CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.073    11.430 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_3/CO[7]
+                         net (fo=32, routed)          0.473    11.903    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/integral_next1
+    SLICE_X10Y89         LUT6 (Prop_G6LUT_SLICEM_I2_O)
+                                                      0.057    11.960 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_1/O
+                         net (fo=9, routed)           0.364    12.324    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/B[16]
+    DSP48E2_X2Y33        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST/B[16]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_pl_0 rise edge)
+                                                     10.000    10.000 r  
+    PS8_X0Y0             PS8                          0.000    10.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.181    10.181    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.035    10.216 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       2.935    13.151    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/CLK
+    DSP48E2_X2Y33        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST/CLK
+                         clock pessimism              0.251    13.402    
+                         clock uncertainty           -0.130    13.273    
+    DSP48E2_X2Y33        DSP_A_B_DATA (Setup_DSP_A_B_DATA_DSP48E2_CLK_B[16])
+                                                     -0.497    12.776    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST
+  -------------------------------------------------------------------
+                         required time                         12.776    
+                         arrival time                         -12.324    
+  -------------------------------------------------------------------
+                         slack                                  0.451    
+
+Slack (MET) :             0.459ns  (required time - arrival time)
+  Source:                 u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+                            (rising edge-triggered cell FDRE clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/DSP_A_B_DATA_INST/B[0]
+                            (rising edge-triggered cell DSP_A_B_DATA clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk_pl_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk_pl_0 rise@10.000ns - clk_pl_0 rise@0.000ns)
+  Data Path Delay:        8.786ns  (logic 5.821ns (66.251%)  route 2.965ns (33.749%))
+  Logic Levels:           25  (CARRY8=11 DSP_A_B_DATA=1 DSP_ALU=2 DSP_M_DATA=1 DSP_MULTIPLIER=1 DSP_OUTPUT=2 DSP_PREADD_DATA=1 LUT2=4 LUT4=1 LUT5=1)
+  Clock Path Skew:        -0.098ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.153ns = ( 13.153 - 10.000 ) 
+    Source Clock Delay      (SCD):    3.503ns
+    Clock Pessimism Removal (CPR):    0.251ns
+  Clock Uncertainty:      0.130ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.250ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      3.236ns (routing 1.671ns, distribution 1.565ns)
+  Clock Net Delay (Destination): 2.937ns (routing 1.527ns, distribution 1.410ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_pl_0 rise edge)
+                                                      0.000     0.000 r  
+    PS8_X0Y0             PS8                          0.000     0.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.229     0.229    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.038     0.267 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       3.236     3.503    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/s00_axi_aclk
+    SLICE_X13Y75         FDRE                                         r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X13Y75         FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.113     3.616 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/Q
+                         net (fo=5, routed)           0.260     3.875    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic[0]
+    SLICE_X11Y75         LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.152     4.027 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27/O
+                         net (fo=1, routed)           0.014     4.041    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27_n_0
+    SLICE_X11Y75         CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278     4.319 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3/CO[7]
+                         net (fo=1, routed)           0.030     4.349    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3_n_0
+    SLICE_X11Y76         CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.161     4.510 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_2/O[5]
+                         net (fo=1, routed)           0.362     4.872    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/A[13]
+    DSP48E2_X3Y30        DSP_A_B_DATA (Prop_DSP_A_B_DATA_DSP48E2_A[13]_A2_DATA[13])
+                                                      0.258     5.130 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA_INST/A2_DATA[13]
+                         net (fo=1, routed)           0.000     5.130    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA.A2_DATA<13>
+    DSP48E2_X3Y30        DSP_PREADD_DATA (Prop_DSP_PREADD_DATA_DSP48E2_A2_DATA[13]_A2A1[13])
+                                                      0.114     5.244 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA_INST/A2A1[13]
+                         net (fo=1, routed)           0.000     5.244    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA.A2A1<13>
+    DSP48E2_X3Y30        DSP_MULTIPLIER (Prop_DSP_MULTIPLIER_DSP48E2_A2A1[13]_U[34])
+                                                      0.700     5.944 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER_INST/U[34]
+                         net (fo=1, routed)           0.000     5.944    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER.U<34>
+    DSP48E2_X3Y30        DSP_M_DATA (Prop_DSP_M_DATA_DSP48E2_U[34]_U_DATA[34])
+                                                      0.067     6.011 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA_INST/U_DATA[34]
+                         net (fo=1, routed)           0.000     6.011    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA.U_DATA<34>
+    DSP48E2_X3Y30        DSP_ALU (Prop_DSP_ALU_DSP48E2_U_DATA[34]_ALU_OUT[47])
+                                                      0.727     6.738 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU_INST/ALU_OUT[47]
+                         net (fo=1, routed)           0.000     6.738    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU.ALU_OUT<47>
+    DSP48E2_X3Y30        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[47]_PCOUT[47])
+                                                      0.167     6.905 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_OUTPUT_INST/PCOUT[47]
+                         net (fo=1, routed)           0.014     6.919    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/PCIN[47]
+    DSP48E2_X3Y31        DSP_ALU (Prop_DSP_ALU_DSP48E2_PCIN[47]_ALU_OUT[3])
+                                                      0.739     7.658 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU_INST/ALU_OUT[3]
+                         net (fo=1, routed)           0.000     7.658    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU.ALU_OUT<3>
+    DSP48E2_X3Y31        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[3]_P[3])
+                                                      0.146     7.804 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_OUTPUT_INST/P[3]
+                         net (fo=3, routed)           0.262     8.066    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/p_0_in[4]
+    SLICE_X12Y79         LUT2 (Prop_E6LUT_SLICEM_I1_O)
+                                                      0.187     8.253 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15/O
+                         net (fo=1, routed)           0.018     8.271    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15_n_0
+    SLICE_X12Y79         CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.236     8.507 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.537    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11_n_0
+    SLICE_X12Y80         CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.065     8.602 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.632    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11_n_0
+    SLICE_X12Y81         CARRY8 (Prop_CARRY8_SLICEM_CI_O[7])
+                                                      0.171     8.803 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[23]_i_11/O[7]
+                         net (fo=1, routed)           0.269     9.072    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next0[23]
+    SLICE_X11Y82         LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.153     9.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3/O
+                         net (fo=1, routed)           0.015     9.240    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3_n_0
+    SLICE_X11Y82         CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172     9.412 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2/CO[7]
+                         net (fo=1, routed)           0.030     9.442    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2_n_0
+    SLICE_X11Y83         CARRY8 (Prop_CARRY8_SLICEL_CI_O[7])
+                                                      0.171     9.613 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[31]_i_5/O[7]
+                         net (fo=5, routed)           0.412    10.025    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic0[31]
+    SLICE_X9Y84          LUT2 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.227    10.252 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7/O
+                         net (fo=1, routed)           0.015    10.267    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7_n_0
+    SLICE_X9Y84          CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172    10.439 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2/CO[7]
+                         net (fo=1, routed)           0.030    10.469    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2_n_0
+    SLICE_X9Y85          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[0])
+                                                      0.074    10.543 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74/CO[0]
+                         net (fo=64, routed)          0.308    10.851    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74_n_7
+    SLICE_X9Y88          LUT2 (Prop_A6LUT_SLICEL_I1_O)
+                                                      0.082    10.933 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_91/O
+                         net (fo=1, routed)           0.014    10.947    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_91_n_0
+    SLICE_X9Y88          CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278    11.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_39/CO[7]
+                         net (fo=1, routed)           0.030    11.255    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_39_n_0
+    SLICE_X9Y89          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[7])
+                                                      0.073    11.328 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_5/CO[7]
+                         net (fo=32, routed)          0.523    11.851    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/integral_next10_in
+    SLICE_X7Y82          LUT5 (Prop_A5LUT_SLICEM_I2_O)
+                                                      0.138    11.989 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[0]_i_1/O
+                         net (fo=3, routed)           0.300    12.289    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/B[0]
+    DSP48E2_X2Y32        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/DSP_A_B_DATA_INST/B[0]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_pl_0 rise edge)
+                                                     10.000    10.000 r  
+    PS8_X0Y0             PS8                          0.000    10.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.181    10.181    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.035    10.216 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       2.937    13.153    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/CLK
+    DSP48E2_X2Y32        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/DSP_A_B_DATA_INST/CLK
+                         clock pessimism              0.251    13.404    
+                         clock uncertainty           -0.130    13.275    
+    DSP48E2_X2Y32        DSP_A_B_DATA (Setup_DSP_A_B_DATA_DSP48E2_CLK_B[0])
+                                                     -0.527    12.748    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/DSP_A_B_DATA_INST
+  -------------------------------------------------------------------
+                         required time                         12.748    
+                         arrival time                         -12.289    
+  -------------------------------------------------------------------
+                         slack                                  0.459    
+
+Slack (MET) :             0.463ns  (required time - arrival time)
+  Source:                 u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+                            (rising edge-triggered cell FDRE clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/DSP_A_B_DATA_INST/A[7]
+                            (rising edge-triggered cell DSP_A_B_DATA clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk_pl_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk_pl_0 rise@10.000ns - clk_pl_0 rise@0.000ns)
+  Data Path Delay:        8.792ns  (logic 5.771ns (65.639%)  route 3.021ns (34.361%))
+  Logic Levels:           25  (CARRY8=11 DSP_A_B_DATA=1 DSP_ALU=2 DSP_M_DATA=1 DSP_MULTIPLIER=1 DSP_OUTPUT=2 DSP_PREADD_DATA=1 LUT2=4 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.119ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.133ns = ( 13.133 - 10.000 ) 
+    Source Clock Delay      (SCD):    3.503ns
+    Clock Pessimism Removal (CPR):    0.251ns
+  Clock Uncertainty:      0.130ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.250ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      3.236ns (routing 1.671ns, distribution 1.565ns)
+  Clock Net Delay (Destination): 2.917ns (routing 1.527ns, distribution 1.390ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_pl_0 rise edge)
+                                                      0.000     0.000 r  
+    PS8_X0Y0             PS8                          0.000     0.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.229     0.229    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.038     0.267 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       3.236     3.503    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/s00_axi_aclk
+    SLICE_X13Y75         FDRE                                         r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X13Y75         FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.113     3.616 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/Q
+                         net (fo=5, routed)           0.260     3.875    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic[0]
+    SLICE_X11Y75         LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.152     4.027 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27/O
+                         net (fo=1, routed)           0.014     4.041    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27_n_0
+    SLICE_X11Y75         CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278     4.319 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3/CO[7]
+                         net (fo=1, routed)           0.030     4.349    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3_n_0
+    SLICE_X11Y76         CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.161     4.510 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_2/O[5]
+                         net (fo=1, routed)           0.362     4.872    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/A[13]
+    DSP48E2_X3Y30        DSP_A_B_DATA (Prop_DSP_A_B_DATA_DSP48E2_A[13]_A2_DATA[13])
+                                                      0.258     5.130 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA_INST/A2_DATA[13]
+                         net (fo=1, routed)           0.000     5.130    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA.A2_DATA<13>
+    DSP48E2_X3Y30        DSP_PREADD_DATA (Prop_DSP_PREADD_DATA_DSP48E2_A2_DATA[13]_A2A1[13])
+                                                      0.114     5.244 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA_INST/A2A1[13]
+                         net (fo=1, routed)           0.000     5.244    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA.A2A1<13>
+    DSP48E2_X3Y30        DSP_MULTIPLIER (Prop_DSP_MULTIPLIER_DSP48E2_A2A1[13]_U[34])
+                                                      0.700     5.944 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER_INST/U[34]
+                         net (fo=1, routed)           0.000     5.944    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER.U<34>
+    DSP48E2_X3Y30        DSP_M_DATA (Prop_DSP_M_DATA_DSP48E2_U[34]_U_DATA[34])
+                                                      0.067     6.011 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA_INST/U_DATA[34]
+                         net (fo=1, routed)           0.000     6.011    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA.U_DATA<34>
+    DSP48E2_X3Y30        DSP_ALU (Prop_DSP_ALU_DSP48E2_U_DATA[34]_ALU_OUT[47])
+                                                      0.727     6.738 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU_INST/ALU_OUT[47]
+                         net (fo=1, routed)           0.000     6.738    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU.ALU_OUT<47>
+    DSP48E2_X3Y30        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[47]_PCOUT[47])
+                                                      0.167     6.905 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_OUTPUT_INST/PCOUT[47]
+                         net (fo=1, routed)           0.014     6.919    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/PCIN[47]
+    DSP48E2_X3Y31        DSP_ALU (Prop_DSP_ALU_DSP48E2_PCIN[47]_ALU_OUT[3])
+                                                      0.739     7.658 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU_INST/ALU_OUT[3]
+                         net (fo=1, routed)           0.000     7.658    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU.ALU_OUT<3>
+    DSP48E2_X3Y31        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[3]_P[3])
+                                                      0.146     7.804 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_OUTPUT_INST/P[3]
+                         net (fo=3, routed)           0.262     8.066    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/p_0_in[4]
+    SLICE_X12Y79         LUT2 (Prop_E6LUT_SLICEM_I1_O)
+                                                      0.187     8.253 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15/O
+                         net (fo=1, routed)           0.018     8.271    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15_n_0
+    SLICE_X12Y79         CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.236     8.507 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.537    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11_n_0
+    SLICE_X12Y80         CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.065     8.602 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.632    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11_n_0
+    SLICE_X12Y81         CARRY8 (Prop_CARRY8_SLICEM_CI_O[7])
+                                                      0.171     8.803 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[23]_i_11/O[7]
+                         net (fo=1, routed)           0.269     9.072    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next0[23]
+    SLICE_X11Y82         LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.153     9.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3/O
+                         net (fo=1, routed)           0.015     9.240    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3_n_0
+    SLICE_X11Y82         CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172     9.412 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2/CO[7]
+                         net (fo=1, routed)           0.030     9.442    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2_n_0
+    SLICE_X11Y83         CARRY8 (Prop_CARRY8_SLICEL_CI_O[7])
+                                                      0.171     9.613 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[31]_i_5/O[7]
+                         net (fo=5, routed)           0.412    10.025    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic0[31]
+    SLICE_X9Y84          LUT2 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.227    10.252 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7/O
+                         net (fo=1, routed)           0.015    10.267    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7_n_0
+    SLICE_X9Y84          CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172    10.439 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2/CO[7]
+                         net (fo=1, routed)           0.030    10.469    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2_n_0
+    SLICE_X9Y85          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[0])
+                                                      0.074    10.543 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74/CO[0]
+                         net (fo=64, routed)          0.403    10.946    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74_n_7
+    SLICE_X7Y87          LUT2 (Prop_A6LUT_SLICEM_I1_O)
+                                                      0.083    11.029 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72/O
+                         net (fo=1, routed)           0.017    11.046    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72_n_0
+    SLICE_X7Y87          CARRY8 (Prop_CARRY8_SLICEM_S[0]_CO[7])
+                                                      0.281    11.327 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15/CO[7]
+                         net (fo=1, routed)           0.030    11.357    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15_n_0
+    SLICE_X7Y88          CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.073    11.430 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_3/CO[7]
+                         net (fo=32, routed)          0.431    11.861    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/integral_next1
+    SLICE_X7Y82          LUT6 (Prop_H6LUT_SLICEM_I2_O)
+                                                      0.084    11.945 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[7]_i_1/O
+                         net (fo=3, routed)           0.350    12.295    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/A[7]
+    DSP48E2_X2Y35        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/DSP_A_B_DATA_INST/A[7]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_pl_0 rise edge)
+                                                     10.000    10.000 r  
+    PS8_X0Y0             PS8                          0.000    10.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.181    10.181    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.035    10.216 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       2.917    13.133    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/CLK
+    DSP48E2_X2Y35        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/DSP_A_B_DATA_INST/CLK
+                         clock pessimism              0.251    13.384    
+                         clock uncertainty           -0.130    13.254    
+    DSP48E2_X2Y35        DSP_A_B_DATA (Setup_DSP_A_B_DATA_DSP48E2_CLK_A[7])
+                                                     -0.497    12.757    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/DSP_A_B_DATA_INST
+  -------------------------------------------------------------------
+                         required time                         12.757    
+                         arrival time                         -12.295    
+  -------------------------------------------------------------------
+                         slack                                  0.463    
+
+Slack (MET) :             0.474ns  (required time - arrival time)
+  Source:                 u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+                            (rising edge-triggered cell FDRE clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Destination:            u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST/B[15]
+                            (rising edge-triggered cell DSP_A_B_DATA clocked by clk_pl_0  {rise@0.000ns fall@5.000ns period=10.000ns})
+  Path Group:             clk_pl_0
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            10.000ns  (clk_pl_0 rise@10.000ns - clk_pl_0 rise@0.000ns)
+  Data Path Delay:        8.806ns  (logic 5.744ns (65.231%)  route 3.062ns (34.769%))
+  Logic Levels:           25  (CARRY8=11 DSP_A_B_DATA=1 DSP_ALU=2 DSP_M_DATA=1 DSP_MULTIPLIER=1 DSP_OUTPUT=2 DSP_PREADD_DATA=1 LUT2=4 LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.100ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    3.151ns = ( 13.151 - 10.000 ) 
+    Source Clock Delay      (SCD):    3.503ns
+    Clock Pessimism Removal (CPR):    0.251ns
+  Clock Uncertainty:      0.130ns  ((TSJ^2 + DJ^2)^1/2) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Discrete Jitter          (DJ):    0.250ns
+    Phase Error              (PE):    0.000ns
+  Clock Net Delay (Source):      3.236ns (routing 1.671ns, distribution 1.565ns)
+  Clock Net Delay (Destination): 2.935ns (routing 1.527ns, distribution 1.408ns)
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock clk_pl_0 rise edge)
+                                                      0.000     0.000 r  
+    PS8_X0Y0             PS8                          0.000     0.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.229     0.229    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.038     0.267 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       3.236     3.503    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/s00_axi_aclk
+    SLICE_X13Y75         FDRE                                         r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X13Y75         FDRE (Prop_EFF_SLICEM_C_Q)
+                                                      0.113     3.616 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic_reg[0]/Q
+                         net (fo=5, routed)           0.260     3.875    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic[0]
+    SLICE_X11Y75         LUT2 (Prop_A6LUT_SLICEL_I0_O)
+                                                      0.152     4.027 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27/O
+                         net (fo=1, routed)           0.014     4.041    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_27_n_0
+    SLICE_X11Y75         CARRY8 (Prop_CARRY8_SLICEL_S[0]_CO[7])
+                                                      0.278     4.319 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3/CO[7]
+                         net (fo=1, routed)           0.030     4.349    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_3_n_0
+    SLICE_X11Y76         CARRY8 (Prop_CARRY8_SLICEL_CI_O[5])
+                                                      0.161     4.510 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next2_i_2/O[5]
+                         net (fo=1, routed)           0.362     4.872    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/A[13]
+    DSP48E2_X3Y30        DSP_A_B_DATA (Prop_DSP_A_B_DATA_DSP48E2_A[13]_A2_DATA[13])
+                                                      0.258     5.130 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA_INST/A2_DATA[13]
+                         net (fo=1, routed)           0.000     5.130    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_A_B_DATA.A2_DATA<13>
+    DSP48E2_X3Y30        DSP_PREADD_DATA (Prop_DSP_PREADD_DATA_DSP48E2_A2_DATA[13]_A2A1[13])
+                                                      0.114     5.244 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA_INST/A2A1[13]
+                         net (fo=1, routed)           0.000     5.244    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_PREADD_DATA.A2A1<13>
+    DSP48E2_X3Y30        DSP_MULTIPLIER (Prop_DSP_MULTIPLIER_DSP48E2_A2A1[13]_U[34])
+                                                      0.700     5.944 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER_INST/U[34]
+                         net (fo=1, routed)           0.000     5.944    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_MULTIPLIER.U<34>
+    DSP48E2_X3Y30        DSP_M_DATA (Prop_DSP_M_DATA_DSP48E2_U[34]_U_DATA[34])
+                                                      0.067     6.011 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA_INST/U_DATA[34]
+                         net (fo=1, routed)           0.000     6.011    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_M_DATA.U_DATA<34>
+    DSP48E2_X3Y30        DSP_ALU (Prop_DSP_ALU_DSP48E2_U_DATA[34]_ALU_OUT[47])
+                                                      0.727     6.738 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU_INST/ALU_OUT[47]
+                         net (fo=1, routed)           0.000     6.738    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_ALU.ALU_OUT<47>
+    DSP48E2_X3Y30        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[47]_PCOUT[47])
+                                                      0.167     6.905 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/DSP_OUTPUT_INST/PCOUT[47]
+                         net (fo=1, routed)           0.014     6.919    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/PCIN[47]
+    DSP48E2_X3Y31        DSP_ALU (Prop_DSP_ALU_DSP48E2_PCIN[47]_ALU_OUT[3])
+                                                      0.739     7.658 f  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU_INST/ALU_OUT[3]
+                         net (fo=1, routed)           0.000     7.658    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_ALU.ALU_OUT<3>
+    DSP48E2_X3Y31        DSP_OUTPUT (Prop_DSP_OUTPUT_DSP48E2_ALU_OUT[3]_P[3])
+                                                      0.146     7.804 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/DSP_OUTPUT_INST/P[3]
+                         net (fo=3, routed)           0.262     8.066    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/p_0_in[4]
+    SLICE_X12Y79         LUT2 (Prop_E6LUT_SLICEM_I1_O)
+                                                      0.187     8.253 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15/O
+                         net (fo=1, routed)           0.018     8.271    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic[7]_i_15_n_0
+    SLICE_X12Y79         CARRY8 (Prop_CARRY8_SLICEM_S[4]_CO[7])
+                                                      0.236     8.507 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.537    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[7]_i_11_n_0
+    SLICE_X12Y80         CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.065     8.602 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11/CO[7]
+                         net (fo=1, routed)           0.030     8.632    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[15]_i_11_n_0
+    SLICE_X12Y81         CARRY8 (Prop_CARRY8_SLICEM_CI_O[7])
+                                                      0.171     8.803 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/error_millic_reg[23]_i_11/O[7]
+                         net (fo=1, routed)           0.269     9.072    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/filtered_next0[23]
+    SLICE_X11Y82         LUT4 (Prop_H6LUT_SLICEL_I2_O)
+                                                      0.153     9.225 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3/O
+                         net (fo=1, routed)           0.015     9.240    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic[23]_i_3_n_0
+    SLICE_X11Y82         CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172     9.412 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2/CO[7]
+                         net (fo=1, routed)           0.030     9.442    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[23]_i_2_n_0
+    SLICE_X11Y83         CARRY8 (Prop_CARRY8_SLICEL_CI_O[7])
+                                                      0.171     9.613 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic_reg[31]_i_5/O[7]
+                         net (fo=5, routed)           0.412    10.025    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/error_millic0[31]
+    SLICE_X9Y84          LUT2 (Prop_H6LUT_SLICEL_I1_O)
+                                                      0.227    10.252 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7/O
+                         net (fo=1, routed)           0.015    10.267    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_7_n_0
+    SLICE_X9Y84          CARRY8 (Prop_CARRY8_SLICEL_S[7]_CO[7])
+                                                      0.172    10.439 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2/CO[7]
+                         net (fo=1, routed)           0.030    10.469    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_2_n_0
+    SLICE_X9Y85          CARRY8 (Prop_CARRY8_SLICEL_CI_CO[0])
+                                                      0.074    10.543 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74/CO[0]
+                         net (fo=64, routed)          0.403    10.946    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_74_n_7
+    SLICE_X7Y87          LUT2 (Prop_A6LUT_SLICEM_I1_O)
+                                                      0.083    11.029 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72/O
+                         net (fo=1, routed)           0.017    11.046    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_72_n_0
+    SLICE_X7Y87          CARRY8 (Prop_CARRY8_SLICEM_S[0]_CO[7])
+                                                      0.281    11.327 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15/CO[7]
+                         net (fo=1, routed)           0.030    11.357    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_15_n_0
+    SLICE_X7Y88          CARRY8 (Prop_CARRY8_SLICEM_CI_CO[7])
+                                                      0.073    11.430 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral_reg[31]_i_3/CO[7]
+                         net (fo=32, routed)          0.473    11.903    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/integral_next1
+    SLICE_X10Y89         LUT6 (Prop_G6LUT_SLICEM_I2_O)
+                                                      0.057    11.960 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/pid_integral[31]_i_1/O
+                         net (fo=9, routed)           0.348    12.308    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/B[15]
+    DSP48E2_X2Y33        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST/B[15]
+  -------------------------------------------------------------------    -------------------
+
+                         (clock clk_pl_0 rise edge)
+                                                     10.000    10.000 r  
+    PS8_X0Y0             PS8                          0.000    10.000 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0]
+                         net (fo=1, routed)           0.181    10.181    u_project_1_wrapper/project_1_i/K26_SOM/inst/pl_clk_unbuffered[0]
+    BUFG_PS_X0Y89        BUFG_PS (Prop_BUFG_PS_I_O)
+                                                      0.035    10.216 r  u_project_1_wrapper/project_1_i/K26_SOM/inst/buffer_pl_clk_0.PL_CLK_0_BUFG/O
+    X1Y1 (CLOCK_ROOT)    net (fo=23441, routed)       2.935    13.151    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/CLK
+    DSP48E2_X2Y33        DSP_A_B_DATA                                 r  u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST/CLK
+                         clock pessimism              0.251    13.402    
+                         clock uncertainty           -0.130    13.273    
+    DSP48E2_X2Y33        DSP_A_B_DATA (Setup_DSP_A_B_DATA_DSP48E2_CLK_B[15])
+                                                     -0.490    12.783    u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/DSP_A_B_DATA_INST
+  -------------------------------------------------------------------
+                         required time                         12.783    
+                         arrival time                         -12.308    
+  -------------------------------------------------------------------
+                         slack                                  0.474    
+
+
+
+

@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch } from "react";
 import type { PanelProps } from "./types";
 import type { AppAction } from "../state/store";
 import PlotCanvas from "./PlotCanvas";
 import { parseNumber } from "../utils/format";
-import { saveTextFile } from "../utils/saveText";
+import { storageMetadataFile, storageTextFile, storageWriteRecord } from "../utils/storage";
 import {
+  DEFAULT_PD_ZERO_ADC_CODE,
   DEFAULT_TZ_OHM,
   adcCodeToInputCurrentMicroamp,
   formatMicroamp,
-  inputCurrentMicroampToAdcCode,
+  inputCurrentMicroampToSignedAdcCode,
 } from "../utils/ada4355";
 import {
   appendSpectrumFrame,
@@ -28,9 +29,7 @@ export default function SpectrumPanel({
   dispatch,
   active = true,
   tzOhm = DEFAULT_TZ_OHM,
-  tzOhmText = String(DEFAULT_TZ_OHM),
-  setTzOhmText,
-  pdCurrentOffsetMicroamp = 0,
+  pdZeroAdcCode = DEFAULT_PD_ZERO_ADC_CODE,
 }: Props) {
   const spectrum = state.lastSpectrum;
   const [autoY, setAutoY] = useState(true);
@@ -41,10 +40,11 @@ export default function SpectrumPanel({
   const [recording, setRecording] = useState(false);
   const [recordState, setRecordState] = useState<SpectrumRecordingState>({ frames: [] });
   const completedDownloadRef = useRef(false);
+  const recordingSavingRef = useRef(false);
 
   const inputCurrent = useMemo(
-    () => (spectrum?.points ?? []).map((value) => adcCodeToInputCurrentMicroamp(value & 0xffff, tzOhm, pdCurrentOffsetMicroamp)),
-    [pdCurrentOffsetMicroamp, spectrum, tzOhm],
+    () => (spectrum?.points ?? []).map((value) => adcCodeToInputCurrentMicroamp(value & 0xffff, tzOhm, pdZeroAdcCode)),
+    [pdZeroAdcCode, spectrum, tzOhm],
   );
   const duration = spectrum?.duration_ms ?? 0;
   const count = spectrum?.count ?? 0;
@@ -57,30 +57,68 @@ export default function SpectrumPanel({
   const safeRecordTarget = Math.max(1, Math.floor(parseNumber(framesToRecord) || 1));
   const safeRecordRefreshMs = Math.max(0, Math.floor(parseNumber(recordRefreshMs) || 0));
 
-  const makeCsvFilename = (prefix: string) => `${prefix}-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
-
   const exportCurrentSpectrum = async () => {
     if (!spectrum) return;
-    const path = await saveTextFile(
-      makeCsvFilename(`spectrum-${spectrum.frame_counter}`),
-      recordedSpectrumCsv([
-        { recordIndex: 0, frameCounter: spectrum.frame_counter, rows: createSpectrumRecordRows(spectrum, 0, tzOhm, pdCurrentOffsetMicroamp) },
-      ]),
-    );
-    dispatch({ type: "log", message: path ? `Spectrum CSV saved: ${path}` : "Spectrum CSV export cancelled" });
+    const result = await storageWriteRecord({
+      dataType: "spectrum_snapshot",
+      name: `spectrum_${spectrum.frame_counter}`,
+      files: [
+        storageMetadataFile({
+          kind: "spectrum_snapshot",
+          saved_at: new Date().toISOString(),
+          frame_counter: spectrum.frame_counter,
+          count: spectrum.count,
+          duration_ms: spectrum.duration_ms,
+          tz_ohm: tzOhm,
+          pd_zero_adc_code: pdZeroAdcCode,
+        }),
+        storageTextFile(
+          "spectrum.csv",
+          recordedSpectrumCsv([
+            { recordIndex: 0, frameCounter: spectrum.frame_counter, rows: createSpectrumRecordRows(spectrum, 0, tzOhm, pdZeroAdcCode) },
+          ]),
+        ),
+      ],
+    });
+    dispatch({ type: "log", message: `Spectrum CSV saved: ${result.path}` });
   };
+
+  const saveSpectrumRecording = useCallback(async (frames: SpectrumRecordingState["frames"], eventKind = "spectrum_recording") => {
+    if (frames.length === 0) return null;
+    return storageWriteRecord({
+      dataType: "spectrum_recording",
+      name: eventKind === "spectrum_recording_partial" ? "spectrum_record_partial" : "spectrum_record",
+      files: [
+        storageMetadataFile({
+          kind: eventKind,
+          saved_at: new Date().toISOString(),
+          requested_frames: safeRecordTarget,
+          saved_frames: frames.length,
+          refresh_ms: safeRecordRefreshMs,
+          tz_ohm: tzOhm,
+          pd_zero_adc_code: pdZeroAdcCode,
+        }),
+        storageTextFile("spectra.csv", recordedSpectrumCsv(frames)),
+      ],
+    });
+  }, [pdZeroAdcCode, safeRecordRefreshMs, safeRecordTarget, tzOhm]);
 
   const startRecording = () => {
     completedDownloadRef.current = false;
+    recordingSavingRef.current = false;
     setRecordState({ frames: [] });
     setRecording(true);
   };
 
   const stopRecording = async () => {
+    if (recordingSavingRef.current) return;
+    recordingSavingRef.current = true;
+    completedDownloadRef.current = true;
     if (recordState.frames.length > 0) {
-      const path = await saveTextFile(makeCsvFilename("spectrum-record-partial"), recordedSpectrumCsv(recordState.frames));
-      dispatch({ type: "log", message: path ? `Spectrum recording saved: ${path}` : "Spectrum recording export cancelled" });
+      const result = await saveSpectrumRecording(recordState.frames, "spectrum_recording_partial");
+      if (result) dispatch({ type: "log", message: `Spectrum recording saved: ${result.path}` });
     }
+    recordingSavingRef.current = false;
     setRecording(false);
   };
 
@@ -92,19 +130,23 @@ export default function SpectrumPanel({
         nowMs: performance.now(),
         minIntervalMs: safeRecordRefreshMs,
         tzOhm,
-        currentOffsetMicroamp: pdCurrentOffsetMicroamp,
+        zeroAdcCode: pdZeroAdcCode,
       });
     });
-  }, [active, pdCurrentOffsetMicroamp, recording, safeRecordRefreshMs, safeRecordTarget, spectrum, tzOhm]);
+  }, [active, pdZeroAdcCode, recording, safeRecordRefreshMs, safeRecordTarget, spectrum, tzOhm]);
 
   useEffect(() => {
-    if (!active || !recording || completedDownloadRef.current || recordState.frames.length < safeRecordTarget) return;
+    if (!active || !recording || completedDownloadRef.current || recordingSavingRef.current || recordState.frames.length < safeRecordTarget) return;
     completedDownloadRef.current = true;
-    saveTextFile(makeCsvFilename("spectrum-record"), recordedSpectrumCsv(recordState.frames))
-      .then((path) => dispatch({ type: "log", message: path ? `Spectrum recording saved: ${path}` : "Spectrum recording export cancelled" }))
-      .catch((error) => dispatch({ type: "log", message: `Spectrum recording save failed: ${(error as Error).message}` }));
+    recordingSavingRef.current = true;
+    saveSpectrumRecording(recordState.frames, "spectrum_recording")
+      .then((result) => dispatch({ type: "log", message: result ? `Spectrum recording saved: ${result.path}` : "Spectrum recording export cancelled" }))
+      .catch((error) => dispatch({ type: "log", message: `Spectrum recording save failed: ${(error as Error).message}` }))
+      .finally(() => {
+        recordingSavingRef.current = false;
+      });
     setRecording(false);
-  }, [active, recordState.frames, recording, safeRecordTarget]);
+  }, [active, dispatch, recordState.frames, recording, safeRecordTarget, saveSpectrumRecording]);
 
   const manualYRange = autoY
     ? undefined
@@ -123,16 +165,13 @@ export default function SpectrumPanel({
         xLabel={xLabel}
         yRange={manualYRange}
         yTickFormatter={(value) => `${formatMicroamp(value)} uA`}
-        rightAxisLabel="ADC code"
-        rightTickFormatter={(value) => String(inputCurrentMicroampToAdcCode(value, tzOhm, pdCurrentOffsetMicroamp))}
+        rightAxisLabel="signed ADC code"
+        rightTickFormatter={(value) => String(inputCurrentMicroampToSignedAdcCode(value, tzOhm, pdZeroAdcCode))}
         active={active}
       />
       <div className="spectrum-controls">
         <div className="axis-controls below-plot">
-          <label>
-            Tz Ohm
-            <input value={tzOhmText} onChange={(event) => setTzOhmText?.(event.target.value)} />
-          </label>
+          <div className="muted">ADA4355 gain {tzOhm.toLocaleString()} ohm; zero ADC {pdZeroAdcCode} from ADA controls</div>
           <label className="checkbox-field">
             <input type="checkbox" checked={autoY} onChange={(event) => setAutoY(event.target.checked)} />
             Auto Scale

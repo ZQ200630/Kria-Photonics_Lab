@@ -1,0 +1,10 @@
+
+
+OPTION psf_version = 2.1;
+
+BEGIN DRIVER PAM_Parameters
+	OPTION supported_peripherals = (PAM_Parameters);
+	OPTION copyfiles = all;
+	OPTION VERSION = 1.0;
+	OPTION NAME = PAM_Parameters;
+END DRIVER

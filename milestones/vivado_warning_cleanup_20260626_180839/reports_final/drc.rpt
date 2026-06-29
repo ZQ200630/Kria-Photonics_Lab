@@ -1,0 +1,670 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2023.2.2 (lin64) Build 4126759 Thu Feb  8 23:52:05 MST 2024
+| Date         : Fri Jun 26 21:20:05 2026
+| Host         : qian-MS-7E25 running 64-bit Ubuntu 22.04.5 LTS
+| Command      : report_drc -file /home/qian/xilinx/Xilinx/Vivado_Projects/Demo1013/reports/vivado_warning_cleanup_20260625/drc.rpt
+| Design       : design_top
+| Device       : xck26-sfvc784-2LVI-i
+| Speed File   : -2LVI
+| Design State : Fully Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Report DRC
+
+Table of Contents
+-----------------
+1. REPORT SUMMARY
+2. REPORT DETAILS
+
+1. REPORT SUMMARY
+-----------------
+            Netlist: netlist
+          Floorplan: impl_1
+      Design limits: <entire design considered>
+           Ruledeck: default
+             Max violations: <unlimited>
+             Violations found: 122
++-----------+----------+---------------------------------------------------------------------+------------+
+| Rule      | Severity | Description                                                         | Violations |
++-----------+----------+---------------------------------------------------------------------+------------+
+| DPIP-2    | Warning  | Input pipelining                                                    | 40         |
+| DPOP-3    | Warning  | PREG Output pipelining                                              | 28         |
+| DPOP-4    | Warning  | MREG Output pipelining                                              | 27         |
+| PDCN-1569 | Warning  | LUT equation term check                                             | 6          |
+| REQP-1769 | Warning  | RAMB18E2_WRITE_WIDTH_A_9_or_less_doesnt_use_WEA1                    | 2          |
+| REQP-1858 | Warning  | RAMB36E2_writefirst_collision_advisory                              | 1          |
+| RPBF-3    | Warning  | IO port buffering is incomplete                                     | 1          |
+| RTSTAT-10 | Warning  | No routable loads                                                   | 1          |
+| AVAL-155  | Advisory | enum_AMULTSEL_BMULTSEL_enum_DREG_ADREG_0_connects_CED_CEAD_RSTD_GND | 8          |
+| REQP-1701 | Advisory | enum_DREG_0_connects_CED_GND                                        | 8          |
++-----------+----------+---------------------------------------------------------------------+------------+
+
+2. REPORT DETAILS
+-----------------
+DPIP-2#1 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#2 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__0 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__0/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#3 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__1 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__1/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#4 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__2 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__2/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#5 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__3 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__3/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#6 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__4 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__4/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#7 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__5 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__5/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#8 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#9 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#10 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#11 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#12 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#13 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#14 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#15 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#16 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#17 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__0 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__0/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#18 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__1 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__1/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#19 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__2 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__2/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#20 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic0 input u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic0/C[47:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#21 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/current_calc input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/current_calc/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#22 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/current_calc1 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/current_calc1/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#23 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#24 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__0 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__0/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#25 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__1 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__1/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#26 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__1 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__1/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#27 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__2 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__2/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#28 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__2 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__2/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#29 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__3 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__3/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#30 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__4 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__4/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#31 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__5 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__5/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#32 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__5 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__5/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#33 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__6 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__6/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#34 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__6 input u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__6/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#35 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_center_calc1 input u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_center_calc1/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#36 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_center_calc1 input u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_center_calc1/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#37 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_offset_last input u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_offset_last/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#38 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_offset_last input u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_offset_last/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#39 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/y_center_calc1 input u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/y_center_calc1/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPIP-2#40 Warning
+Input pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/y_center_calc1 input u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/y_center_calc1/B[17:0] is not pipelined. Pipelining DSP48 input will improve performance.
+Related violations: <none>
+
+DPOP-3#1 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#2 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__1 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__1/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#3 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__2 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__2/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#4 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__5 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__5/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#5 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#6 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#7 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#8 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#9 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#10 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#11 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#12 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__0 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__0/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#13 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__1 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__1/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#14 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__2 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__2/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#15 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/remainder_reg0 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/remainder_reg0/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#16 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic0 output u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/temperature_millic0/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#17 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/current_calc output u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/current_calc/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#18 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1 output u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#19 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__0 output u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__0/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#20 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__1 output u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__1/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#21 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__2 output u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__2/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#22 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__3 output u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__3/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#23 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__4 output u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__4/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#24 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__5 output u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__5/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#25 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__6 output u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__6/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#26 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_center_calc1 output u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_center_calc1/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#27 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_offset_last output u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_offset_last/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-3#28 Warning
+PREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/y_center_calc1 output u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/y_center_calc1/P[47:0] is not pipelined (PREG=0). Pipelining the DSP48 output will improve performance and often saves power so it is suggested whenever possible to fully pipeline this function.  If this DSP48 function was inferred, it is suggested to describe an additional register stage after this function.  If the DSP48 was instantiated in the design, it is suggested to set the PREG attribute to 1.
+Related violations: <none>
+
+DPOP-4#1 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#2 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__1 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__1/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#3 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__2 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__2/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#4 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__5 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/d641__5/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#5 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#6 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/filtered_next2__0/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#7 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#8 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__0/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#9 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__1/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#10 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_i_term1__2/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#11 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#12 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__0 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__0/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#13 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__1 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__1/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#14 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__2 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/pid_p_term1__2/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#15 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/remainder_reg0 multiplier stage u_project_1_wrapper/project_1_i/ad4170_tec_ctrl_0/inst/ad4170_tec_ctrl_v1_0_S00_AXI_inst/th10k_converter/remainder_reg0/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#16 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/current_calc multiplier stage u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/current_calc/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#17 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1 multiplier stage u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#18 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__0 multiplier stage u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__0/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#19 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__1 multiplier stage u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__1/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#20 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__2 multiplier stage u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__2/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#21 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__3 multiplier stage u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__3/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#22 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__4 multiplier stage u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__4/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#23 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__5 multiplier stage u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__5/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#24 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__6 multiplier stage u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/value1__6/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#25 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_center_calc1 multiplier stage u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_center_calc1/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#26 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_offset_last multiplier stage u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/x_offset_last/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+DPOP-4#27 Warning
+MREG Output pipelining  
+DSP u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/y_center_calc1 multiplier stage u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/y_center_calc1/P[47:0] is not pipelined (MREG=0). Pipelining the multiplier function will improve performance and will save significant power so it is suggested whenever possible to fully pipeline this function.  If this multiplier was inferred, it is suggested to describe an additional register stage after this function.  If there is no registered adder/accumulator following the multiply function, two pipeline stages are suggested to allow both the MREG and PREG registers to be used.  If the DSP48 was instantiated in the design, it is suggested to set both the MREG and PREG attributes to 1 when performing multiply functions.
+Related violations: <none>
+
+PDCN-1569#1 Warning
+LUT equation term check  
+Used physical LUT pin 'A1' of cell u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_WRITE.write_addr_inst/cmd_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/gpregsm1.user_valid_i_1 (pin u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_WRITE.write_addr_inst/cmd_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/gpregsm1.user_valid_i_1/I1) is not included in the LUT equation: 'O5=(A3)+((~A3)*(~A5)*A4)'. If this cell is a user instantiated LUT in the design, please remove connectivity to the pin or change the equation and/or INIT string of the LUT to prevent this issue. If the cell is inferred or IP created LUT, please regenerate the IP and/or resynthesize the design to attempt to correct the issue.
+Related violations: <none>
+
+PDCN-1569#2 Warning
+LUT equation term check  
+Used physical LUT pin 'A2' of cell dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/temp_curid[31]_i_1 (pin dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/temp_curid[31]_i_1/I0) is not included in the LUT equation: 'O5=(A5*A1)+(A5*(~A1)*(~A4))+((~A5))'. If this cell is a user instantiated LUT in the design, please remove connectivity to the pin or change the equation and/or INIT string of the LUT to prevent this issue. If the cell is inferred or IP created LUT, please regenerate the IP and/or resynthesize the design to attempt to correct the issue.
+Related violations: <none>
+
+PDCN-1569#3 Warning
+LUT equation term check  
+Used physical LUT pin 'A3' of cell dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/temp_curid[31]_i_1 (pin dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/temp_curid[31]_i_1/I1) is not included in the LUT equation: 'O5=(A5*A1)+(A5*(~A1)*(~A4))+((~A5))'. If this cell is a user instantiated LUT in the design, please remove connectivity to the pin or change the equation and/or INIT string of the LUT to prevent this issue. If the cell is inferred or IP created LUT, please regenerate the IP and/or resynthesize the design to attempt to correct the issue.
+Related violations: <none>
+
+PDCN-1569#4 Warning
+LUT equation term check  
+Used physical LUT pin 'A3' of cell u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_WRITE.write_addr_inst/USE_B_CHANNEL.cmd_b_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/gpregsm1.user_valid_i_1 (pin u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_WRITE.write_addr_inst/USE_B_CHANNEL.cmd_b_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/gpregsm1.user_valid_i_1/I1) is not included in the LUT equation: 'O5=(A2)+((~A2)*(~A1)*A4)'. If this cell is a user instantiated LUT in the design, please remove connectivity to the pin or change the equation and/or INIT string of the LUT to prevent this issue. If the cell is inferred or IP created LUT, please regenerate the IP and/or resynthesize the design to attempt to correct the issue.
+Related violations: <none>
+
+PDCN-1569#5 Warning
+LUT equation term check  
+Used physical LUT pin 'A4' of cell dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.id_state[0]_i_1 (pin dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.id_state[0]_i_1/I0) is not included in the LUT equation: 'O6=(A6+~A6)*((A5))'. If this cell is a user instantiated LUT in the design, please remove connectivity to the pin or change the equation and/or INIT string of the LUT to prevent this issue. If the cell is inferred or IP created LUT, please regenerate the IP and/or resynthesize the design to attempt to correct the issue.
+Related violations: <none>
+
+PDCN-1569#6 Warning
+LUT equation term check  
+Used physical LUT pin 'A5' of cell u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_READ.read_addr_inst/cmd_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/gpregsm1.user_valid_i_1 (pin u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_READ.read_addr_inst/cmd_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/gpregsm1.user_valid_i_1/I1) is not included in the LUT equation: 'O5=(A3)+((~A3)*(~A1)*A4)'. If this cell is a user instantiated LUT in the design, please remove connectivity to the pin or change the equation and/or INIT string of the LUT to prevent this issue. If the cell is inferred or IP created LUT, please regenerate the IP and/or resynthesize the design to attempt to correct the issue.
+Related violations: <none>
+
+REQP-1769#1 Warning
+RAMB18E2_WRITE_WIDTH_A_9_or_less_doesnt_use_WEA1  
+The RAMB18E2 cell u_project_1_wrapper/project_1_i/axi_ada4355_capture_0/inst/axi_ada4355_capture_v1_0_S00_AXI_inst/core/spectrum0_reg_bram_14 has WRITE_WIDTH_A set to 9 or less. The WEA[1] pin should not be connected to active signal.
+Related violations: <none>
+
+REQP-1769#2 Warning
+RAMB18E2_WRITE_WIDTH_A_9_or_less_doesnt_use_WEA1  
+The RAMB18E2 cell u_project_1_wrapper/project_1_i/axi_ada4355_capture_0/inst/axi_ada4355_capture_v1_0_S00_AXI_inst/core/spectrum1_reg_bram_14 has WRITE_WIDTH_A set to 9 or less. The WEA[1] pin should not be connected to active signal.
+Related violations: <none>
+
+REQP-1858#1 Warning
+RAMB36E2_writefirst_collision_advisory  
+Synchronous clocking is detected for BRAM (u_project_1_wrapper/project_1_i/AXI_ADA4355_DMA/inst/i_transfer/i_request_arb/i_store_and_forward/i_mem/m_ram_reg) in SDP mode with WRITE_FIRST write-mode. It is strongly suggested to change this mode to NO_CHANGE for best power characteristics. However, both WRITE_FIRST and NO_CHANGE may exhibit address collisions if the same address appears on both read and write ports resulting in unknown or corrupted read data. It is suggested to confirm via simulation that an address collision never occurs and if so it is suggested to try and avoid this situation. If address collisions cannot be avoided, the write-mode may be set to READ_FIRST which guarantees that the read data is the prior contents of the memory at the cost of additional power in the design. See the FPGA Memory Resources User Guide for additional information.
+Related violations: <none>
+
+RPBF-3#1 Warning
+IO port buffering is incomplete  
+Device port switch_in expects both input and output buffering but the buffers are incomplete.
+Related violations: <none>
+
+RTSTAT-10#1 Warning
+No routable loads  
+58 net(s) have no routable loads. The problem bus(es) and/or net(s) are dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD1/ctl_reg_en_2[1],
+dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_RD/U_RD_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_rdfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/aempty_fwft_i,
+dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_WR/U_WR_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_wrfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/ngwrdrst.grst.rd_rst_reg[0],
+dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD7_CTL/ctl_reg[2:0],
+dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD7_CTL/ctl_reg_en_2[1],
+dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/TMS,
+dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/m_bscan_capture[0],
+dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/m_bscan_drck[0],
+dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/m_bscan_runtest[0],
+u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_READ.read_addr_inst/cmd_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/aempty_fwft_i,
+u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_READ.read_addr_inst/cmd_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/ngwrdrst.grst.rd_rst_reg[2:0],
+u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_WRITE.write_addr_inst/USE_B_CHANNEL.cmd_b_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/aempty_fwft_i,
+u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_WRITE.write_addr_inst/USE_B_CHANNEL.cmd_b_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/ngwrdrst.grst.rd_rst_reg[2:0],
+u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_WRITE.write_addr_inst/cmd_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gl0.rd/gr1.gr1_int.rfwft/aempty_fwft_i,
+u_project_1_wrapper/project_1_i/ps8_0_axi_periph/s00_couplers/auto_ds/inst/gen_downsizer.gen_simple_downsizer.axi_downsizer_inst/USE_WRITE.write_addr_inst/cmd_queue/inst/fifo_gen_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/rstblk/ngwrdrst.grst.rd_rst_reg[2:0]
+ (the first 15 of 44 listed nets/buses).
+Related violations: <none>
+
+AVAL-155#1 Advisory
+enum_AMULTSEL_BMULTSEL_enum_DREG_ADREG_0_connects_CED_CEAD_RSTD_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C1/inst/axi_ad3552r_up_core/axi_ad3552r_channel_0/i_dds/dds_phase[1].i_dds_2/i_dds_1_0/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: DSP48E2 is not using the D port (AMULTSEL = A and BMULTSEL = B). For improved power characteristics, set DREG and ADREG to '1', tie CED, CEAD, and RSTD to logic '0'.
+Related violations: <none>
+
+AVAL-155#2 Advisory
+enum_AMULTSEL_BMULTSEL_enum_DREG_ADREG_0_connects_CED_CEAD_RSTD_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C1/inst/axi_ad3552r_up_core/axi_ad3552r_channel_0/i_dds/dds_phase[1].i_dds_2/i_dds_1_1/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: DSP48E2 is not using the D port (AMULTSEL = A and BMULTSEL = B). For improved power characteristics, set DREG and ADREG to '1', tie CED, CEAD, and RSTD to logic '0'.
+Related violations: <none>
+
+AVAL-155#3 Advisory
+enum_AMULTSEL_BMULTSEL_enum_DREG_ADREG_0_connects_CED_CEAD_RSTD_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C1/inst/axi_ad3552r_up_core/axi_ad3552r_channel_1/i_dds/dds_phase[1].i_dds_2/i_dds_1_0/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: DSP48E2 is not using the D port (AMULTSEL = A and BMULTSEL = B). For improved power characteristics, set DREG and ADREG to '1', tie CED, CEAD, and RSTD to logic '0'.
+Related violations: <none>
+
+AVAL-155#4 Advisory
+enum_AMULTSEL_BMULTSEL_enum_DREG_ADREG_0_connects_CED_CEAD_RSTD_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C1/inst/axi_ad3552r_up_core/axi_ad3552r_channel_1/i_dds/dds_phase[1].i_dds_2/i_dds_1_1/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: DSP48E2 is not using the D port (AMULTSEL = A and BMULTSEL = B). For improved power characteristics, set DREG and ADREG to '1', tie CED, CEAD, and RSTD to logic '0'.
+Related violations: <none>
+
+AVAL-155#5 Advisory
+enum_AMULTSEL_BMULTSEL_enum_DREG_ADREG_0_connects_CED_CEAD_RSTD_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C2/inst/axi_ad3552r_up_core/axi_ad3552r_channel_0/i_dds/dds_phase[1].i_dds_2/i_dds_1_0/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: DSP48E2 is not using the D port (AMULTSEL = A and BMULTSEL = B). For improved power characteristics, set DREG and ADREG to '1', tie CED, CEAD, and RSTD to logic '0'.
+Related violations: <none>
+
+AVAL-155#6 Advisory
+enum_AMULTSEL_BMULTSEL_enum_DREG_ADREG_0_connects_CED_CEAD_RSTD_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C2/inst/axi_ad3552r_up_core/axi_ad3552r_channel_0/i_dds/dds_phase[1].i_dds_2/i_dds_1_1/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: DSP48E2 is not using the D port (AMULTSEL = A and BMULTSEL = B). For improved power characteristics, set DREG and ADREG to '1', tie CED, CEAD, and RSTD to logic '0'.
+Related violations: <none>
+
+AVAL-155#7 Advisory
+enum_AMULTSEL_BMULTSEL_enum_DREG_ADREG_0_connects_CED_CEAD_RSTD_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C2/inst/axi_ad3552r_up_core/axi_ad3552r_channel_1/i_dds/dds_phase[1].i_dds_2/i_dds_1_0/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: DSP48E2 is not using the D port (AMULTSEL = A and BMULTSEL = B). For improved power characteristics, set DREG and ADREG to '1', tie CED, CEAD, and RSTD to logic '0'.
+Related violations: <none>
+
+AVAL-155#8 Advisory
+enum_AMULTSEL_BMULTSEL_enum_DREG_ADREG_0_connects_CED_CEAD_RSTD_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C2/inst/axi_ad3552r_up_core/axi_ad3552r_channel_1/i_dds/dds_phase[1].i_dds_2/i_dds_1_1/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: DSP48E2 is not using the D port (AMULTSEL = A and BMULTSEL = B). For improved power characteristics, set DREG and ADREG to '1', tie CED, CEAD, and RSTD to logic '0'.
+Related violations: <none>
+
+REQP-1701#1 Advisory
+enum_DREG_0_connects_CED_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C1/inst/axi_ad3552r_up_core/axi_ad3552r_channel_0/i_dds/dds_phase[1].i_dds_2/i_dds_1_0/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: When the DSP48E2 DREG attribute is set to 0, the CED input pin should be tied to GND to save power.
+Related violations: <none>
+
+REQP-1701#2 Advisory
+enum_DREG_0_connects_CED_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C1/inst/axi_ad3552r_up_core/axi_ad3552r_channel_0/i_dds/dds_phase[1].i_dds_2/i_dds_1_1/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: When the DSP48E2 DREG attribute is set to 0, the CED input pin should be tied to GND to save power.
+Related violations: <none>
+
+REQP-1701#3 Advisory
+enum_DREG_0_connects_CED_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C1/inst/axi_ad3552r_up_core/axi_ad3552r_channel_1/i_dds/dds_phase[1].i_dds_2/i_dds_1_0/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: When the DSP48E2 DREG attribute is set to 0, the CED input pin should be tied to GND to save power.
+Related violations: <none>
+
+REQP-1701#4 Advisory
+enum_DREG_0_connects_CED_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C1/inst/axi_ad3552r_up_core/axi_ad3552r_channel_1/i_dds/dds_phase[1].i_dds_2/i_dds_1_1/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: When the DSP48E2 DREG attribute is set to 0, the CED input pin should be tied to GND to save power.
+Related violations: <none>
+
+REQP-1701#5 Advisory
+enum_DREG_0_connects_CED_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C2/inst/axi_ad3552r_up_core/axi_ad3552r_channel_0/i_dds/dds_phase[1].i_dds_2/i_dds_1_0/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: When the DSP48E2 DREG attribute is set to 0, the CED input pin should be tied to GND to save power.
+Related violations: <none>
+
+REQP-1701#6 Advisory
+enum_DREG_0_connects_CED_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C2/inst/axi_ad3552r_up_core/axi_ad3552r_channel_0/i_dds/dds_phase[1].i_dds_2/i_dds_1_1/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: When the DSP48E2 DREG attribute is set to 0, the CED input pin should be tied to GND to save power.
+Related violations: <none>
+
+REQP-1701#7 Advisory
+enum_DREG_0_connects_CED_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C2/inst/axi_ad3552r_up_core/axi_ad3552r_channel_1/i_dds/dds_phase[1].i_dds_2/i_dds_1_0/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: When the DSP48E2 DREG attribute is set to 0, the CED input pin should be tied to GND to save power.
+Related violations: <none>
+
+REQP-1701#8 Advisory
+enum_DREG_0_connects_CED_GND  
+u_project_1_wrapper/project_1_i/AXI_AD3552_C2/inst/axi_ad3552r_up_core/axi_ad3552r_channel_1/i_dds/dds_phase[1].i_dds_2/i_dds_1_1/i_dds_scale/i_mult_macro/dsp_v5_1.DSP48_V5_1: When the DSP48E2 DREG attribute is set to 0, the CED input pin should be tied to GND to save power.
+Related violations: <none>
+
+

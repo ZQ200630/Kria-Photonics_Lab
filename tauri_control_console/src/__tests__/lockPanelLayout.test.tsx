@@ -63,7 +63,9 @@ describe("LockPanel layout", () => {
 
     expect(html).toContain('class="operation-grid operation-grid-two-column"');
     expect(html).toContain('class="lock-view-controls lock-spectrum-toolbar"');
-    expect(html).toContain('class="compact-field lock-toolbar-field"');
+    expect(html).toContain("LP Shift");
+    expect(html).not.toContain("Gain 2,000 ohm; zero ADC 27034");
+    expect(html).not.toContain("Tz Ohm");
     expect(html).toContain('class="lock-method-control lock-method-segmented"');
     expect(html).toContain('class="candidate-counter lock-toolbar-counter"');
     expect(html).toContain('class="recording-controls spectrum-recording-controls lock-data-recorder"');
@@ -82,7 +84,7 @@ describe("LockPanel layout", () => {
     expect(html).toContain("<h4>PD + Temperature Monitor</h4>");
     expect(html).toContain("Start Monitor");
     expect(html).toContain("Saves PD and temperature from 50 Hz SSE status");
-    expect(html).toContain("<strong>./Data</strong>");
+    expect(html).toContain("<strong>Global Data Root</strong>");
     expect(html).toContain("Stop Locking");
     expect(html).not.toContain("Record Lock Data");
 

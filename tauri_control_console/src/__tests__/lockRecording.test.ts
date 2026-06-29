@@ -15,8 +15,8 @@ function pdCurrent(adc: number): string {
   return adcCodeToInputCurrentMicroamp(adc, 2000).toFixed(6);
 }
 
-function pdCurrentWithOffset(adc: number): string {
-  return (adcCodeToInputCurrentMicroamp(adc, 2000) - 519).toFixed(6);
+function pdCurrentWithZeroAdcCode(adc: number): string {
+  return adcCodeToInputCurrentMicroamp(adc, 2000, 29620).toFixed(6);
 }
 
 describe("lock recording export helpers", () => {
@@ -89,9 +89,9 @@ describe("lock recording export helpers", () => {
     expect(preLockPdValues(samples, 100, 5)).toEqual([10, 11, 12]);
   });
 
-  it("exports lock spectra with the configured photodiode current offset", () => {
-    expect(spectrumFrameCsv(frame, 0, 65535, 2000, 519).trim().split("\n")[1]).toBe(
-      `0.000000,${pdCurrentWithOffset(65280)},0,65280,255,0,0.000000`,
+  it("exports lock spectra with the configured photodiode zero ADC code", () => {
+    expect(spectrumFrameCsv(frame, 0, 65535, 2000, 29620).trim().split("\n")[1]).toBe(
+      `0.000000,${pdCurrentWithZeroAdcCode(65280)},0,65280,255,0,0.000000`,
     );
   });
 });

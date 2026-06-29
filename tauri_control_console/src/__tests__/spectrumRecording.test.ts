@@ -55,13 +55,14 @@ describe("spectrum recording helpers", () => {
     );
   });
 
-  it("records spectrum currents with the configured photodiode current offset", () => {
+  it("records spectrum currents with the configured photodiode zero ADC code", () => {
+    const zeroAdcCode = 29620;
     const state = appendSpectrumFrame({ frames: [], lastFrameCounter: undefined, lastAcceptedAtMs: undefined }, makeSpectrum(1, [0xffff]), {
       nowMs: 0,
       minIntervalMs: 0,
-      currentOffsetMicroamp: 519,
+      zeroAdcCode,
     });
 
-    expect(state.frames[0].rows[0].pdCurrentMicroamp).toBeCloseTo(adcCodeToInputCurrentMicroamp(0xffff, 2000) - 519);
+    expect(state.frames[0].rows[0].pdCurrentMicroamp).toBeCloseTo(adcCodeToInputCurrentMicroamp(0xffff, 2000, zeroAdcCode));
   });
 });

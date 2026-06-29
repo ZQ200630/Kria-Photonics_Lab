@@ -75,6 +75,16 @@ class Ada4355RawBufferTests(unittest.TestCase):
         self.assertEqual(control.ADA_REG["RAW_FILTERED_ADC_LAST"], 0xA0)
         self.assertEqual(control.ADA_REG["RAW_CAPACITY_SAMPLES"], 0xA4)
         self.assertEqual(control.ADA_REG["RAW_BUFFER_WORDS"], 0xA8)
+        self.assertEqual(control.ADA_REG["RAW_DEBUG"], 0xAC)
+        self.assertEqual(control.ADA_REG["RAW_WRITER_WORDS"], 0xB0)
+        self.assertEqual(control.ADA_REG["RAW_MEM_WRITES"], 0xB4)
+        self.assertEqual(control.ADA_REG["RAW_LAST_FIFO"], 0xB8)
+        self.assertEqual(control.ADA_REG["RAW_LAST_MEM_LO"], 0xBC)
+        self.assertEqual(control.ADA_REG["RAW_LAST_MEM_HI"], 0xC0)
+        self.assertEqual(control.ADA_REG["RAW_READ_LO"], 0xC4)
+        self.assertEqual(control.ADA_REG["RAW_READ_HI"], 0xC8)
+        self.assertEqual(control.ADA_REG["RAW_READ_ADDR"], 0xCC)
+        self.assertEqual(control.ADA_FILTER_RAW_GLITCH_REJECT, 0x20)
 
     def test_read_raw_unpacks_two_u16_samples_per_word(self):
         ada, _regs, raw = self.make_capture([0x22221111, 0x44443333, 0x00005555])
@@ -120,6 +130,32 @@ class Ada4355RawBufferTests(unittest.TestCase):
                 for offset, _value in raw_only_regs.writes
             )
         )
+
+    def test_configure_filter_updates_raw_glitch_bit_independently(self):
+        ada, regs, _raw = self.make_capture([])
+        regs.values[control.ADA_REG["FILTER_CONTROL"]] = control.ADA_FILTER_DEFAULT
+
+        ada.configure_filter(raw_glitch_reject=True)
+
+        self.assertIn(
+            (
+                control.ADA_REG["FILTER_CONTROL"],
+                control.ADA_FILTER_DEFAULT | control.ADA_FILTER_RAW_GLITCH_REJECT,
+            ),
+            regs.writes,
+        )
+
+        ada.configure_filter(raw_glitch_reject=False)
+
+        self.assertEqual(regs.writes[-1], (control.ADA_REG["FILTER_CONTROL"], control.ADA_FILTER_DEFAULT))
+
+    def test_status_exposes_raw_glitch_readback(self):
+        ada, regs, _raw = self.make_capture([])
+        regs.values[control.ADA_REG["FILTER_CONTROL"]] = control.ADA_FILTER_RAW_GLITCH_REJECT
+
+        status = ada.status()
+
+        self.assertTrue(status["filter"]["raw_glitch_reject"])
 
     def test_system_constructor_maps_raw_buffer_and_closes_it(self):
         class FakeAxiMap(FakeRegs):

@@ -339,7 +339,7 @@ class DefaultParameterTests(unittest.TestCase):
         self.assertIn("localparam [7:0] A_RAW_LP_SHIFT", rtl)
         self.assertIn("localparam [7:0] A_RAW_CAPACITY", rtl)
         self.assertIn("raw_lp_shift_reg <= 32'd13;", rtl)
-        self.assertIn("VERSION = 32'h0001_0007", rtl)
+        self.assertIn("VERSION = 32'h0001_000D", rtl)
 
     def test_ada_rtl_exposes_independent_raw_buffer_ports(self):
         top = (ADA_AXI.parent / "axi_ada4355_capture_v1_0.v").read_text(
@@ -357,6 +357,11 @@ class DefaultParameterTests(unittest.TestCase):
         self.assertIn("xpm_memory_sdpram", core)
         self.assertIn('MEMORY_PRIMITIVE("ultra")', core.replace(" ", ""))
         self.assertIn("RAW_MAX_SAMPLES", core)
+        self.assertIn("raw_glitch_reject_enable", core)
+        self.assertIn("raw_median_sample_adc", core)
+        self.assertIn("raw_sample_adc = raw_use_filtered_adc ? raw_filtered_adc_last : raw_median_sample_adc", core)
+        self.assertIn("raw_median_sample_adc = median3_u16", core)
+        self.assertNotIn("raw_last_accepted_adc", core)
 
     def test_laser_rtl_lock_defaults_match_panel_defaults(self):
         rtl = LASER_AXI.read_text(encoding="utf-8")

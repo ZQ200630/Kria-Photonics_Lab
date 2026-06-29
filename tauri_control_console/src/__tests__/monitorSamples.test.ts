@@ -4,6 +4,7 @@ import {
   monitorModeWindows,
   monitorRecordingWindow,
   monitorRecordingWindows,
+  pushBoundedMonitorSample,
   statusEventToMonitorSample,
   statusToMonitorSample,
 } from "../utils/monitorSamples";
@@ -71,6 +72,32 @@ describe("monitor sample helpers", () => {
 
     expect(next).toEqual([{ t: 0.02 }, { t: 0.04 }]);
     expect(existing).toEqual([{ t: 0 }, { t: 0.02 }]);
+  });
+
+  it("updates a ref-backed monitor history in place to avoid reallocating on every SSE sample", () => {
+    const existing = [{ t: 0 }, { t: 0.02 }];
+    const next = pushBoundedMonitorSample(existing, { t: 0.04 }, 2);
+
+    expect(next).toBe(existing);
+    expect(existing).toEqual([{ t: 0.02 }, { t: 0.04 }]);
+  });
+
+  it("trims saturated ref-backed monitor history in chunks instead of splicing on every push", () => {
+    const existing = Array.from({ length: 100 }, (_, index) => ({ t: index }));
+    let spliceCount = 0;
+    const originalSplice = existing.splice;
+    existing.splice = ((...args: Parameters<typeof existing.splice>) => {
+      spliceCount += 1;
+      return originalSplice.apply(existing, args);
+    }) as typeof existing.splice;
+
+    for (let index = 100; index < 110; index += 1) {
+      pushBoundedMonitorSample(existing, { t: index }, 100);
+    }
+
+    expect(existing.length).toBeLessThanOrEqual(100);
+    expect(existing[existing.length - 1]).toEqual({ t: 109 });
+    expect(spliceCount).toBeLessThanOrEqual(2);
   });
 
   it("uses the PC receipt time for SSE monitor filtering when the board clock differs", () => {

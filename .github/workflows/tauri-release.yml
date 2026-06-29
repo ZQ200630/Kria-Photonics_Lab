@@ -1,0 +1,109 @@
+name: Tauri Release Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runner: ubuntu-24.04
+            artifact: butterfly-linux-x86_64
+          - name: windows-x86_64
+            runner: windows-latest
+            artifact: butterfly-windows-x86_64
+          - name: macos-x86_64
+            runner: macos-13
+            artifact: butterfly-macos-x86_64
+          - name: macos-arm64
+            runner: macos-14
+            artifact: butterfly-macos-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: tauri_control_console/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            patchelf \
+            rpm \
+            wget
+
+      - name: Install frontend dependencies
+        working-directory: tauri_control_console
+        run: npm ci
+
+      - name: Build Tauri bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: tauri_control_console
+          args: --verbose
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          path: |
+            tauri_control_console/src-tauri/target/release/bundle/**/*.AppImage
+            tauri_control_console/src-tauri/target/release/bundle/**/*.deb
+            tauri_control_console/src-tauri/target/release/bundle/**/*.rpm
+            tauri_control_console/src-tauri/target/release/bundle/**/*.dmg
+            tauri_control_console/src-tauri/target/release/bundle/**/*.msi
+            tauri_control_console/src-tauri/target/release/bundle/**/*.exe
+            tauri_control_console/src-tauri/target/release/bundle/**/*.app
+
+  publish-release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-downloads
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          mapfile -d '' files < <(find release-downloads -type f -print0)
+          gh release create "${TAG_NAME}" "${files[@]}" \
+            --title "${TAG_NAME}" \
+            --notes "Butterfly Laser Control cross-platform release for ${TAG_NAME}."

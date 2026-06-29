@@ -13,8 +13,8 @@ export type PanelProps = {
   tzOhm?: number;
   tzOhmText?: string;
   setTzOhmText?: (value: string) => void;
-  pdCurrentOffsetMicroamp?: number;
-  pdCurrentOffsetText?: string;
-  setPdCurrentOffsetText?: (value: string) => void;
+  pdZeroAdcCode?: number;
+  pdZeroAdcCodeText?: string;
+  setPdZeroAdcCodeText?: (value: string) => void;
   monitorSamplesRef?: { current: MonitorSample[] };
 };

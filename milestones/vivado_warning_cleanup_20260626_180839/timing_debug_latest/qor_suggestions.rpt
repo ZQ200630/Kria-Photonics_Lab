@@ -1,0 +1,75 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2023.2.2 (lin64) Build 4126759 Thu Feb  8 23:52:05 MST 2024
+| Date         : Fri Jun 26 22:53:33 2026
+| Host         : qian-MS-7E25 running 64-bit Ubuntu 22.04.5 LTS
+| Command      : report_qor_suggestions -file /home/qian/Portable_System_Project/Butterfly_Laser_Driver/milestones/vivado_warning_cleanup_20260626_180839/timing_debug_latest/qor_suggestions.rpt
+| Design       : design_top
+| Device       : xck26
+| Design State : Routed
+| ML Models    : v2021.2.0
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Report QoR Suggestions
+
+Table of Contents
+-----------------
+1. QoR Suggestions Report Summary
+2. ML Strategies
+3. QoR Suggestions - Clocking
+4. QoR Suggestions - XDC
+
+1. QoR Suggestions Report Summary
+---------------------------------
+
++---------------+-------------+-----------+--------------+----------------+-----------+-------------+----------------------+------------------------------------------------------------------------------------------+-------------+
+|      Name     |      Id     |   Status  | Generated At | Applicable For | Automatic |    Scope    | Incremental Friendly |                                        Description                                       |    Source   |
++---------------+-------------+-----------+--------------+----------------+-----------+-------------+----------------------+------------------------------------------------------------------------------------------+-------------+
+| RQS_CLOCK-9-1 | RQS_CLOCK-9 | Generated | route_design | place_design   | Yes       | GLOBALSCOPE | Yes                  | Sub optimal Fvco on MMCM/PLL. Update MMCM/PLL settings to improve the jitter.            | Current Run |
+| RQS_XDC-1-1   | RQS_XDC-1   | Generated | route_design | synth_design   | No        | GLOBALSCOPE | No                   | Paths above Max Net/LUT budgeting. Review paths and either reduce logic delays, add      | Current Run |
+|               |             |           |              |                |           |             |                      | pipelining or increase path requirements.                                                |             |
++---------------+-------------+-----------+--------------+----------------+-----------+-------------+----------------------+------------------------------------------------------------------------------------------+-------------+
+* By default the number of failing paths is limited to 100. Use the -max_paths options to override.
+
+
+2. ML Strategies
+----------------
+
++---+--------------+-------------------+----------------------------------------------+
+| # |      Id      |      Command      |                    Options                   |
++---+--------------+-------------------+----------------------------------------------+
+| 1 | RQS_STRAT-35 | opt_design        | -directive ExploreSequentialArea             |
+|   |              | place_design      | -directive ExtraNetDelay_low                 |
+|   |              | phys_opt_design   | -directive AggressiveExplore                 |
+|   |              | route_design      | -directive NoTimingRelaxation -tns_cleanup   |
+| 2 | RQS_STRAT-37 | opt_design        | -directive ExploreSequentialArea             |
+|   |              | place_design      | -directive ExtraTimingOpt                    |
+|   |              | phys_opt_design   | -directive AggressiveExplore                 |
+|   |              | route_design      | -directive NoTimingRelaxation -tns_cleanup   |
+| 3 | RQS_STRAT-31 | opt_design        | -directive ExploreSequentialArea             |
+|   |              | place_design      | -directive EarlyBlockPlacement               |
+|   |              | phys_opt_design   | -directive AggressiveExplore                 |
+|   |              | route_design      | -directive NoTimingRelaxation -tns_cleanup   |
++---+--------------+-------------------+----------------------------------------------+
+
+
+3. QoR Suggestions - Clocking
+-----------------------------
+
++---------------+-----------+-------+-------+-------+----------------+-------+--------+--------------+-------------------+-----------------------+------------------------------------+---------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
+|      Name     | Path Type |  Skew | Slack |  Req. | Datapath Delay | Cell% | Route% | Source Clock | Destination Clock | Source Clock Topology |     Destination Clock Topology     |                                       Startpoint                                      |                                             Endpoint                                            |
++---------------+-----------+-------+-------+-------+----------------+-------+--------+--------------+-------------------+-----------------------+------------------------------------+---------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
+| RQS_CLOCK-9-1 | SETUP     | 0.028 | 0.260 | 1.667 | 1.374          | 39.10 | 60.90  | clk_pl_0     | mmcm_clk_0_s      | PS8 BUFG_PS FDCE      | PS8 BUFG_PS MMCME4_ADV BUFGCE FDRE | u_project_1_wrapper/project_1_i/axi_pam_image_acq_0/inst/controller/galvo_y_reg[15]/C | u_project_1_wrapper/project_1_i/AXI_AD3552_C2/inst/axi_ad3552r_interface/transfer_reg_reg[47]/D |
++---------------+-----------+-------+-------+-------+----------------+-------+--------+--------------+-------------------+-----------------------+------------------------------------+---------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------+
+
+
+4. QoR Suggestions - XDC
+------------------------
+
++-------------+-------------+--------------+--------+--------+--------+--------+----------------+-------+--------+--------------+-------------------+----------------------------------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------+---------------------------+-----------------+-----------------+
+|     Name    | No of Paths | Logic Levels | Routes |  Slack |  Req.  |  Skew  | Datapath Delay | Cell% | Route% | Source Clock | Destination Clock |                                                         Startpoint                                                         |                                                                           Endpoint                                                                          | Path budget for Net check | Path budget for Lut check | Net check slack | LUT check slack |
++-------------+-------------+--------------+--------+--------+--------+--------+----------------+-------+--------+--------------+-------------------+----------------------------------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------+---------------------------+-----------------+-----------------+
+| RQS_XDC-1-1 | 50          | 47           | 37     | -5.028 | 10.000 | -0.085 | 14.860         | 55.90 | 44.10  | clk_pl_0     | clk_pl_0          | u_project_1_wrapper/project_1_i/axi_ada4355_capture_0/inst/axi_ada4355_capture_v1_0_S00_AXI_inst/core/monitor_avg_reg[7]/C | u_project_1_wrapper/project_1_i/axi_laser_current_ct_0/inst/axi_laser_current_ctrl_v1_0_S00_AXI_inst/u_laser_current_ctrl_core/req_ch1_code[13]_i_1_psdsp/D | 7                         | 32                        | -2.426          | 4.132           |
++-------------+-------------+--------------+--------+--------+--------+--------+----------------+-------+--------+--------------+-------------------+----------------------------------------------------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------+---------------------------+---------------------------+-----------------+-----------------+
+
+

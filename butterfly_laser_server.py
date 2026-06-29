@@ -17,6 +17,7 @@ import signal
 import socket
 import threading
 import time
+from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -44,12 +45,34 @@ from pa_imaging_capture import (
     PaCaptureWorker,
     PamAxiController,
     PamCaptureParams,
+    PamSchedulerConfig,
+    PamSchedulerController,
+    PAM_SCHED_CMD_SINGLE_PULSE,
+    PAM_SCHED_CMD_START,
+    PAM_SCHED_CTRL_ADC_ENABLE,
+    PAM_SCHED_CTRL_CAPTURE_ENABLE,
+    PAM_SCHED_CTRL_LD_ENABLE,
+    PAM_SCHED_CTRL_LOOP_ENABLE,
+    PAM_SCHED_CTRL_MANUAL_LIVE_UPDATE,
+    PAM_SCHED_CTRL_RESPECT_DOWNSTREAM_BUSY,
+    PAM_SCHED_MODE_AUTO_SCAN_CAPTURE,
+    PAM_SCHED_MODE_CONTINUOUS_POINT_CAPTURE,
+    PAM_SCHED_MODE_GALVO_WAVEFORM_NO_CAPTURE,
+    PAM_SCHED_MODE_MANUAL_GALVO_HOLD,
+    PAM_SCHED_MODE_MANUAL_PULSE_NO_CAPTURE,
 )
 
 
 SETTINGS_SCHEMA_VERSION = 6
 PA_STOP_ALL_JOIN_TIMEOUT_S = 15.0
 PA_SHUTDOWN_JOIN_TIMEOUT_S = 15.0
+ADA4355_GPIO_CTRL_DEFAULT_DIR = "/sys/bus/platform/devices/ada4355-gpio-ctrl"
+ADA4355_ALLOWED_GAIN_OHMS = (2000, 20000, 200000)
+ADA4355_LOW_PASS_OPTIONS = (
+    {"label": "1 MHz", "enabled": True},
+    {"label": "100 MHz", "enabled": False},
+)
+ADA_FILTER_RAW_GLITCH_REJECT_FALLBACK = 1 << 5
 
 
 DEFAULT_SETTINGS = {
@@ -148,6 +171,8 @@ DEFAULT_SETTINGS = {
         "glitch_threshold": "3000",
         "lp_shift": "13",
         "raw_lp_shift": "13",
+        "gain_ohms": "2000",
+        "low_pass_enabled": False,
     },
 }
 
@@ -408,20 +433,47 @@ class PaService:
         self.disconnect_worker_token = None
         self.last_stats = self._new_stats()
         self.last_error = ""
+        self.connection_count = 0
+        self.rejected_connection_count = 0
+        self.client_peer = ""
+        self.client_local = ""
+        self.client_connected_at = 0.0
+        self.last_client_peer = ""
+        self.last_client_local = ""
+        self.last_client_disconnected_at = 0.0
 
     def attach_socket(self, sock):
         with self.state_lock:
             if self.writer is not None:
+                self.rejected_connection_count += 1
                 self.last_error = "PA TCP client already connected"
                 self._close_socket(sock)
                 return self._status_locked()
             self.client_socket = sock
             self.writer = self.writer_factory(sock)
             self.writer_token = object()
+            self.connection_count += 1
+            self.client_peer = self._format_socket_endpoint(sock, "getpeername")
+            self.client_local = self._format_socket_endpoint(sock, "getsockname")
+            self.client_connected_at = time.time()
+            self.last_client_peer = self.client_peer
+            self.last_client_local = self.client_local
             self.last_error = ""
             return self._status_locked()
 
-    def start(self, params, max_blocks=-1, capture_time_sec=0):
+    def start(
+        self,
+        params,
+        max_blocks=-1,
+        capture_time_sec=0,
+        expected_frames=0,
+        capture_program=None,
+        capture_start=None,
+        capture_stop=None,
+        expected_frame_period_counts=None,
+    ):
+        expected_frames = int(expected_frames)
+        capture_time_sec = 0 if expected_frames > 0 else float(capture_time_sec)
         with self.state_lock:
             if self.writer is None:
                 raise RuntimeError("PA TCP client is not connected")
@@ -430,6 +482,13 @@ class PaService:
             pam = self.pam_factory(self.pam_regs)
             device = self.device_factory(self.capture_dev_path)
             worker = self.worker_factory(pam, device, self.writer)
+            if hasattr(worker, "configure_capture_hooks"):
+                worker.configure_capture_hooks(
+                    program=capture_program,
+                    start=capture_start,
+                    stop=capture_stop,
+                    expected_frame_period_counts=expected_frame_period_counts,
+                )
             worker_writer = self.writer
             writer_token = self.writer_token
             worker_token = object()
@@ -438,7 +497,16 @@ class PaService:
             self.disconnect_worker_token = None
             self.worker_thread = threading.Thread(
                 target=self._run_worker,
-                args=(worker, worker_writer, writer_token, worker_token, params, int(max_blocks), float(capture_time_sec)),
+                args=(
+                    worker,
+                    worker_writer,
+                    writer_token,
+                    worker_token,
+                    params,
+                    int(max_blocks),
+                    capture_time_sec,
+                    expected_frames,
+                ),
                 name="pa-capture-worker",
                 daemon=True,
             )
@@ -475,6 +543,8 @@ class PaService:
             self.writer = None
             self.client_socket = None
             self.writer_token = None
+            if writer is not None or sock is not None:
+                self._mark_client_disconnected_locked()
             if writer is not None:
                 try:
                     writer.close_client()
@@ -499,20 +569,45 @@ class PaService:
         with self.state_lock:
             return self._status_locked()
 
-    def _run_worker(self, worker, worker_writer, writer_token, worker_token, params, max_blocks, capture_time_sec):
+    def _run_worker(
+        self,
+        worker,
+        worker_writer,
+        writer_token,
+        worker_token,
+        params,
+        max_blocks,
+        capture_time_sec,
+        expected_frames,
+    ):
         try:
-            worker.run_once(params, max_blocks=max_blocks, capture_time_sec=capture_time_sec)
+            worker.run_once(
+                params,
+                max_blocks=max_blocks,
+                capture_time_sec=capture_time_sec,
+                expected_frames=expected_frames,
+            )
         except Exception as exc:
             with self.state_lock:
+                worker_requested_stop = self._is_worker_stop_requested(worker)
                 expected_disconnect = (
                     self.worker is worker
                     and self.worker_token is worker_token
                     and self.disconnect_worker_token is worker_token
                     and self._is_expected_disconnect_error(exc)
                 )
+                expected_stop_disconnect = (
+                    worker_requested_stop
+                    and self._is_expected_disconnect_error(exc)
+                    and self.worker is worker
+                    and self.worker_token is worker_token
+                )
                 if expected_disconnect:
                     self.last_error = ""
                     self._mark_worker_disconnected(worker)
+                elif expected_stop_disconnect:
+                    self.last_error = ""
+                    self._mark_worker_disconnected(worker, end_reason="stop_requested")
                 elif self.worker is worker and self.worker_token is worker_token:
                     self.last_error = self._worker_last_error(worker) or str(exc)
                 writer = self.writer if self.writer is worker_writer and self.writer_token is writer_token else None
@@ -520,6 +615,7 @@ class PaService:
                     self.writer = None
                     self.client_socket = None
                     self.writer_token = None
+                    self._mark_client_disconnected_locked()
             if writer is not None:
                 try:
                     writer.close_client()
@@ -542,12 +638,23 @@ class PaService:
     def _capture_active_locked(self):
         return self.worker_thread is not None and self.worker_thread.is_alive()
 
+    def _read_pl_counters(self):
+        try:
+            return self.pam_factory(self.pam_regs).read_pl_counters()
+        except Exception as exc:
+            return {"error": str(exc)}
+
     def _status_locked(self):
         running = self._capture_active_locked()
         if running and self.worker is not None:
             stats = dict(getattr(self.worker, "stats", {}) or {})
         else:
             stats = dict(self.last_stats)
+        pl_counters = (
+            stats.get("pl_counters_latest")
+            or stats.get("pl_counters_end")
+            or stats.get("pl_counters_initial")
+        )
         return {
             "connected": self.writer is not None,
             "running": running,
@@ -555,7 +662,25 @@ class PaService:
             "blocks_sent": int(stats.get("blocks_sent", 0) or 0),
             "frames_sent": int(stats.get("frames_sent", 0) or 0),
             "bytes_sent": int(stats.get("bytes_sent", 0) or 0),
+            "expected_frames": int(stats.get("expected_frames", 0) or 0),
             "end_reason": str(stats.get("end_reason", "")),
+            "last_block": stats.get("last_block"),
+            "axis_status_initial": stats.get("axis_status_initial"),
+            "axis_status_before_stop": stats.get("axis_status_before_stop"),
+            "axis_status_after_stop": stats.get("axis_status_after_stop"),
+            "axis_status_after_drain": stats.get("axis_status_after_drain"),
+            "axis_status_end": stats.get("axis_status_end"),
+            "pl_counters": pl_counters,
+            "diagnostics": stats.get("diagnostics") or {},
+            "worker_alive": running,
+            "client_peer": self.client_peer if self.writer is not None else "",
+            "client_local": self.client_local if self.writer is not None else "",
+            "client_connected_at": self.client_connected_at if self.writer is not None else 0.0,
+            "last_client_peer": self.last_client_peer,
+            "last_client_local": self.last_client_local,
+            "last_client_disconnected_at": self.last_client_disconnected_at,
+            "connection_count": self.connection_count,
+            "rejected_connection_count": self.rejected_connection_count,
         }
 
     def _new_stats(self):
@@ -564,8 +689,19 @@ class PaService:
             "blocks_sent": 0,
             "frames_sent": 0,
             "bytes_sent": 0,
+            "expected_frames": 0,
             "last_error": "",
             "end_reason": "",
+            "last_block": None,
+            "axis_status_initial": None,
+            "axis_status_before_stop": None,
+            "axis_status_after_stop": None,
+            "axis_status_after_drain": None,
+            "axis_status_end": None,
+            "pl_counters_initial": None,
+            "pl_counters_latest": None,
+            "pl_counters_end": None,
+            "diagnostics": {},
         }
 
     def _snapshot_worker_stats(self, worker):
@@ -612,12 +748,23 @@ class PaService:
             or "socket is closed" in message
         )
 
-    def _mark_worker_disconnected(self, worker):
+    def _is_worker_stop_requested(self, worker):
+        stop_event = getattr(worker, "_stop_event", None)
+        if stop_event is None:
+            stop_event = getattr(worker, "stop_requested", None)
+        if stop_event is None:
+            return False
+        try:
+            return bool(stop_event.is_set())
+        except Exception:
+            return False
+
+    def _mark_worker_disconnected(self, worker, end_reason="disconnect"):
         stats = getattr(worker, "stats", None)
         if isinstance(stats, dict):
             stats["running"] = False
             stats["last_error"] = ""
-            stats["end_reason"] = "disconnect"
+            stats["end_reason"] = end_reason
 
     def _mark_worker_timeout_locked(self, worker, end_reason, message):
         self.last_error = message
@@ -626,6 +773,20 @@ class PaService:
             stats["last_error"] = message
             stats["end_reason"] = end_reason
         self.last_stats = self._snapshot_worker_stats(worker)
+
+    def _mark_client_disconnected_locked(self):
+        if self.client_peer or self.client_local:
+            self.last_client_disconnected_at = time.time()
+        self.client_peer = ""
+        self.client_local = ""
+        self.client_connected_at = 0.0
+
+    def _format_socket_endpoint(self, sock, method_name):
+        try:
+            endpoint = getattr(sock, method_name)()
+        except Exception:
+            return ""
+        return format_endpoint(endpoint)
 
     def _close_socket(self, sock):
         try:
@@ -638,6 +799,91 @@ class PaService:
             pass
 
 
+class PaSchedulerService:
+    def __init__(self, pam_regs, controller_factory=PamSchedulerController):
+        self.pam_regs = pam_regs
+        self.controller_factory = controller_factory
+        self.lock = threading.RLock()
+        self.last_config = None
+        self.last_error = ""
+
+    def controller(self):
+        return self.controller_factory(self.pam_regs)
+
+    def configure(self, config):
+        with self.lock:
+            try:
+                self.controller().program(config)
+                self.last_config = config.to_dict() if hasattr(config, "to_dict") else asdict(config)
+                self.last_error = ""
+                return self.status()
+            except Exception as exc:
+                self.last_error = str(exc)
+                raise
+
+    def command(self, command_bits):
+        with self.lock:
+            try:
+                self.controller().command(command_bits)
+                self.last_error = ""
+                return self.status()
+            except Exception as exc:
+                self.last_error = str(exc)
+                raise
+
+    def manual_position(self, x, y):
+        with self.lock:
+            try:
+                controller = self.controller()
+                controller.manual_position(int(x), int(y))
+                if self.last_config is not None:
+                    self.last_config = {
+                        **self.last_config,
+                        "manual_x": int(x),
+                        "manual_y": int(y),
+                    }
+                self.last_error = ""
+                return self.status()
+            except Exception as exc:
+                self.last_error = str(exc)
+                raise
+
+    def abort_and_park(self):
+        with self.lock:
+            try:
+                self.controller().abort_and_park()
+                self.last_error = ""
+                return self.status()
+            except Exception as exc:
+                self.last_error = str(exc)
+                raise
+
+    def status(self):
+        with self.lock:
+            try:
+                status = self.controller().status()
+            except Exception as exc:
+                self.last_error = str(exc)
+                status = {"available": False, "error": str(exc)}
+            status["last_error"] = self.last_error
+            status["last_config"] = self.last_config
+            return status
+
+
+def format_endpoint(endpoint):
+    if isinstance(endpoint, tuple) and len(endpoint) >= 2:
+        return f"{endpoint[0]}:{endpoint[1]}"
+    return str(endpoint)
+
+
+def optional_server_attr(server, name):
+    try:
+        values = object.__getattribute__(server, "__dict__")
+    except Exception:
+        values = {}
+    return values.get(name)
+
+
 class PaTcpListener:
     def __init__(self, host, port, service, stop_event, join_timeout=1.0):
         self.host = host
@@ -648,6 +894,9 @@ class PaTcpListener:
         self.listener = None
         self.thread_started = False
         self.thread = threading.Thread(target=self._run, name="pa-tcp-listener", daemon=True)
+        self.accept_count = 0
+        self.last_client_addr = ""
+        self.last_accept_time = 0.0
 
     def start(self):
         listener = None
@@ -678,6 +927,20 @@ class PaTcpListener:
         if self.thread_started and self.thread is not threading.current_thread():
             self.thread.join(timeout=self.join_timeout)
 
+    def status(self):
+        with self.service.state_lock:
+            return {
+                "host": self.host,
+                "port": self.port,
+                "listening": self.listener is not None,
+                "thread_started": self.thread_started,
+                "thread_alive": self.thread_started and self.thread.is_alive(),
+                "accept_count": self.accept_count,
+                "last_client_addr": self.last_client_addr,
+                "last_accept_time": self.last_accept_time,
+                "last_error": self.service.last_error,
+            }
+
     def _run(self):
         try:
             listener = self.listener
@@ -692,6 +955,10 @@ class PaTcpListener:
                     if not self.stop_event.is_set():
                         self._record_error(exc)
                     break
+                with self.service.state_lock:
+                    self.accept_count += 1
+                    self.last_client_addr = format_endpoint(_addr)
+                    self.last_accept_time = time.time()
                 try:
                     self.service.attach_socket(client)
                 except Exception as exc:
@@ -729,9 +996,12 @@ def server_status(server):
     ramp = getattr(server, "tec_ramp", None)
     if ramp is not None:
         status.setdefault("tec", {})["ramp"] = ramp.status()
-    pa_service = getattr(server, "pa_service", None)
+    pa_service = optional_server_attr(server, "pa_service")
     if pa_service is not None:
         status["pa"] = pa_service.status()
+    pa_scheduler = optional_server_attr(server, "pa_scheduler")
+    if pa_scheduler is not None:
+        status["pa_scheduler"] = pa_scheduler.status()
     return status
 
 
@@ -814,6 +1084,16 @@ def apply_saved_settings(system, settings):
             lp_shift=body_int(ada, "lp_shift") if "lp_shift" in ada else None,
             raw_lp_shift=body_int(ada, "raw_lp_shift") if "raw_lp_shift" in ada else None,
         )
+        analog_body = {}
+        if "gain_ohms" in ada:
+            analog_body["gain_ohms"] = body_int(ada, "gain_ohms")
+        if "low_pass_enabled" in ada:
+            analog_body["low_pass_enabled"] = bool_body(ada, "low_pass_enabled")
+        if analog_body:
+            try:
+                write_ada4355_analog_config(analog_body)
+            except FileNotFoundError as exc:
+                print(f"ADA4355 analog settings not applied: {exc}", flush=True)
 
 
 def initialize_pl_parameters(system, settings):
@@ -847,6 +1127,105 @@ def bool_body(body, name, default=False):
     if isinstance(value, str):
         return value.lower() in ("1", "true", "yes", "on")
     return bool(value)
+
+
+def ada_filter_kwargs_from_body(body, include_raw_glitch=True):
+    kwargs = {
+        "control": body_int(body, "control") if "control" in body else None,
+        "threshold": body_int(body, "threshold") if "threshold" in body else None,
+        "lp_shift": body_int(body, "lp_shift") if "lp_shift" in body else None,
+        "raw_lp_shift": body_int(body, "raw_lp_shift") if "raw_lp_shift" in body else None,
+        "enable": bool_body(body, "enable") if "enable" in body else None,
+        "glitch_reject": bool_body(body, "glitch_reject") if "glitch_reject" in body else None,
+        "raw_filtered": bool_body(body, "raw_filtered") if "raw_filtered" in body else None,
+        "spectrum_filtered": bool_body(body, "spectrum_filtered") if "spectrum_filtered" in body else None,
+        "monitor_filtered": bool_body(body, "monitor_filtered") if "monitor_filtered" in body else None,
+    }
+    if include_raw_glitch:
+        kwargs["raw_glitch_reject"] = bool_body(body, "raw_glitch_reject") if "raw_glitch_reject" in body else None
+    return kwargs
+
+
+def configure_ada_filter_compat(ada, body):
+    kwargs = ada_filter_kwargs_from_body(body, include_raw_glitch=True)
+    raw_glitch_reject = kwargs.get("raw_glitch_reject")
+    try:
+        ada.configure_filter(**kwargs)
+    except TypeError as exc:
+        if raw_glitch_reject is None or "raw_glitch_reject" not in str(exc):
+            raise
+        fallback_kwargs = ada_filter_kwargs_from_body(body, include_raw_glitch=False)
+        ada.configure_filter(**fallback_kwargs)
+        control = ada.read("FILTER_CONTROL")
+        if raw_glitch_reject:
+            control |= ADA_FILTER_RAW_GLITCH_REJECT_FALLBACK
+        else:
+            control &= ~ADA_FILTER_RAW_GLITCH_REJECT_FALLBACK
+        ada.write("FILTER_CONTROL", require_u32("control", control))
+    return ada.status()
+
+
+def ada4355_gpio_ctrl_dir():
+    return os.environ.get("ADA4355_GPIO_CTRL_DIR", ADA4355_GPIO_CTRL_DEFAULT_DIR)
+
+
+def ada4355_low_pass_label(enabled):
+    return "1 MHz" if enabled else "100 MHz"
+
+
+def read_ada4355_analog_config():
+    sysfs_dir = ada4355_gpio_ctrl_dir()
+    gain_path = os.path.join(sysfs_dir, "gain_ohms")
+    low_pass_path = os.path.join(sysfs_dir, "low_pass_enabled")
+    base = {
+        "allowed_gain_ohms": list(ADA4355_ALLOWED_GAIN_OHMS),
+        "allowed_low_pass": list(ADA4355_LOW_PASS_OPTIONS),
+        "sysfs_dir": sysfs_dir,
+    }
+    if not os.path.exists(gain_path) or not os.path.exists(low_pass_path):
+        return {
+            **base,
+            "available": False,
+            "gain_ohms": None,
+            "low_pass_enabled": None,
+            "low_pass_label": None,
+            "error": "ADA4355 GPIO control sysfs files are not available",
+        }
+
+    with open(gain_path, "r", encoding="ascii") as f:
+        gain_ohms = int(f.read().strip())
+    with open(low_pass_path, "r", encoding="ascii") as f:
+        low_pass_enabled = bool(int(f.read().strip()))
+    return {
+        **base,
+        "available": True,
+        "gain_ohms": gain_ohms,
+        "low_pass_enabled": low_pass_enabled,
+        "low_pass_label": ada4355_low_pass_label(low_pass_enabled),
+    }
+
+
+def require_ada4355_gpio_ctrl_available():
+    analog = read_ada4355_analog_config()
+    if not analog.get("available"):
+        raise FileNotFoundError(analog.get("error", "ADA4355 GPIO control sysfs files are not available"))
+    return analog
+
+
+def write_ada4355_analog_config(body):
+    analog = require_ada4355_gpio_ctrl_available()
+    sysfs_dir = analog["sysfs_dir"]
+    if "gain_ohms" in body:
+        gain_ohms = body_int(body, "gain_ohms")
+        if gain_ohms not in ADA4355_ALLOWED_GAIN_OHMS:
+            raise ValueError(f"gain_ohms must be one of {list(ADA4355_ALLOWED_GAIN_OHMS)}")
+        with open(os.path.join(sysfs_dir, "gain_ohms"), "w", encoding="ascii") as f:
+            f.write(f"{gain_ohms}\n")
+    if "low_pass_enabled" in body:
+        low_pass_enabled = bool_body(body, "low_pass_enabled")
+        with open(os.path.join(sysfs_dir, "low_pass_enabled"), "w", encoding="ascii") as f:
+            f.write("1\n" if low_pass_enabled else "0\n")
+    return read_ada4355_analog_config()
 
 
 def laser_safety_from_body(body):
@@ -932,6 +1311,21 @@ class ButterflyHandler(BaseHTTPRequestHandler):
         }, status=409)
         return False
 
+    def abort_pa_scheduler_best_effort(self):
+        pa_scheduler = optional_server_attr(self.server, "pa_scheduler")
+        if pa_scheduler is None:
+            return None
+        try:
+            return pa_scheduler.abort_and_park()
+        except Exception as exc:
+            return {"available": False, "error": str(exc), "last_error": str(exc)}
+
+    def require_pa_scheduler(self):
+        pa_scheduler = optional_server_attr(self.server, "pa_scheduler")
+        if pa_scheduler is None:
+            raise RuntimeError("PA scheduler is not available")
+        return pa_scheduler
+
     def do_GET(self):
         try:
             parsed = urlparse(self.path)
@@ -971,10 +1365,19 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                         "/api/ada/status",
                         "/api/ada/spectrum",
                         "/api/ada/filter",
+                        "/api/ada/analog-config",
                         "/api/pa/status",
+                        "/api/pa/diagnostics",
                         "/api/pa/start",
+                        "/api/pa/point/start",
                         "/api/pa/stop",
                         "/api/pa/disconnect",
+                        "/api/pa/scheduler/status",
+                        "/api/pa/scheduler/config",
+                        "/api/pa/scheduler/command",
+                        "/api/pa/scheduler/manual-position",
+                        "/api/pa/scheduler/pulse",
+                        "/api/pa/scheduler/waveform",
                         "/api/stop-all",
                     ],
                 })
@@ -983,6 +1386,17 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                     self.reply_json({"ok": True, "status": server_status(self.server)})
             elif parsed.path == "/api/pa/status":
                 self.reply_json({"ok": True, "pa": self.server.pa_service.status()})
+            elif parsed.path == "/api/pa/diagnostics":
+                pa_tcp_listener = getattr(self.server, "pa_tcp_listener", None)
+                listener_status = pa_tcp_listener.status() if pa_tcp_listener is not None else None
+                self.reply_json({
+                    "ok": True,
+                    "timestamp": time.time(),
+                    "pa": self.server.pa_service.status(),
+                    "tcp_listener": listener_status,
+                })
+            elif parsed.path == "/api/pa/scheduler/status":
+                self.reply_json({"ok": True, "scheduler": self.require_pa_scheduler().status()})
             elif parsed.path == "/api/settings":
                 with self.server.lock:
                     self.reply_json({
@@ -1001,6 +1415,8 @@ class ButterflyHandler(BaseHTTPRequestHandler):
             elif parsed.path == "/api/ada/status":
                 with self.server.lock:
                     self.reply_json({"ok": True, "ada4355": self.server.system.ada.status()})
+            elif parsed.path == "/api/ada/analog-config":
+                self.reply_json({"ok": True, "analog": read_ada4355_analog_config()})
             elif parsed.path == "/api/ada/spectrum":
                 qs = parse_qs(parsed.query)
                 points_text = qs.get("points", [None])[0]
@@ -1282,18 +1698,18 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                     )
                     self.reply_json({"ok": True, "ada4355": self.server.system.ada.status()})
                 elif parsed.path == "/api/ada/filter":
-                    self.server.system.ada.configure_filter(
-                        control=body_int(body, "control") if "control" in body else None,
-                        threshold=body_int(body, "threshold") if "threshold" in body else None,
-                        lp_shift=body_int(body, "lp_shift") if "lp_shift" in body else None,
-                        raw_lp_shift=body_int(body, "raw_lp_shift") if "raw_lp_shift" in body else None,
-                        enable=bool_body(body, "enable") if "enable" in body else None,
-                        glitch_reject=bool_body(body, "glitch_reject") if "glitch_reject" in body else None,
-                        raw_filtered=bool_body(body, "raw_filtered") if "raw_filtered" in body else None,
-                        spectrum_filtered=bool_body(body, "spectrum_filtered") if "spectrum_filtered" in body else None,
-                        monitor_filtered=bool_body(body, "monitor_filtered") if "monitor_filtered" in body else None,
-                    )
-                    self.reply_json({"ok": True, "ada4355": self.server.system.ada.status()})
+                    status = configure_ada_filter_compat(self.server.system.ada, body)
+                    self.reply_json({"ok": True, "ada4355": status})
+                elif parsed.path == "/api/ada/analog-config":
+                    analog = write_ada4355_analog_config(body)
+                    ada_settings = self.server.settings.setdefault("ada4355", {})
+                    if isinstance(ada_settings, dict):
+                        if isinstance(analog.get("gain_ohms"), int):
+                            ada_settings["gain_ohms"] = str(analog["gain_ohms"])
+                        if isinstance(analog.get("low_pass_enabled"), bool):
+                            ada_settings["low_pass_enabled"] = analog["low_pass_enabled"]
+                        save_settings(self.server.settings_path, self.server.settings)
+                    self.reply_json({"ok": True, "analog": analog})
                 elif parsed.path == "/api/ada/raw-capture":
                     meta = self.server.system.ada.capture_raw(
                         length=body_int(body, "length", 16384),
@@ -1304,12 +1720,15 @@ class ButterflyHandler(BaseHTTPRequestHandler):
                     self.reply_json({"ok": True, "capture": meta, "raw": raw})
                 elif parsed.path == "/api/stop-all":
                     self.server.tec_ramp.stop()
-                    pa_service = getattr(self.server, "pa_service", None)
+                    scheduler_status = self.abort_pa_scheduler_best_effort()
+                    pa_service = optional_server_attr(self.server, "pa_service")
                     pa_status = None
                     if pa_service is not None:
                         pa_status = pa_service.stop(join_timeout=PA_STOP_ALL_JOIN_TIMEOUT_S)
                     self.server.system.stop_all()
                     status = server_status(self.server)
+                    if scheduler_status is not None:
+                        status["pa_scheduler"] = scheduler_status
                     if pa_status is not None and pa_status.get("running"):
                         error = pa_status.get("last_error") or "PA stop timed out"
                         self.reply_json({"ok": False, "error": error, "status": status}, status=409)
@@ -1360,25 +1779,144 @@ class ButterflyHandler(BaseHTTPRequestHandler):
 
     def handle_pa_post(self, path, body):
         pa_service = self.server.pa_service
+        pa_scheduler = optional_server_attr(self.server, "pa_scheduler")
+        join_timeout = float(body.get("join_timeout_s", 0))
         if path == "/api/pa/start":
             params_body = body.get("params", body)
             params = PamCaptureParams.from_dict(params_body)
             max_blocks = body_int(body, "max_blocks", -1)
             capture_time_sec = float(body.get("capture_time_sec", 0))
+            expected_frames = body_int(body, "expected_frames", 0)
+            if expected_frames > 0:
+                capture_time_sec = 0
+            if pa_scheduler is not None:
+                pa_scheduler.configure(PamSchedulerConfig(
+                    mode=PAM_SCHED_MODE_AUTO_SCAN_CAPTURE,
+                    control=(
+                        PAM_SCHED_CTRL_LD_ENABLE
+                        | PAM_SCHED_CTRL_ADC_ENABLE
+                        | PAM_SCHED_CTRL_CAPTURE_ENABLE
+                        | PAM_SCHED_CTRL_RESPECT_DOWNSTREAM_BUSY
+                    ),
+                ))
             try:
                 status = pa_service.start(
                     params,
                     max_blocks=max_blocks,
                     capture_time_sec=capture_time_sec,
+                    expected_frames=expected_frames,
                 )
             except RuntimeError as exc:
                 self.reply_json({"ok": False, "error": str(exc), "pa": pa_service.status()}, status=409)
                 return
             self.reply_json({"ok": True, "pa": status})
+        elif path == "/api/pa/point/start":
+            pa_scheduler = self.require_pa_scheduler()
+            config_body = body.get("config", body)
+            period_cycles = max(1, body_int(config_body, "period_cycles", 1))
+            shot_limit = max(0, body_int(config_body, "shot_limit", 0))
+            pulse_enabled = bool_body(config_body, "pulse_enabled", True)
+            capture_enabled = bool_body(config_body, "capture_enabled", True)
+            control = PAM_SCHED_CTRL_RESPECT_DOWNSTREAM_BUSY | PAM_SCHED_CTRL_LOOP_ENABLE | PAM_SCHED_CTRL_MANUAL_LIVE_UPDATE
+            if pulse_enabled:
+                control |= PAM_SCHED_CTRL_LD_ENABLE
+            if capture_enabled:
+                control |= PAM_SCHED_CTRL_ADC_ENABLE | PAM_SCHED_CTRL_CAPTURE_ENABLE
+            config = PamSchedulerConfig.from_dict({
+                **config_body,
+                "mode": PAM_SCHED_MODE_CONTINUOUS_POINT_CAPTURE,
+                "control": control,
+                "period_cycles": period_cycles,
+                "shot_limit": shot_limit,
+                "adc_width_cycles": max(1, body_int(config_body, "adc_width_cycles", 1)),
+            })
+            try:
+                pa_scheduler.configure(config)
+                params = PamCaptureParams(
+                    x_start=config.manual_x,
+                    y_start=config.manual_y,
+                    x_points=1,
+                    y_points=1,
+                    frame_number=1,
+                    gap_time=period_cycles,
+                    ld_trigger_time=config.ld_delay_cycles,
+                    adc_trigger_time=config.adc_delay_cycles,
+                    ld_time=config.ld_width_cycles,
+                )
+                status = pa_service.start(
+                    params,
+                    max_blocks=body_int(body, "max_blocks", -1),
+                    capture_time_sec=0,
+                    expected_frames=shot_limit if capture_enabled else 0,
+                    capture_start=lambda: pa_scheduler.command(PAM_SCHED_CMD_START),
+                    capture_stop=lambda: pa_scheduler.abort_and_park(),
+                    expected_frame_period_counts=period_cycles,
+                )
+            except RuntimeError as exc:
+                self.reply_json({"ok": False, "error": str(exc), "pa": pa_service.status()}, status=409)
+                return
+            self.reply_json({"ok": True, "pa": status, "scheduler": pa_scheduler.status()})
         elif path == "/api/pa/stop":
-            self.reply_json({"ok": True, "pa": pa_service.stop()})
+            scheduler_status = self.abort_pa_scheduler_best_effort()
+            reply = {"ok": True, "pa": pa_service.stop(join_timeout=join_timeout)}
+            if scheduler_status is not None:
+                reply["scheduler"] = scheduler_status
+            self.reply_json(reply)
         elif path == "/api/pa/disconnect":
-            self.reply_json({"ok": True, "pa": pa_service.disconnect()})
+            scheduler_status = self.abort_pa_scheduler_best_effort()
+            reply = {"ok": True, "pa": pa_service.disconnect(join_timeout=join_timeout)}
+            if scheduler_status is not None:
+                reply["scheduler"] = scheduler_status
+            self.reply_json(reply)
+        elif path == "/api/pa/scheduler/config":
+            pa_scheduler = self.require_pa_scheduler()
+            config = PamSchedulerConfig.from_dict(body.get("config", body))
+            self.reply_json({"ok": True, "scheduler": pa_scheduler.configure(config)})
+        elif path == "/api/pa/scheduler/command":
+            pa_scheduler = self.require_pa_scheduler()
+            command = body_int(body, "command", 0)
+            self.reply_json({"ok": True, "scheduler": pa_scheduler.command(command)})
+        elif path == "/api/pa/scheduler/manual-position":
+            pa_scheduler = self.require_pa_scheduler()
+            self.reply_json({
+                "ok": True,
+                "scheduler": pa_scheduler.manual_position(
+                    body_int(body, "x", 0),
+                    body_int(body, "y", 0),
+                ),
+            })
+        elif path == "/api/pa/scheduler/pulse":
+            pa_scheduler = self.require_pa_scheduler()
+            config = PamSchedulerConfig.from_dict({
+                **body,
+                "mode": PAM_SCHED_MODE_MANUAL_PULSE_NO_CAPTURE,
+                "control": (
+                    body_int(
+                        body,
+                        "control",
+                        PAM_SCHED_CTRL_LD_ENABLE | PAM_SCHED_CTRL_LOOP_ENABLE | (2 << 8),
+                    )
+                ),
+            })
+            pa_scheduler.configure(config)
+            command = PAM_SCHED_CMD_SINGLE_PULSE if bool_body(body, "single", False) else PAM_SCHED_CMD_START
+            self.reply_json({"ok": True, "scheduler": pa_scheduler.command(command)})
+        elif path == "/api/pa/scheduler/waveform":
+            pa_scheduler = self.require_pa_scheduler()
+            config = PamSchedulerConfig.from_dict({
+                **body,
+                "mode": body_int(body, "mode", PAM_SCHED_MODE_GALVO_WAVEFORM_NO_CAPTURE),
+                "control": body_int(
+                    body,
+                    "control",
+                    PAM_SCHED_CTRL_LD_ENABLE | PAM_SCHED_CTRL_LOOP_ENABLE | (2 << 8),
+                ),
+            })
+            pa_scheduler.configure(config)
+            self.reply_json({
+                "ok": True,
+                "scheduler": pa_scheduler.command(PAM_SCHED_CMD_START),
+            })
         else:
             self.reply_error(404, "unknown endpoint")
 
@@ -1469,6 +2007,7 @@ def main():
         initialize_pl_parameters(system, settings)
         httpd.stop_event = threading.Event()
         httpd.pa_service = PaService(pa_regs, capture_dev_path=args.pa_capture_dev)
+        httpd.pa_scheduler = PaSchedulerService(pa_regs)
         httpd.pa_tcp_listener = PaTcpListener(args.host, args.pa_tcp_port, httpd.pa_service, httpd.stop_event)
         httpd.pa_tcp_listener.start()
 
@@ -1503,6 +2042,9 @@ def main():
             pa_tcp_listener = getattr(httpd, "pa_tcp_listener", None)
             if pa_tcp_listener is not None:
                 cleanup_call("PA TCP listener", pa_tcp_listener.stop)
+            pa_scheduler = getattr(httpd, "pa_scheduler", None)
+            if pa_scheduler is not None:
+                cleanup_call("PA scheduler", pa_scheduler.abort_and_park)
             pa_service = getattr(httpd, "pa_service", None)
             if pa_service is not None:
                 pa_status = cleanup_call(

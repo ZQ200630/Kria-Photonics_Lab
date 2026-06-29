@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import type { PanelProps } from "./types";
-import { openTextFile, saveTextFile } from "../utils/saveText";
+import { openTextFile } from "../utils/saveText";
+import { DATA_DOCUMENT_DOWNLOADS, downloadDataDocument } from "../utils/dataDocumentation";
+import {
+  storageChooseRoot,
+  storageGetConfig,
+  storageMetadataFile,
+  storageTextFile,
+  storageWriteRecord,
+  type StorageConfig,
+} from "../utils/storage";
 import {
   flattenSettings,
   parseSettingsFileContents,
@@ -10,20 +19,19 @@ import {
 } from "../utils/settings";
 
 type SettingsResponse = { ok: true; path: string; settings: SettingsObject };
+type DataDocumentFilename = (typeof DATA_DOCUMENT_DOWNLOADS)[number]["filename"];
 
 export default function SettingsPanel({
   state,
   client,
   command,
   active = true,
-  pdCurrentOffsetMicroamp = 0,
-  pdCurrentOffsetText = String(pdCurrentOffsetMicroamp),
-  setPdCurrentOffsetText,
 }: PanelProps) {
   const [path, setPath] = useState("--");
   const [settings, setSettings] = useState<SettingsObject>({});
   const [rows, setRows] = useState<SettingRow[]>([]);
   const [message, setMessage] = useState("Settings are loaded from the server when this page opens.");
+  const [storageConfig, setStorageConfig] = useState<StorageConfig | null>(null);
   const [busy, setBusy] = useState(false);
 
   const showSettings = (response: { path: string; settings: Record<string, unknown> }, nextMessage: string) => {
@@ -53,6 +61,13 @@ export default function SettingsPanel({
     });
   }, [active, loadServerSettings, path]);
 
+  useEffect(() => {
+    if (!active) return;
+    storageGetConfig()
+      .then(setStorageConfig)
+      .catch((error) => setMessage(`Load data root failed: ${(error as Error).message}`));
+  }, [active]);
+
   const saveCurrent = async () => {
     setBusy(true);
     try {
@@ -70,8 +85,29 @@ export default function SettingsPanel({
   };
 
   const exportSettings = async () => {
-    const path = await saveTextFile("butterfly-laser-settings.json", JSON.stringify(settings, null, 2));
-    setMessage(path ? `Exported setting file to ${path}` : "Export cancelled.");
+    const result = await storageWriteRecord({
+      dataType: "settings_export",
+      name: "settings",
+      files: [
+        storageMetadataFile({
+          kind: "settings_export",
+          saved_at: new Date().toISOString(),
+          server_settings_path: path,
+        }),
+        storageTextFile("settings.json", `${JSON.stringify(settings, null, 2)}\n`),
+      ],
+    });
+    setMessage(`Exported setting file to ${result.path}`);
+  };
+
+  const chooseRoot = async () => {
+    const config = await storageChooseRoot();
+    if (config) {
+      setStorageConfig(config);
+      setMessage(`Data root set to ${config.dataRoot}`);
+    } else {
+      setMessage("Data root selection cancelled.");
+    }
   };
 
   const loadLocalFile = async () => {
@@ -94,6 +130,11 @@ export default function SettingsPanel({
     }
   };
 
+  const downloadDocument = (filename: DataDocumentFilename) => async () => {
+    const downloaded = await downloadDataDocument(filename);
+    setMessage(downloaded ? `Saved ${downloaded}.` : "Download cancelled.");
+  };
+
   return (
     <section className="panel settings-panel">
       <h2>Settings</h2>
@@ -102,12 +143,9 @@ export default function SettingsPanel({
           <span>Settings File</span>
           <strong>{path}</strong>
         </div>
-        <div className="readout settings-local-control">
-          <label>
-            PD Current Offset uA
-            <input value={pdCurrentOffsetText} onChange={(event) => setPdCurrentOffsetText?.(event.target.value)} />
-          </label>
-          <div className="muted">Displayed/exported PD current = raw current - {pdCurrentOffsetMicroamp.toFixed(3)} uA</div>
+        <div className="readout">
+          <span>Data Root</span>
+          <strong>{storageConfig?.dataRoot ?? "Loading..."}</strong>
         </div>
       </div>
       <div className="settings-message">{busy ? "Working..." : message}</div>
@@ -118,9 +156,27 @@ export default function SettingsPanel({
         <button className="command" disabled={busy} onClick={() => command("Load Local Setting File", loadLocalFile)}>
           Load Local Setting File
         </button>
+        <button className="command" disabled={busy} onClick={() => command("Choose Data Root", chooseRoot)}>
+          Choose Data Root
+        </button>
         <button className="command" disabled={busy} onClick={() => command("Export Setting File", exportSettings)}>
           Export Setting File
         </button>
+      </div>
+      <div className="settings-docs-panel">
+        <h3>Documentation</h3>
+        <div className="actions">
+          {DATA_DOCUMENT_DOWNLOADS.map((item) => (
+            <button
+              key={item.filename}
+              className="command"
+              disabled={busy}
+              onClick={() => command(`Download ${item.label}`, downloadDocument(item.filename))}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="settings-table">
         <div className="settings-table-head">

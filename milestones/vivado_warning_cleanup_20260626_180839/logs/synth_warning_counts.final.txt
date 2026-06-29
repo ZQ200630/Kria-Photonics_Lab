@@ -1,0 +1,8 @@
+    100 WARNING: [Synth 8-7129]
+     75 WARNING: [Synth 8-7071]
+     24 WARNING: [Synth 8-7023]
+      8 WARNING: [Synth 8-689]
+      6 WARNING: [Synth 8-3917]
+      3 WARNING: [Synth 8-4446]
+      1 WARNING: [Timing 38-316]
+      1 WARNING: [Synth 8-7080]

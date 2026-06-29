@@ -1,7 +1,10 @@
 import io
+import os
+import tempfile
 import threading
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest import mock
 
 import butterfly_laser_server as legacy
@@ -20,6 +23,8 @@ class TauriServerDefaultsTests(unittest.TestCase):
         self.assertEqual(tauri_server.DEFAULT_SETTINGS["laser"]["lock"]["loss_threshold"], "10000")
         self.assertEqual(tauri_server.DEFAULT_SETTINGS["ada4355"]["lp_shift"], "13")
         self.assertEqual(tauri_server.DEFAULT_SETTINGS["ada4355"]["raw_lp_shift"], "13")
+        self.assertEqual(tauri_server.DEFAULT_SETTINGS["ada4355"]["gain_ohms"], "2000")
+        self.assertEqual(tauri_server.DEFAULT_SETTINGS["ada4355"]["low_pass_enabled"], False)
         self.assertEqual(tauri_server.DEFAULT_SETTINGS["tec"]["ramp"]["enabled"], True)
         self.assertEqual(tauri_server.DEFAULT_SETTINGS["tec"]["ramp"]["rate_c_per_s"], "0.05")
         self.assertEqual(tauri_server.DEFAULT_SETTINGS["tec"]["ramp"]["interval_ms"], "200")
@@ -36,13 +41,71 @@ class TauriServerDefaultsTests(unittest.TestCase):
         self.assertEqual(legacy_args.pa_capture_dev, "/dev/axis_capture0")
         self.assertEqual(tauri_args.pa_capture_dev, "/dev/axis_capture0")
 
+    def test_ada4355_analog_config_read_write_uses_sysfs(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            sysfs = Path(temp_dir) / "ada4355-gpio-ctrl"
+            sysfs.mkdir()
+            (sysfs / "gain_ohms").write_text("2000\n", encoding="ascii")
+            (sysfs / "low_pass_enabled").write_text("0\n", encoding="ascii")
+
+            with mock.patch.dict(os.environ, {"ADA4355_GPIO_CTRL_DIR": str(sysfs)}):
+                analog = legacy.read_ada4355_analog_config()
+                self.assertTrue(analog["available"])
+                self.assertEqual(analog["gain_ohms"], 2000)
+                self.assertFalse(analog["low_pass_enabled"])
+                self.assertEqual(analog["low_pass_label"], "100 MHz")
+                self.assertEqual(analog["allowed_gain_ohms"], [2000, 20000, 200000])
+
+                analog = legacy.write_ada4355_analog_config({"gain_ohms": 20000, "low_pass_enabled": True})
+                self.assertTrue(analog["available"])
+                self.assertEqual(analog["gain_ohms"], 20000)
+                self.assertTrue(analog["low_pass_enabled"])
+                self.assertEqual(analog["low_pass_label"], "1 MHz")
+                self.assertEqual((sysfs / "gain_ohms").read_text(encoding="ascii").strip(), "20000")
+                self.assertEqual((sysfs / "low_pass_enabled").read_text(encoding="ascii").strip(), "1")
+
+    def test_ada4355_analog_config_rejects_invalid_gain(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            sysfs = Path(temp_dir) / "ada4355-gpio-ctrl"
+            sysfs.mkdir()
+            (sysfs / "gain_ohms").write_text("2000\n", encoding="ascii")
+            (sysfs / "low_pass_enabled").write_text("0\n", encoding="ascii")
+
+            with mock.patch.dict(os.environ, {"ADA4355_GPIO_CTRL_DIR": str(sysfs)}):
+                with self.assertRaisesRegex(ValueError, "gain_ohms"):
+                    legacy.write_ada4355_analog_config({"gain_ohms": 1234})
+
 
 class FakePaSocket:
-    def __init__(self):
+    def __init__(self, peer=("192.168.8.10", 50000), local=("192.168.8.236", 9090)):
         self.closed = False
+        self.peer = peer
+        self.local = local
+
+    def getpeername(self):
+        return self.peer
+
+    def getsockname(self):
+        return self.local
 
     def close(self):
         self.closed = True
+
+
+class FakeRegs:
+    def __init__(self, events=None):
+        self.values = {}
+        self.writes = []
+        self.events = events
+
+    def read32(self, offset):
+        return self.values.get(offset, 0)
+
+    def write32(self, offset, value):
+        self.values[offset] = value & 0xFFFFFFFF
+        self.writes.append((offset, value & 0xFFFFFFFF))
+        if self.events is not None:
+            self.events.append(("reg_write", offset, value & 0xFFFFFFFF))
 
 
 class FakePaWriter:
@@ -68,8 +131,8 @@ class BlockingPaWorker:
             "end_reason": "",
         }
 
-    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
-        self.calls.append((params, max_blocks, capture_time_sec))
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
+        self.calls.append((params, max_blocks, capture_time_sec, expected_frames))
         self.stats["running"] = True
         self.run_entered.set()
         self.release_run.wait(1.0)
@@ -91,7 +154,7 @@ class RaisingPaWorker:
             "end_reason": "",
         }
 
-    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         self.stats["running"] = True
         self.stats["last_error"] = "send failed"
         self.stats["end_reason"] = "error"
@@ -115,7 +178,7 @@ class DelayedRaisingPaWorker:
             "end_reason": "",
         }
 
-    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         self.stats["running"] = True
         self.run_entered.set()
         self.release_run.wait(1.0)
@@ -141,7 +204,7 @@ class JoinablePaWorker:
             "end_reason": "",
         }
 
-    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         self.stats["running"] = True
         self.run_entered.set()
         self.stop_requested.wait(1.0)
@@ -158,7 +221,7 @@ class SlowJoinablePaWorker(JoinablePaWorker):
         super().__init__()
         self.release_exit = threading.Event()
 
-    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         self.stats["running"] = True
         self.run_entered.set()
         self.stop_requested.wait(1.0)
@@ -169,7 +232,7 @@ class SlowJoinablePaWorker(JoinablePaWorker):
 
 
 class SlowCleanStopPaWorker(SlowJoinablePaWorker):
-    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         self.stats["running"] = True
         self.run_entered.set()
         self.stop_requested.wait(1.0)
@@ -187,7 +250,7 @@ class SlowCleanStopPaWorker(SlowJoinablePaWorker):
 
 
 class CountingStopPaWorker(JoinablePaWorker):
-    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         self.stats["running"] = True
         self.run_entered.set()
         self.stop_requested.wait(1.0)
@@ -203,7 +266,7 @@ class CountingStopPaWorker(JoinablePaWorker):
 
 
 class WriterClosedAfterStopPaWorker(JoinablePaWorker):
-    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         self.stats["running"] = True
         self.run_entered.set()
         self.stop_requested.wait(1.0)
@@ -220,7 +283,24 @@ class WriterClosedAfterStopPaWorker(JoinablePaWorker):
 
 
 class BrokenPipeAfterStopPaWorker(JoinablePaWorker):
-    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
+        self.stats["running"] = True
+        self.run_entered.set()
+        self.stop_requested.wait(1.0)
+        self.stats.update({
+            "running": False,
+            "blocks_sent": 2,
+            "frames_sent": 5,
+            "bytes_sent": 512,
+            "last_error": "broken pipe",
+            "end_reason": "error",
+        })
+        self.run_exited.set()
+        raise BrokenPipeError("broken pipe")
+
+
+class BrokenPipeAfterStopStopWorker(JoinablePaWorker):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         self.stats["running"] = True
         self.run_entered.set()
         self.stop_requested.wait(1.0)
@@ -247,7 +327,7 @@ class EnrichedErrorPaWorker:
             "end_reason": "",
         }
 
-    def run_once(self, params, max_blocks=-1, capture_time_sec=0):
+    def run_once(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         self.stats.update({
             "running": False,
             "last_error": "send failed; stop failed: dma",
@@ -290,6 +370,38 @@ class PaServiceTests(unittest.TestCase):
         self.assertEqual(created, {})
         self.assertFalse(worker.run_entered.is_set())
 
+    def test_pa_service_status_includes_tcp_client_context(self):
+        worker = BlockingPaWorker()
+        service, _writer, _created = self.make_service(worker)
+
+        status = service.attach_socket(FakePaSocket(peer=("10.0.0.5", 42310), local=("192.168.8.236", 9090)))
+
+        self.assertEqual(status["client_peer"], "10.0.0.5:42310")
+        self.assertEqual(status["client_local"], "192.168.8.236:9090")
+        self.assertEqual(status["connection_count"], 1)
+        self.assertGreater(status["client_connected_at"], 0)
+        self.assertFalse(status["worker_alive"])
+
+    def test_pa_service_idle_status_does_not_probe_pl_counters(self):
+        pam_factory_calls = []
+
+        def pam_factory(regs):
+            pam_factory_calls.append(regs)
+            raise AssertionError("idle status must not read PA PL registers")
+
+        service = legacy.PaService(
+            pam_regs=object(),
+            writer_factory=lambda sock: FakePaWriter(),
+            pam_factory=pam_factory,
+            device_factory=lambda path: object(),
+            worker_factory=lambda pam, device, writer: BlockingPaWorker(),
+        )
+
+        status = service.status()
+
+        self.assertIsNone(status["pl_counters"])
+        self.assertEqual(pam_factory_calls, [])
+
     def test_pa_service_start_stop_and_disconnect_are_nonblocking(self):
         worker = BlockingPaWorker()
         service, writer, created = self.make_service(worker)
@@ -305,7 +417,7 @@ class PaServiceTests(unittest.TestCase):
         self.assertTrue(worker.run_entered.wait(0.5))
         self.assertTrue(status["running"])
         self.assertTrue(status["connected"])
-        self.assertEqual(worker.calls[0][1:], (3, 0.25))
+        self.assertEqual(worker.calls[0][1:], (3, 0.25, 0))
         self.assertEqual(created["device"], ("device", "/tmp/fake-axis"))
 
         with self.assertRaises(RuntimeError):
@@ -481,6 +593,23 @@ class PaServiceTests(unittest.TestCase):
         self.assertEqual(status["last_error"], "")
         self.assertTrue(writer.closed)
 
+    def test_pa_service_stop_suppresses_broken_pipe_error_when_stop_requested(self):
+        worker = BrokenPipeAfterStopStopWorker()
+        service, writer, _created = self.make_service(worker)
+        service.attach_socket(FakePaSocket())
+        service.start(pa.PamCaptureParams())
+        self.assertTrue(worker.run_entered.wait(0.5))
+
+        status = service.stop(join_timeout=None)
+
+        self.assertFalse(status["running"])
+        self.assertEqual(status["blocks_sent"], 2)
+        self.assertEqual(status["frames_sent"], 5)
+        self.assertEqual(status["bytes_sent"], 512)
+        self.assertEqual(status["end_reason"], "stop_requested")
+        self.assertEqual(status["last_error"], "")
+        self.assertTrue(writer.closed)
+
     def test_pa_service_stop_with_join_waits_for_worker_exit(self):
         worker = JoinablePaWorker()
         service, _writer, _created = self.make_service(worker)
@@ -648,6 +777,19 @@ class PaTcpListenerTests(unittest.TestCase):
         self.assertIn("address already in use", service.last_error)
         listener.stop()
 
+    def test_status_reports_listener_context(self):
+        stop_event = threading.Event()
+        service = FakePaServiceForListener()
+        listener = legacy.PaTcpListener("127.0.0.1", 9090, service, stop_event)
+
+        status = listener.status()
+
+        self.assertEqual(status["host"], "127.0.0.1")
+        self.assertEqual(status["port"], 9090)
+        self.assertFalse(status["listening"])
+        self.assertFalse(status["thread_alive"])
+        self.assertEqual(status["accept_count"], 0)
+
 
 class FakeRamp:
     def __init__(self):
@@ -669,7 +811,7 @@ class FakePaServiceForHandler:
         self.stop_called = True
         return {"connected": True, "running": False, "last_error": ""}
 
-    def disconnect(self):
+    def disconnect(self, join_timeout=0):
         self.disconnect_called = True
         return {"connected": False, "running": False, "last_error": ""}
 
@@ -677,12 +819,71 @@ class FakePaServiceForHandler:
         return {"connected": True, "running": False, "last_error": "", "blocks_sent": 4}
 
 
+class RecordingPaServiceForHandler(FakePaServiceForHandler):
+    def __init__(self, events):
+        super().__init__()
+        self.events = events
+
+    def stop(self, join_timeout=0):
+        self.events.append("pa_stop")
+        return super().stop(join_timeout=join_timeout)
+
+    def disconnect(self, join_timeout=0):
+        self.events.append("pa_disconnect")
+        return super().disconnect(join_timeout=join_timeout)
+
+
+class RecordingPaSchedulerForHandler:
+    def __init__(self, events, fail_abort=False):
+        self.events = events
+        self.fail_abort = fail_abort
+
+    def abort_and_park(self):
+        self.events.append("scheduler_abort")
+        if self.fail_abort:
+            raise RuntimeError("scheduler abort failed")
+        return {"mode_name": "idle", "last_error": ""}
+
+    def status(self):
+        return {"mode_name": "idle", "last_error": ""}
+
+
+class FailingSchedulerController:
+    def __init__(self, _regs):
+        pass
+
+    def program(self, _config):
+        raise RuntimeError("scheduler program failed")
+
+    def command(self, _command_bits):
+        raise RuntimeError("scheduler command failed")
+
+    def manual_position(self, _x, _y):
+        raise RuntimeError("scheduler manual position failed")
+
+    def abort_and_park(self):
+        raise RuntimeError("scheduler abort failed")
+
+    def status(self):
+        return {"available": True}
+
+
+class FakePaTcpListenerForHandler:
+    def status(self):
+        return {"host": "0.0.0.0", "port": 9090, "listening": True}
+
+
 class FakePaServiceForStart:
     def __init__(self, events):
         self.events = events
+        self.expected_frames = "not called"
+        self.capture_time_sec = "not called"
 
-    def start(self, params, max_blocks=-1, capture_time_sec=0):
+    def start(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0, **kwargs):
         self.events.append("pa_start")
+        self.expected_frames = expected_frames
+        self.capture_time_sec = capture_time_sec
+        self.kwargs = kwargs
         return {"connected": True, "running": True, "last_error": ""}
 
     def status(self):
@@ -690,7 +891,7 @@ class FakePaServiceForStart:
 
 
 class RaisingAlreadyRunningPaService:
-    def start(self, params, max_blocks=-1, capture_time_sec=0):
+    def start(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         raise RuntimeError("PA capture already running")
 
     def status(self):
@@ -719,6 +920,45 @@ class FakeSystemForHandler:
 
     def status(self):
         return {"laser": {}, "tec": {}, "ada4355": {}}
+
+
+class FakeOldAdaFilter:
+    def __init__(self):
+        self.control = 0x19
+        self.configure_calls = []
+        self.writes = []
+
+    def configure_filter(self, **kwargs):
+        if "raw_glitch_reject" in kwargs:
+            raise TypeError("Ada4355Capture.configure_filter() got an unexpected keyword argument 'raw_glitch_reject'")
+        self.configure_calls.append(kwargs)
+        if kwargs.get("control") is not None:
+            self.control = int(kwargs["control"])
+        if kwargs.get("enable") is not None:
+            self.control = (self.control | 0x01) if kwargs["enable"] else (self.control & ~0x01)
+        if kwargs.get("glitch_reject") is not None:
+            self.control = (self.control | 0x02) if kwargs["glitch_reject"] else (self.control & ~0x02)
+        if kwargs.get("raw_filtered") is not None:
+            self.control = (self.control | 0x04) if kwargs["raw_filtered"] else (self.control & ~0x04)
+        if kwargs.get("spectrum_filtered") is not None:
+            self.control = (self.control | 0x08) if kwargs["spectrum_filtered"] else (self.control & ~0x08)
+        if kwargs.get("monitor_filtered") is not None:
+            self.control = (self.control | 0x10) if kwargs["monitor_filtered"] else (self.control & ~0x10)
+        return self.status()
+
+    def read(self, name):
+        if name != "FILTER_CONTROL":
+            raise KeyError(name)
+        return self.control
+
+    def write(self, name, value):
+        if name != "FILTER_CONTROL":
+            raise KeyError(name)
+        self.control = int(value)
+        self.writes.append((name, self.control))
+
+    def status(self):
+        return {"filter": {"control": self.control, "control_hex": f"0x{self.control:08X}"}}
 
 
 class RecordingPaServiceForStopAll(FakePaServiceForHandler):
@@ -768,7 +1008,7 @@ class RecordingSystemForStopAll(FakeSystemForHandler):
 
 
 class RaisingPaServiceForStart:
-    def start(self, params, max_blocks=-1, capture_time_sec=0):
+    def start(self, params, max_blocks=-1, capture_time_sec=0, expected_frames=0):
         raise RuntimeError("PA TCP client is not connected")
 
     def status(self):
@@ -781,6 +1021,7 @@ class HandlerPaEndpointTests(unittest.TestCase):
         server.lock = threading.RLock()
         server.tec_ramp = FakeRamp()
         server.pa_service = FakePaServiceForHandler()
+        server.pa_tcp_listener = FakePaTcpListenerForHandler()
         server.system = FakeSystemForHandler()
         handler = legacy.ButterflyHandler.__new__(legacy.ButterflyHandler)
         handler.server = server
@@ -801,8 +1042,16 @@ class HandlerPaEndpointTests(unittest.TestCase):
         endpoints = set(replies[0][1]["endpoints"])
         self.assertIn("/api/pa/status", endpoints)
         self.assertIn("/api/pa/start", endpoints)
+        self.assertIn("/api/pa/point/start", endpoints)
         self.assertIn("/api/pa/stop", endpoints)
         self.assertIn("/api/pa/disconnect", endpoints)
+        self.assertIn("/api/pa/diagnostics", endpoints)
+        self.assertIn("/api/pa/scheduler/status", endpoints)
+        self.assertIn("/api/pa/scheduler/config", endpoints)
+        self.assertIn("/api/pa/scheduler/command", endpoints)
+        self.assertIn("/api/pa/scheduler/manual-position", endpoints)
+        self.assertIn("/api/pa/scheduler/pulse", endpoints)
+        self.assertIn("/api/pa/scheduler/waveform", endpoints)
 
     def test_api_status_includes_pa_object(self):
         handler, _server, replies = self.make_handler("/api/status")
@@ -823,6 +1072,28 @@ class HandlerPaEndpointTests(unittest.TestCase):
             "pa": {"connected": True, "running": False, "last_error": "", "blocks_sent": 4},
         }))
 
+    def test_pa_diagnostics_endpoint_returns_service_and_listener_status(self):
+        handler, _server, replies = self.make_handler("/api/pa/diagnostics")
+
+        legacy.ButterflyHandler.do_GET(handler)
+
+        self.assertEqual(replies[0][0], 200)
+        self.assertTrue(replies[0][1]["ok"])
+        self.assertEqual(replies[0][1]["pa"]["blocks_sent"], 4)
+        self.assertEqual(replies[0][1]["tcp_listener"]["port"], 9090)
+
+    def test_pa_scheduler_status_endpoint_returns_scheduler_status(self):
+        handler, server, replies = self.make_handler("/api/pa/scheduler/status")
+        regs = FakeRegs()
+        regs.values[pa.PAM_REG_SCHED_STATE] = pa.PAM_SCHED_MODE_MANUAL_GALVO_HOLD | pa.PAM_SCHED_STATE_ACTIVE
+        server.pa_scheduler = legacy.PaSchedulerService(regs)
+
+        legacy.ButterflyHandler.do_GET(handler)
+
+        self.assertEqual(replies[0][0], 200)
+        self.assertTrue(replies[0][1]["ok"])
+        self.assertEqual(replies[0][1]["scheduler"]["mode_name"], "manual_galvo_hold")
+
     def test_pa_stop_endpoint_calls_service_stop(self):
         handler, server, replies = self.make_handler("/api/pa/stop", method="POST", body=b"{}")
 
@@ -831,6 +1102,30 @@ class HandlerPaEndpointTests(unittest.TestCase):
         self.assertTrue(server.pa_service.stop_called)
         self.assertEqual(replies[0][0], 200)
         self.assertTrue(replies[0][1]["ok"])
+
+    def test_pa_stop_aborts_scheduler_before_service_stop(self):
+        events = []
+        handler, server, replies = self.make_handler("/api/pa/stop", method="POST", body=b"{}")
+        server.pa_service = RecordingPaServiceForHandler(events)
+        server.pa_scheduler = RecordingPaSchedulerForHandler(events)
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(events, ["scheduler_abort", "pa_stop"])
+        self.assertEqual(replies[0][0], 200)
+        self.assertEqual(replies[0][1]["scheduler"]["mode_name"], "idle")
+
+    def test_pa_stop_continues_when_scheduler_abort_fails(self):
+        events = []
+        handler, server, replies = self.make_handler("/api/pa/stop", method="POST", body=b"{}")
+        server.pa_service = RecordingPaServiceForHandler(events)
+        server.pa_scheduler = RecordingPaSchedulerForHandler(events, fail_abort=True)
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(events, ["scheduler_abort", "pa_stop"])
+        self.assertEqual(replies[0][0], 200)
+        self.assertIn("scheduler abort failed", replies[0][1]["scheduler"]["last_error"])
 
     def test_pa_disconnect_endpoint_calls_service_disconnect(self):
         handler, server, replies = self.make_handler("/api/pa/disconnect", method="POST", body=b"{}")
@@ -842,6 +1137,17 @@ class HandlerPaEndpointTests(unittest.TestCase):
             "ok": True,
             "pa": {"connected": False, "running": False, "last_error": ""},
         }))
+
+    def test_pa_disconnect_aborts_scheduler_before_service_disconnect(self):
+        events = []
+        handler, server, replies = self.make_handler("/api/pa/disconnect", method="POST", body=b"{}")
+        server.pa_service = RecordingPaServiceForHandler(events)
+        server.pa_scheduler = RecordingPaSchedulerForHandler(events)
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(events, ["scheduler_abort", "pa_disconnect"])
+        self.assertEqual(replies[0][0], 200)
 
     def test_pa_start_no_client_conflict_maps_to_409(self):
         handler, server, replies = self.make_handler("/api/pa/start", method="POST", body=b"{}")
@@ -863,6 +1169,175 @@ class HandlerPaEndpointTests(unittest.TestCase):
         self.assertFalse(replies[0][1]["ok"])
         self.assertIn("already running", replies[0][1]["error"])
 
+    def test_pa_start_passes_expected_frames_to_service(self):
+        events = []
+        handler, server, replies = self.make_handler(
+            "/api/pa/start",
+            method="POST",
+            body=b'{"expected_frames": 12}',
+        )
+        server.pa_service = FakePaServiceForStart(events)
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(replies[0][0], 200)
+        self.assertEqual(server.pa_service.expected_frames, 12)
+
+    def test_pa_start_expected_frames_disables_capture_time_stop(self):
+        events = []
+        handler, server, replies = self.make_handler(
+            "/api/pa/start",
+            method="POST",
+            body=b'{"expected_frames": 640000, "capture_time_sec": 213.3312}',
+        )
+        server.pa_service = FakePaServiceForStart(events)
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(replies[0][0], 200)
+        self.assertEqual(server.pa_service.expected_frames, 640000)
+        self.assertEqual(server.pa_service.capture_time_sec, 0)
+
+    def test_manual_scheduler_command_does_not_require_tcp_client(self):
+        handler, server, replies = self.make_handler(
+            "/api/pa/scheduler/manual-position",
+            method="POST",
+            body=b'{"x": 123, "y": -45}',
+        )
+        regs = FakeRegs()
+        server.pa_scheduler = legacy.PaSchedulerService(regs)
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(replies[0][0], 200)
+        self.assertTrue(replies[0][1]["ok"])
+        self.assertIn((pa.PAM_REG_MANUAL_X, 123), regs.writes)
+        self.assertIn((pa.PAM_REG_MANUAL_Y, 0xFFD3), regs.writes)
+        self.assertIn((pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_APPLY_MANUAL), regs.writes)
+        self.assertNotIn((pa.PAM_REG_SCHED_MODE, pa.PAM_SCHED_MODE_MANUAL_GALVO_HOLD), regs.writes)
+
+    def test_scheduler_service_records_last_error_when_operations_fail(self):
+        service = legacy.PaSchedulerService(FakeRegs(), controller_factory=FailingSchedulerController)
+
+        operations = (
+            lambda: service.configure(pa.PamSchedulerConfig()),
+            lambda: service.command(pa.PAM_SCHED_CMD_START),
+            lambda: service.manual_position(1, 2),
+            service.abort_and_park,
+        )
+
+        for operation in operations:
+            with self.subTest(operation=operation):
+                with self.assertRaisesRegex(RuntimeError, "scheduler"):
+                    operation()
+                self.assertIn("scheduler", service.status()["last_error"])
+
+    def test_scheduler_config_command_pulse_and_waveform_endpoints(self):
+        regs = FakeRegs()
+        cases = [
+            (
+                "/api/pa/scheduler/config",
+                b'{"config":{"mode":3,"manual_x":7,"manual_y":-8}}',
+                (pa.PAM_REG_SCHED_MODE, pa.PAM_SCHED_MODE_MANUAL_GALVO_HOLD),
+            ),
+            (
+                "/api/pa/scheduler/command",
+                b'{"command":1}',
+                (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_START),
+            ),
+            (
+                "/api/pa/scheduler/pulse",
+                b'{"manual_x":1,"manual_y":2,"single":true}',
+                (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_SINGLE_PULSE),
+            ),
+            (
+                "/api/pa/scheduler/waveform",
+                b'{"waveform_x_min":-1,"waveform_x_max":1,"waveform_x_step":1}',
+                (pa.PAM_REG_SCHED_COMMAND, pa.PAM_SCHED_CMD_START),
+            ),
+        ]
+
+        for path, body, expected_write in cases:
+            with self.subTest(path=path):
+                handler, server, replies = self.make_handler(path, method="POST", body=body)
+                server.pa_scheduler = legacy.PaSchedulerService(regs)
+
+                legacy.ButterflyHandler.do_POST(handler)
+
+                self.assertEqual(replies[-1][0], 200)
+                self.assertTrue(replies[-1][1]["ok"])
+                self.assertIn(expected_write, regs.writes)
+
+    def test_auto_pa_start_programs_scheduler_mode_before_capture_worker(self):
+        events = []
+        handler, server, replies = self.make_handler(
+            "/api/pa/start",
+            method="POST",
+            body=b'{"params":{"x_points":1,"y_points":1,"frame_number":1},"expected_frames":1}',
+        )
+        regs = FakeRegs(events)
+        server.pa_service = FakePaServiceForStart(events)
+        server.pa_scheduler = legacy.PaSchedulerService(regs)
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(replies[0][0], 200)
+        self.assertTrue(replies[0][1]["ok"])
+        self.assertIn((pa.PAM_REG_SCHED_MODE, pa.PAM_SCHED_MODE_AUTO_SCAN_CAPTURE), regs.writes)
+        self.assertLess(
+            events.index(("reg_write", pa.PAM_REG_SCHED_MODE, pa.PAM_SCHED_MODE_AUTO_SCAN_CAPTURE)),
+            events.index("pa_start"),
+        )
+
+    def test_point_pa_start_programs_point_scheduler_before_capture_worker(self):
+        events = []
+        handler, server, replies = self.make_handler(
+            "/api/pa/point/start",
+            method="POST",
+            body=(
+                b'{"config":{"manual_x":12,"manual_y":-34,"period_cycles":33333,'
+                b'"shot_limit":3000,"pulse_enabled":true,"capture_enabled":true,'
+                b'"ld_delay_cycles":200,"ld_width_cycles":400,"adc_delay_cycles":100,"adc_width_cycles":1}}'
+            ),
+        )
+        regs = FakeRegs(events)
+        server.pa_service = FakePaServiceForStart(events)
+        server.pa_scheduler = legacy.PaSchedulerService(regs)
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(replies[0][0], 200)
+        self.assertTrue(replies[0][1]["ok"])
+        self.assertIn((pa.PAM_REG_SCHED_MODE, pa.PAM_SCHED_MODE_CONTINUOUS_POINT_CAPTURE), regs.writes)
+        self.assertIn((pa.PAM_REG_MANUAL_X, 12), regs.writes)
+        self.assertIn((pa.PAM_REG_MANUAL_Y, 0xFFDE), regs.writes)
+        self.assertEqual(server.pa_service.expected_frames, 3000)
+        self.assertEqual(server.pa_service.capture_time_sec, 0)
+        self.assertIn("capture_start", server.pa_service.kwargs)
+        self.assertIn("capture_stop", server.pa_service.kwargs)
+        self.assertLess(
+            events.index(("reg_write", pa.PAM_REG_SCHED_MODE, pa.PAM_SCHED_MODE_CONTINUOUS_POINT_CAPTURE)),
+            events.index("pa_start"),
+        )
+
+    def test_ada_filter_endpoint_falls_back_when_raw_glitch_keyword_is_missing(self):
+        handler, server, replies = self.make_handler(
+            "/api/ada/filter",
+            method="POST",
+            body=(
+                b'{"raw_glitch_reject": true, "raw_filtered": true, "enable": true, '
+                b'"spectrum_filtered": true, "monitor_filtered": true}'
+            ),
+        )
+        server.system.ada = FakeOldAdaFilter()
+
+        legacy.ButterflyHandler.do_POST(handler)
+
+        self.assertEqual(replies[0][0], 200)
+        self.assertEqual(server.system.ada.control, 0x3D)
+        self.assertEqual(server.system.ada.writes[-1], ("FILTER_CONTROL", 0x3D))
+        self.assertNotIn("raw_glitch_reject", server.system.ada.configure_calls[0])
+
     def test_stop_all_stops_pa_service_when_present(self):
         handler, server, replies = self.make_handler("/api/stop-all", method="POST")
 
@@ -878,10 +1353,11 @@ class HandlerPaEndpointTests(unittest.TestCase):
         server.lock = RecordingLock(events)
         server.pa_service = RecordingPaServiceForStopAll(events)
         server.system = RecordingSystemForStopAll(events)
+        server.pa_scheduler = RecordingPaSchedulerForHandler(events)
 
         legacy.ButterflyHandler.do_POST(handler)
 
-        self.assertEqual(events, ["lock_enter", "pa_stop", "system_stop_all", "lock_exit"])
+        self.assertEqual(events, ["lock_enter", "scheduler_abort", "pa_stop", "system_stop_all", "lock_exit"])
         self.assertEqual(server.pa_service.join_timeout, 15.0)
         self.assertEqual(replies[0][0], 200)
 
@@ -998,12 +1474,15 @@ class RaisingPaTcpListenerForMain(FakePaTcpListenerForMain):
 
 class RunningPaServiceForMain:
     instances = []
+    events = None
 
     def __init__(self, _pa_regs, capture_dev_path="/dev/axis_capture0"):
         self.disconnect_timeout = "not called"
         RunningPaServiceForMain.instances.append(self)
 
     def disconnect(self, join_timeout=0):
+        if RunningPaServiceForMain.events is not None:
+            RunningPaServiceForMain.events.append("pa_disconnect")
         self.disconnect_timeout = join_timeout
         return {
             "connected": False,
@@ -1011,6 +1490,21 @@ class RunningPaServiceForMain:
             "last_error": "PA shutdown timed out",
             "end_reason": "shutdown_timeout",
         }
+
+
+class RunningPaSchedulerForMain:
+    instances = []
+    events = None
+
+    def __init__(self, _pa_regs):
+        self.abort_called = False
+        RunningPaSchedulerForMain.instances.append(self)
+
+    def abort_and_park(self):
+        self.abort_called = True
+        if RunningPaSchedulerForMain.events is not None:
+            RunningPaSchedulerForMain.events.append("scheduler_abort")
+        return {"last_error": "", "mode_name": "idle"}
 
 
 class RaisingPaServiceForMain:
@@ -1120,7 +1614,11 @@ class MainCleanupTests(unittest.TestCase):
         system = FakeSystemForMain()
         pa_regs = FakeCloseable()
         httpd_instances = []
+        events = []
         RunningPaServiceForMain.instances = []
+        RunningPaServiceForMain.events = events
+        RunningPaSchedulerForMain.instances = []
+        RunningPaSchedulerForMain.events = events
 
         def httpd_factory(addr, handler):
             httpd = FakeServingHttpd(addr, handler)
@@ -1135,20 +1633,29 @@ class MainCleanupTests(unittest.TestCase):
                             with mock.patch.object(legacy, "initialize_pl_parameters"):
                                 with mock.patch.object(legacy, "PaTcpListener", FakePaTcpListenerForMain):
                                     with mock.patch.object(legacy, "PaService", RunningPaServiceForMain):
-                                        with mock.patch("sys.argv", ["butterfly_laser_server.py"]):
-                                            with redirect_stdout(io.StringIO()):
-                                                legacy.main()
+                                        with mock.patch.object(legacy, "PaSchedulerService", RunningPaSchedulerForMain):
+                                            with mock.patch("sys.argv", ["butterfly_laser_server.py"]):
+                                                with redirect_stdout(io.StringIO()):
+                                                    legacy.main()
 
         self.assertEqual(RunningPaServiceForMain.instances[0].disconnect_timeout, 15.0)
+        self.assertEqual(events, ["scheduler_abort", "pa_disconnect"])
+        self.assertTrue(RunningPaSchedulerForMain.instances[0].abort_called)
         self.assertTrue(system.closed)
         self.assertTrue(pa_regs.closed)
         self.assertTrue(httpd_instances[0].server_closed)
+        RunningPaServiceForMain.events = None
+        RunningPaSchedulerForMain.events = None
 
     def test_tauri_main_uses_bounded_pa_disconnect_during_shutdown(self):
         system = FakeSystemForMain()
         pa_regs = FakeCloseable()
         httpd_instances = []
+        events = []
         RunningPaServiceForMain.instances = []
+        RunningPaServiceForMain.events = events
+        RunningPaSchedulerForMain.instances = []
+        RunningPaSchedulerForMain.events = events
 
         def httpd_factory(addr, handler):
             httpd = FakeServingHttpd(addr, handler)
@@ -1163,14 +1670,19 @@ class MainCleanupTests(unittest.TestCase):
                             with mock.patch.object(tauri_server, "initialize_pl_parameters"):
                                 with mock.patch.object(tauri_server, "PaTcpListener", FakePaTcpListenerForMain):
                                     with mock.patch.object(tauri_server, "PaService", RunningPaServiceForMain):
-                                        with mock.patch("sys.argv", ["butterfly_laser_server_tauri.py"]):
-                                            with redirect_stdout(io.StringIO()):
-                                                tauri_server.main()
+                                        with mock.patch.object(tauri_server, "PaSchedulerService", RunningPaSchedulerForMain):
+                                            with mock.patch("sys.argv", ["butterfly_laser_server_tauri.py"]):
+                                                with redirect_stdout(io.StringIO()):
+                                                    tauri_server.main()
 
         self.assertEqual(RunningPaServiceForMain.instances[0].disconnect_timeout, 15.0)
+        self.assertEqual(events, ["scheduler_abort", "pa_disconnect"])
+        self.assertTrue(RunningPaSchedulerForMain.instances[0].abort_called)
         self.assertTrue(system.closed)
         self.assertTrue(pa_regs.closed)
         self.assertTrue(httpd_instances[0].server_closed)
+        RunningPaServiceForMain.events = None
+        RunningPaSchedulerForMain.events = None
 
     def test_legacy_main_cleanup_errors_do_not_mask_original_failure_or_skip_later_cleanup(self):
         system = RaisingSystemForMain()

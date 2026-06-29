@@ -9,6 +9,10 @@ use std::sync::{
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
+use crate::pa_image::{
+    parse_metadata, PaImageBuildResult, PaImageProcessingConfig, PaLiveImageAccumulator, AXIS_FRAME_HEADER_BYTES,
+    PA_METADATA_BYTES,
+};
 use serde::Serialize;
 
 const STREAM_MAGIC: &[u8; 4] = b"PAI1";
@@ -21,6 +25,250 @@ const MAX_STREAM_CONTROL_PAYLOAD_BYTES: usize = 16 * 1024 * 1024;
 const DRAIN_BUFFER_BYTES: usize = 64 * 1024;
 const DEFAULT_CONNECT_TIMEOUT_MS: u64 = 1_200;
 const DEFAULT_STOP_JOIN_TIMEOUT_MS: u64 = 1_000;
+const MAX_DIAGNOSTIC_ISSUES: usize = 32;
+
+#[derive(Debug, Serialize, Clone)]
+pub struct PaReceiverDiagnosticIssue {
+    pub message: String,
+    pub block_id: Option<u64>,
+    pub frame_id: Option<u64>,
+}
+
+#[derive(Debug, Default, Serialize, Clone)]
+pub struct PaReceiverDiagnostics {
+    pub records_checked: u64,
+    pub data_records_checked: u64,
+    pub blocks_checked: u64,
+    pub frames_checked: u64,
+    pub metadata_frames_checked: u64,
+    pub record_sequence_gaps: u64,
+    pub block_id_gaps: u64,
+    pub frame_id_gaps: u64,
+    pub global_shot_gaps: u64,
+    pub frame_count_mismatches: u64,
+    pub malformed_blocks: u64,
+    pub malformed_frames: u64,
+    pub metadata_parse_errors: u64,
+    pub first_sequence: Option<u64>,
+    pub last_sequence: Option<u64>,
+    pub first_block_id: Option<u64>,
+    pub last_block_id: Option<u64>,
+    pub first_frame_id: Option<u64>,
+    pub last_frame_id: Option<u64>,
+    pub first_global_shot_idx: Option<u32>,
+    pub last_global_shot_idx: Option<u32>,
+    pub issues: Vec<PaReceiverDiagnosticIssue>,
+}
+
+impl PaReceiverDiagnostics {
+    fn push_issue(&mut self, message: String, block_id: Option<u64>, frame_id: Option<u64>) {
+        if self.issues.len() >= MAX_DIAGNOSTIC_ISSUES {
+            return;
+        }
+        self.issues.push(PaReceiverDiagnosticIssue {
+            message,
+            block_id,
+            frame_id,
+        });
+    }
+
+    fn observe_record_sequence(&mut self, sequence: u64) {
+        self.records_checked = self.records_checked.saturating_add(1);
+        if let Some(last_sequence) = self.last_sequence {
+            if sequence != last_sequence.saturating_add(1) {
+                self.record_sequence_gaps = self.record_sequence_gaps.saturating_add(1);
+                self.push_issue(
+                    format!("PAI1 sequence gap: expected {}, got {sequence}", last_sequence + 1),
+                    None,
+                    None,
+                );
+            }
+        } else {
+            self.first_sequence = Some(sequence);
+        }
+        self.last_sequence = Some(sequence);
+    }
+
+    fn observe_data_record(
+        &mut self,
+        block_id: u64,
+        frame_count: u32,
+        first_frame_id: u64,
+        last_frame_id: u64,
+        payload: &[u8],
+    ) {
+        self.data_records_checked = self.data_records_checked.saturating_add(1);
+        self.blocks_checked = self.blocks_checked.saturating_add(1);
+
+        if let Some(last_block_id) = self.last_block_id {
+            if block_id != last_block_id.saturating_add(1) {
+                self.block_id_gaps = self.block_id_gaps.saturating_add(1);
+                self.push_issue(
+                    format!("block_id gap: expected {}, got {block_id}", last_block_id + 1),
+                    Some(block_id),
+                    None,
+                );
+            }
+        } else {
+            self.first_block_id = Some(block_id);
+        }
+        self.last_block_id = Some(block_id);
+
+        if frame_count > 0 {
+            let expected_last = first_frame_id.saturating_add(u64::from(frame_count - 1));
+            if last_frame_id != expected_last {
+                self.frame_count_mismatches = self.frame_count_mismatches.saturating_add(1);
+                self.push_issue(
+                    format!(
+                        "block {block_id} frame range/count mismatch: {first_frame_id}..{last_frame_id} for {frame_count} frames"
+                    ),
+                    Some(block_id),
+                    None,
+                );
+            }
+        }
+
+        let mut offset = 0usize;
+        let mut parsed_frames = 0u32;
+        for frame_index in 0..frame_count {
+            if payload.len().saturating_sub(offset) < AXIS_FRAME_HEADER_BYTES {
+                self.malformed_blocks = self.malformed_blocks.saturating_add(1);
+                self.push_issue(
+                    format!("block {block_id} ended before frame {frame_index} header"),
+                    Some(block_id),
+                    None,
+                );
+                break;
+            }
+
+            let frame_id = read_u64_le(payload, offset);
+            let data_bytes = read_u32_le(payload, offset + 8) as usize;
+            let reserved = read_u32_le(payload, offset + 12);
+            offset += AXIS_FRAME_HEADER_BYTES;
+
+            if frame_index == 0 && frame_id != first_frame_id {
+                self.frame_count_mismatches = self.frame_count_mismatches.saturating_add(1);
+                self.push_issue(
+                    format!(
+                        "block {block_id} first payload frame_id {frame_id} does not match header {first_frame_id}"
+                    ),
+                    Some(block_id),
+                    Some(frame_id),
+                );
+            }
+            if frame_index == frame_count - 1 && frame_id != last_frame_id {
+                self.frame_count_mismatches = self.frame_count_mismatches.saturating_add(1);
+                self.push_issue(
+                    format!(
+                        "block {block_id} last payload frame_id {frame_id} does not match header {last_frame_id}"
+                    ),
+                    Some(block_id),
+                    Some(frame_id),
+                );
+            }
+            if reserved != 0 {
+                self.malformed_frames = self.malformed_frames.saturating_add(1);
+                self.push_issue(
+                    format!("frame {frame_id} reserved header field is non-zero"),
+                    Some(block_id),
+                    Some(frame_id),
+                );
+            }
+            if data_bytes > payload.len().saturating_sub(offset) {
+                self.malformed_blocks = self.malformed_blocks.saturating_add(1);
+                self.push_issue(
+                    format!("frame {frame_id} payload exceeds block payload"),
+                    Some(block_id),
+                    Some(frame_id),
+                );
+                break;
+            }
+
+            if let Some(last_frame_id_seen) = self.last_frame_id {
+                if frame_id != last_frame_id_seen.saturating_add(1) {
+                    self.frame_id_gaps = self.frame_id_gaps.saturating_add(1);
+                    self.push_issue(
+                        format!("frame_id gap: expected {}, got {frame_id}", last_frame_id_seen + 1),
+                        Some(block_id),
+                        Some(frame_id),
+                    );
+                }
+            } else {
+                self.first_frame_id = Some(frame_id);
+            }
+            self.last_frame_id = Some(frame_id);
+
+            if data_bytes < PA_METADATA_BYTES {
+                self.metadata_parse_errors = self.metadata_parse_errors.saturating_add(1);
+                self.push_issue(
+                    format!("frame {frame_id} payload shorter than metadata"),
+                    Some(block_id),
+                    Some(frame_id),
+                );
+            } else {
+                match parse_metadata(&payload[offset..offset + PA_METADATA_BYTES]) {
+                    Ok(metadata) => {
+                        self.metadata_frames_checked = self.metadata_frames_checked.saturating_add(1);
+                        if let Some(last_global_shot_idx) = self.last_global_shot_idx {
+                            if metadata.global_shot_idx != last_global_shot_idx.saturating_add(1) {
+                                self.global_shot_gaps = self.global_shot_gaps.saturating_add(1);
+                                self.push_issue(
+                                    format!(
+                                        "global_shot_idx gap: expected {}, got {}",
+                                        last_global_shot_idx + 1,
+                                        metadata.global_shot_idx
+                                    ),
+                                    Some(block_id),
+                                    Some(frame_id),
+                                );
+                            }
+                        } else {
+                            self.first_global_shot_idx = Some(metadata.global_shot_idx);
+                        }
+                        self.last_global_shot_idx = Some(metadata.global_shot_idx);
+                    }
+                    Err(err) => {
+                        self.metadata_parse_errors = self.metadata_parse_errors.saturating_add(1);
+                        self.push_issue(
+                            format!("frame {frame_id} metadata parse failed: {err}"),
+                            Some(block_id),
+                            Some(frame_id),
+                        );
+                    }
+                }
+            }
+
+            offset += data_bytes;
+            parsed_frames = parsed_frames.saturating_add(1);
+        }
+
+        self.frames_checked = self.frames_checked.saturating_add(u64::from(parsed_frames));
+        if parsed_frames != frame_count {
+            self.frame_count_mismatches = self.frame_count_mismatches.saturating_add(1);
+            self.push_issue(
+                format!("block {block_id} parsed {parsed_frames} of {frame_count} frames"),
+                Some(block_id),
+                None,
+            );
+        }
+        if offset != payload.len() {
+            self.malformed_blocks = self.malformed_blocks.saturating_add(1);
+            self.push_issue(
+                format!("block {block_id} has {} trailing payload bytes", payload.len().saturating_sub(offset)),
+                Some(block_id),
+                None,
+            );
+        }
+    }
+}
+
+fn read_u32_le(raw: &[u8], offset: usize) -> u32 {
+    u32::from_le_bytes(raw[offset..offset + 4].try_into().expect("u32 slice checked by caller"))
+}
+
+fn read_u64_le(raw: &[u8], offset: usize) -> u64 {
+    u64::from_le_bytes(raw[offset..offset + 8].try_into().expect("u64 slice checked by caller"))
+}
 
 #[derive(Debug, Serialize, Clone)]
 pub struct PaReceiverStatus {
@@ -35,6 +283,7 @@ pub struct PaReceiverStatus {
     pub last_sequence: u64,
     pub endpoint: String,
     pub phase: String,
+    pub diagnostics: PaReceiverDiagnostics,
 }
 
 #[derive(Debug, Default)]
@@ -50,6 +299,7 @@ struct PaReceiverRuntime {
     last_sequence: u64,
     endpoint: String,
     phase: String,
+    diagnostics: PaReceiverDiagnostics,
 }
 
 #[derive(Default)]
@@ -57,6 +307,7 @@ pub struct PaTcpReceiver {
     runtime: Arc<Mutex<PaReceiverRuntime>>,
     worker: Mutex<Option<JoinHandle<()>>>,
     stop_signal: Mutex<Option<Arc<AtomicBool>>>,
+    live_image: Arc<PaLiveImageAccumulator>,
 }
 
 impl PaTcpReceiver {
@@ -65,6 +316,7 @@ impl PaTcpReceiver {
             runtime: Arc::new(Mutex::new(PaReceiverRuntime::default())),
             worker: Mutex::new(None),
             stop_signal: Mutex::new(None),
+            live_image: Arc::new(PaLiveImageAccumulator::new()),
         }
     }
 
@@ -102,11 +354,12 @@ impl PaTcpReceiver {
 
         let runtime_arc = Arc::clone(&self.runtime);
         let stop_clone = Arc::clone(&stop_flag);
+        let live_image = Arc::clone(&self.live_image);
         let thread_path = output_path.clone();
         let runtime_for_loop = Arc::clone(&runtime_arc);
         let runtime_for_done = Arc::clone(&runtime_arc);
         let worker = thread::spawn(move || {
-            if let Err(err) = run_receiver_loop(endpoint, thread_path, runtime_for_loop.clone(), stop_clone) {
+            if let Err(err) = run_receiver_loop(endpoint, thread_path, runtime_for_loop.clone(), stop_clone, live_image) {
                 let mut inner = runtime_for_loop.lock().expect("PA receiver runtime mutex poisoned");
                 inner.last_error = err;
                 inner.phase = "error".to_string();
@@ -141,6 +394,8 @@ impl PaTcpReceiver {
         runtime.last_sequence = 0;
         runtime.endpoint = endpoint_host.clone() + ":" + &(if port == 0 { 9090 } else { port }).to_string();
         runtime.phase = "starting".to_string();
+        runtime.diagnostics = PaReceiverDiagnostics::default();
+        self.live_image.reset();
 
         Ok(status_from_runtime(&runtime))
     }
@@ -208,6 +463,15 @@ impl PaTcpReceiver {
         };
         status_from_runtime(&runtime)
     }
+
+    pub fn set_image_processing(&self, config: PaImageProcessingConfig) -> PaImageBuildResult {
+        self.live_image.set_processing(config);
+        self.live_image.snapshot()
+    }
+
+    pub fn live_image(&self) -> PaImageBuildResult {
+        self.live_image.snapshot()
+    }
 }
 
 fn status_from_runtime(runtime: &PaReceiverRuntime) -> PaReceiverStatus {
@@ -227,6 +491,7 @@ fn status_from_runtime(runtime: &PaReceiverRuntime) -> PaReceiverStatus {
         } else {
             runtime.phase.clone()
         },
+        diagnostics: runtime.diagnostics.clone(),
     }
 }
 
@@ -264,6 +529,7 @@ fn run_receiver_loop(
     output_path: String,
     runtime: Arc<Mutex<PaReceiverRuntime>>,
     stop_signal: Arc<AtomicBool>,
+    live_image: Arc<PaLiveImageAccumulator>,
 ) -> Result<(), String> {
     set_receiver_phase(&runtime, "resolving");
     let addrs: Vec<SocketAddr> = endpoint
@@ -440,6 +706,18 @@ fn run_receiver_loop(
                 }
             }
 
+            {
+                let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
+                inner.diagnostics.observe_record_sequence(sequence);
+                inner.diagnostics.observe_data_record(
+                    block_id,
+                    frame_count,
+                    first_frame_id,
+                    last_frame_id,
+                    &payload,
+                );
+            }
+
             write_legacy_block_record(
                 &mut output,
                 block_id,
@@ -451,6 +729,11 @@ fn run_receiver_loop(
             )
             .map_err(|err| err.to_string())?;
             output.flush().map_err(|err| err.to_string())?;
+
+            if let Err(err) = live_image.ingest_legacy_block_payload(&payload) {
+                let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
+                inner.last_error = format!("live image parse failed: {err}");
+            }
 
             let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
             inner.blocks_received = inner.blocks_received.saturating_add(1);
@@ -477,6 +760,11 @@ fn run_receiver_loop(
             if remaining > 0 {
                 break;
             }
+            let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
+            inner.diagnostics.observe_record_sequence(sequence);
+        } else {
+            let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
+            inner.diagnostics.observe_record_sequence(sequence);
         }
 
         let mut inner = runtime.lock().expect("PA receiver runtime mutex poisoned");
@@ -548,6 +836,19 @@ pub fn pa_receiver_status(receiver: tauri::State<'_, PaTcpReceiver>) -> Result<P
     Ok(receiver.status())
 }
 
+#[tauri::command]
+pub fn pa_receiver_set_image_processing(
+    config: PaImageProcessingConfig,
+    receiver: tauri::State<'_, PaTcpReceiver>,
+) -> Result<PaImageBuildResult, String> {
+    Ok(receiver.set_image_processing(config))
+}
+
+#[tauri::command]
+pub fn pa_receiver_live_image(receiver: tauri::State<'_, PaTcpReceiver>) -> Result<PaImageBuildResult, String> {
+    Ok(receiver.live_image())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -599,7 +900,13 @@ mod tests {
         let runtime = Arc::new(Mutex::new(PaReceiverRuntime::default()));
         let stop_flag = Arc::new(AtomicBool::new(false));
 
-        let result = run_receiver_loop(addr.to_string(), output_path, Arc::clone(&runtime), stop_flag);
+        let result = run_receiver_loop(
+            addr.to_string(),
+            output_path,
+            Arc::clone(&runtime),
+            stop_flag,
+            Arc::new(PaLiveImageAccumulator::new()),
+        );
         sender_thread.join().expect("sender thread should exit");
         let bytes = std::fs::read(&output_for_read).unwrap_or_default();
         let runtime = Arc::try_unwrap(runtime)

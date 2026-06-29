@@ -7,6 +7,7 @@ import {
   estimateSlidingFrameMatch,
   findLevelCrossings,
   inferPolarityInvertForMarker,
+  nextLockYRange,
   nudgeNumberText,
   normalizeLevelForSeries,
   paddedRangeForSeries,
@@ -22,15 +23,18 @@ import { buildAcquireTemplate, type AcquireTemplate } from "../utils/acquireTemp
 import { makeTecRampPayload, rampEnabledInput } from "../utils/tecRamp";
 import { useSyncedInput } from "../utils/syncedInput";
 import { isTecRunning } from "../utils/tec";
-import { monitorModeWindows, monitorRecordingWindows, type MonitorDisplayMode } from "../utils/monitorSamples";
+import { monitorModeWindows, monitorRecordingWindows, type MonitorDisplayMode, type MonitorSample } from "../utils/monitorSamples";
 import {
+  DEFAULT_PD_ZERO_ADC_CODE,
   DEFAULT_TZ_OHM,
+  adcCodeToSignedCode,
   adcCodeToInputCurrentMicroamp,
+  adaLiveSpectrumLpFilterPayload,
   formatMicroamp,
-  inputCurrentMicroampToAdcCode,
+  inputCurrentMicroampToSignedAdcCode,
 } from "../utils/ada4355";
 import type { Spectrum } from "../api/types";
-import { chooseDataDirectory, saveExperimentBundle } from "../utils/saveText";
+import { storageWriteRecord, type StorageDataType } from "../utils/storage";
 import {
   lockSweepPartialCsv,
   monitorCsv,
@@ -43,13 +47,24 @@ import {
 
 type OperationControl = "temperature" | "scanCh0" | "scanStart" | "scanStop";
 type LockMethod = "direct" | "board";
+type LockRecordDataType = Extract<StorageDataType, "idle_spectrum" | "lock_spectrum_pair" | "monitor_data">;
 
-const DEFAULT_RECORD_BASE_DIR_LABEL = "./Data";
 const LIVE_PD_MODE_HIGHLIGHTS: Record<MonitorDisplayMode, { color: string; borderColor: string }> = {
   static: { color: "rgba(100, 116, 139, 0.1)", borderColor: "rgba(100, 116, 139, 0.22)" },
   scan: { color: "rgba(245, 158, 11, 0.13)", borderColor: "rgba(217, 119, 6, 0.28)" },
   lock: { color: "rgba(34, 197, 94, 0.13)", borderColor: "rgba(22, 163, 74, 0.3)" },
 };
+
+export function deriveLockLivePdSamples(active: boolean, trend: MonitorSample[]): MonitorSample[] {
+  if (!active) return [];
+  const latest: MonitorSample[] = [];
+  for (let index = trend.length - 1; index >= 0 && latest.length < 1000; index -= 1) {
+    const sample = trend[index];
+    if (typeof sample?.pd === "number" && Number.isFinite(sample.pd)) latest.push(sample);
+  }
+  latest.reverse();
+  return latest;
+}
 
 type SpectrumFrame = {
   key: string;
@@ -103,16 +118,12 @@ function spectrumToFrame(spectrum: Spectrum): SpectrumFrame {
   };
 }
 
-function relativeIntensityToCurrentMicroamp(relativeIntensity: number, tzOhm: number, currentOffsetMicroamp: number): number {
-  return adcCodeToInputCurrentMicroamp(relativeIntensityToRawAdc(relativeIntensity), tzOhm, currentOffsetMicroamp);
+function relativeIntensityToCurrentMicroamp(relativeIntensity: number, tzOhm: number, zeroAdcCode: number): number {
+  return adcCodeToInputCurrentMicroamp(relativeIntensityToRawAdc(relativeIntensity), tzOhm, zeroAdcCode);
 }
 
 function clampIndex(index: number, count: number): number {
   return Math.max(0, Math.min(Math.max(0, count - 1), Math.round(index)));
-}
-
-function timestampSlug(date = new Date()): string {
-  return date.toISOString().replace(/[:.]/g, "-");
 }
 
 function Field({ label, input, disabled = false }: { label: string; input: ReturnType<typeof useSyncedInput>; disabled?: boolean }) {
@@ -178,13 +189,12 @@ export default function LockPanel({
   command,
   active = true,
   tzOhm = DEFAULT_TZ_OHM,
-  tzOhmText = String(DEFAULT_TZ_OHM),
-  setTzOhmText,
-  pdCurrentOffsetMicroamp = 0,
+  pdZeroAdcCode = DEFAULT_PD_ZERO_ADC_CODE,
   monitorSamplesRef,
 }: PanelProps) {
   const tec = state.lastStatus?.tec;
   const laser = state.lastStatus?.laser;
+  const ada = state.lastStatus?.ada4355;
   const lock = laser?.lock;
   const laserStatus = classifyLaserStatus(laser);
   const monitoringOn = laserStatus.mode === "scan";
@@ -212,6 +222,7 @@ export default function LockPanel({
   const dwell = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.dwell_ticks), "100");
   const settle = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.settle_ticks), "100");
   const frames = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.frames), "1");
+  const liveSpectrumLpShift = useSyncedInput(inputInt(ada?.filter?.lp_shift), "13");
 
   const targetAdc = useSyncedInput(inputInt(lock?.target_adc), "42000");
   const biasCh1 = useSyncedInput(inputInt(lock?.bias_ch1_internal), "25000");
@@ -245,10 +256,10 @@ export default function LockPanel({
   const [pdMonitorName, setPdMonitorName] = useState("pd_monitor");
   const [pdMonitorStartTime, setPdMonitorStartTime] = useState<number | null>(null);
   const [pdMonitorRecordedWindows, setPdMonitorRecordedWindows] = useState<Array<{ startedAt: number; finishedAt: number }>>([]);
-  const [recordBaseDir, setRecordBaseDir] = useState<string | null>(null);
   const [recordingMessage, setRecordingMessage] = useState("Ready.");
   const previousLaserMode = useRef(laserStatus.mode);
-  const trendRef = useRef(state.trend);
+  const monitorSamples = monitorSamplesRef?.current ?? state.trend;
+  const trendRef = useRef(monitorSamples);
   const lockSnapshotRef = useRef<LockAcquisitionSnapshot | null>(null);
   const spectrumRecordingSaving = useRef(false);
 
@@ -268,13 +279,13 @@ export default function LockPanel({
   const lockingActive = laserStatus.mode === "lock";
   const pdMonitorActive = pdMonitorStartTime !== null;
   const relativeTickToCurrentLabel = useCallback(
-    (value: number) => `${formatMicroamp(relativeIntensityToCurrentMicroamp(value, tzOhm, pdCurrentOffsetMicroamp))} uA`,
-    [pdCurrentOffsetMicroamp, tzOhm],
+    (value: number) => `${formatMicroamp(relativeIntensityToCurrentMicroamp(value, tzOhm, pdZeroAdcCode))} uA`,
+    [pdZeroAdcCode, tzOhm],
   );
-  const relativeTickToAdcCodeLabel = useCallback((value: number) => String(relativeIntensityToRawAdc(value)), []);
+  const relativeTickToAdcCodeLabel = useCallback((value: number) => String(adcCodeToSignedCode(relativeIntensityToRawAdc(value))), []);
   const currentTickToAdcCodeLabel = useCallback(
-    (value: number) => String(inputCurrentMicroampToAdcCode(value, tzOhm, pdCurrentOffsetMicroamp)),
-    [pdCurrentOffsetMicroamp, tzOhm],
+    (value: number) => String(inputCurrentMicroampToSignedAdcCode(value, tzOhm, pdZeroAdcCode)),
+    [pdZeroAdcCode, tzOhm],
   );
   const searchWindowIndexSpan = searchHalfspanToIndexSpan(
     numberFromInput(searchHalfspan.value),
@@ -283,8 +294,8 @@ export default function LockPanel({
     spectrumValues.length,
   );
   useEffect(() => {
-    trendRef.current = state.trend;
-  }, [state.trend]);
+    trendRef.current = monitorSamplesRef?.current ?? state.trend;
+  }, [monitorSamplesRef, state.lastStatus, state.trend]);
 
   useEffect(() => {
     lockSnapshotRef.current = lockSnapshot;
@@ -322,14 +333,8 @@ export default function LockPanel({
   }, [ySeries]);
 
   useEffect(() => {
-    if (!autoYContinuous || ySeries.every((series) => series.length === 0)) return;
-    setLockedYRange(paddedRangeForSeries(ySeries, 0.1));
+    setLockedYRange((current) => nextLockYRange(current, ySeries, autoYContinuous, 0.1));
   }, [autoYContinuous, ySeries]);
-
-  useEffect(() => {
-    if (lockedYRange || ySeries.every((series) => series.length === 0)) return;
-    setLockedYRange(paddedRangeForSeries(ySeries, 0.1));
-  }, [lockedYRange, ySeries]);
 
   const releaseDrafts = useCallback(() => {
     targetTemp.release();
@@ -355,6 +360,11 @@ export default function LockPanel({
     lossThreshold.release();
     polarity.release();
   }, [targetTemp, rampEnabled, rampRate, rampInterval, scanCh0, scanStart, scanStop, scanStep, dwell, settle, frames, targetAdc, biasCh1, halfspan, searchHalfspan, kp, ki, maxStep, integralLimit, lockedThreshold, lossThreshold, polarity]);
+
+  const updateLiveSpectrumLpShift = useCallback(async () => {
+    await client.post("/api/ada/filter", adaLiveSpectrumLpFilterPayload(numberFromInput(liveSpectrumLpShift.value)));
+    liveSpectrumLpShift.release();
+  }, [client, liveSpectrumLpShift]);
 
   const safety = useCallback(
     () => ({
@@ -525,7 +535,7 @@ export default function LockPanel({
       scan_start_code: scanStartCode,
       scan_stop_code: scanStopCode,
       ada4355_tz_ohm: tzOhm,
-      pd_current_offset_uA: pdCurrentOffsetMicroamp,
+      pd_zero_adc_code: pdZeroAdcCode,
       lock_method: lockMethod,
       laser_mode: laserStatus.mode,
       tec_status: state.lastStatus?.tec,
@@ -536,7 +546,7 @@ export default function LockPanel({
     [
       laserStatus.mode,
       lockMethod,
-      pdCurrentOffsetMicroamp,
+      pdZeroAdcCode,
       scanStartCode,
       scanStopCode,
       state.lastStatus?.ada4355,
@@ -548,37 +558,33 @@ export default function LockPanel({
 
   const saveBundle = useCallback(
     async ({
-      category,
+      dataType,
       name,
       fallbackName,
       eventKind,
       files,
     }: {
-      category: string;
+      dataType: LockRecordDataType;
       name: string;
       fallbackName: string;
       eventKind: string;
       files: ExperimentFile[];
     }) => {
-      const runName = safeRunName(name, fallbackName);
-      const eventName = `${timestampSlug()}_${eventKind}`;
-      const savedPath = await saveExperimentBundle({
-        baseDir: recordBaseDir,
-        category,
-        runName,
-        eventName,
+      const result = await storageWriteRecord({
+        dataType,
+        name: safeRunName(name, fallbackName),
         files,
       });
-      setRecordingMessage(`Saved ${eventKind.replace(/_/g, " ")} to ${savedPath}`);
+      setRecordingMessage(`Saved ${eventKind.replace(/_/g, " ")} to ${result.path}`);
     },
-    [recordBaseDir],
+    [],
   );
 
   const saveCurrentSpectrum = useCallback(async () => {
     if (lockingActive) throw new Error("Current spectrum capture is for non-locking mode.");
     if (!liveFrame) throw new Error("No spectrum frame available.");
     await saveBundle({
-      category: "Idle_Spectrum",
+      dataType: "idle_spectrum",
       name: idleSpectrumName,
       fallbackName: "idle_spectrum",
       eventKind: "current_spectrum",
@@ -594,16 +600,16 @@ export default function LockPanel({
             2,
           )}\n`,
         },
-        { path: "current_spectrum.csv", contents: spectrumFrameCsv(liveFrame, scanStartCode, scanStopCode, tzOhm, pdCurrentOffsetMicroamp) },
+        { path: "current_spectrum.csv", contents: spectrumFrameCsv(liveFrame, scanStartCode, scanStopCode, tzOhm, pdZeroAdcCode) },
       ],
     });
-  }, [idleSpectrumName, liveFrame, lockingActive, pdCurrentOffsetMicroamp, recordingMetadata, saveBundle, scanStartCode, scanStopCode, tzOhm]);
+  }, [idleSpectrumName, liveFrame, lockingActive, pdZeroAdcCode, recordingMetadata, saveBundle, scanStartCode, scanStopCode, tzOhm]);
 
   const saveSpectrumRecording = useCallback(
     async (frames: SpectrumFrame[]) => {
       if (frames.length === 0) throw new Error("No spectrum frames recorded.");
       await saveBundle({
-        category: "Idle_Spectrum",
+        dataType: "idle_spectrum",
         name: idleSpectrumName,
         fallbackName: "idle_spectrum",
         eventKind: "spectrum_recording",
@@ -620,11 +626,11 @@ export default function LockPanel({
               2,
             )}\n`,
           },
-          { path: "spectra.csv", contents: spectrumFramesCsv(frames, scanStartCode, scanStopCode, tzOhm, pdCurrentOffsetMicroamp) },
+          { path: "spectra.csv", contents: spectrumFramesCsv(frames, scanStartCode, scanStopCode, tzOhm, pdZeroAdcCode) },
         ],
       });
     },
-    [idleSpectrumName, pdCurrentOffsetMicroamp, recordingMetadata, saveBundle, scanStartCode, scanStopCode, spectrumRecordTarget, tzOhm],
+    [idleSpectrumName, pdZeroAdcCode, recordingMetadata, saveBundle, scanStartCode, scanStopCode, spectrumRecordTarget, tzOhm],
   );
 
   const startSpectrumRecording = useCallback(async () => {
@@ -665,7 +671,7 @@ export default function LockPanel({
     const snapshot = lockSnapshotRef.current ?? lockSnapshot;
     if (!snapshot) throw new Error("No lock spectrum pair is available yet.");
     await saveBundle({
-      category: "Lock_Spectrum",
+      dataType: "lock_spectrum_pair",
       name: lockSpectrumName,
       fallbackName: "lock_spectrum_pair",
       eventKind: "lock_spectrum_pair",
@@ -690,8 +696,8 @@ export default function LockPanel({
             2,
           )}\n`,
         },
-        { path: "reference_spectrum.csv", contents: spectrumFrameCsv(snapshot.reference, scanStartCode, scanStopCode, tzOhm, pdCurrentOffsetMicroamp) },
-        { path: "locked_spectrum.csv", contents: spectrumFrameCsv(snapshot.current, scanStartCode, scanStopCode, tzOhm, pdCurrentOffsetMicroamp) },
+        { path: "reference_spectrum.csv", contents: spectrumFrameCsv(snapshot.reference, scanStartCode, scanStopCode, tzOhm, pdZeroAdcCode) },
+        { path: "locked_spectrum.csv", contents: spectrumFrameCsv(snapshot.current, scanStartCode, scanStopCode, tzOhm, pdZeroAdcCode) },
         {
           path: "locked_sweep_partial_estimated.csv",
           contents: lockSweepPartialCsv(
@@ -701,12 +707,12 @@ export default function LockPanel({
             snapshot.currentStopIndex,
             snapshot.match.shift,
             tzOhm,
-            pdCurrentOffsetMicroamp,
+            pdZeroAdcCode,
           ),
         },
       ],
     });
-  }, [lockSnapshot, lockSpectrumName, pdCurrentOffsetMicroamp, recordingMetadata, saveBundle, scanStartCode, scanStopCode, searchHalfspan.value, threshold, tzOhm]);
+  }, [lockSnapshot, lockSpectrumName, pdZeroAdcCode, recordingMetadata, saveBundle, scanStartCode, scanStopCode, searchHalfspan.value, threshold, tzOhm]);
 
   const togglePdMonitorRecording = useCallback(async () => {
     if (pdMonitorStartTime === null) {
@@ -724,7 +730,7 @@ export default function LockPanel({
     const source = sseSamples.length >= trendSamples.length ? "sse_status_50hz" : "ui_trend_fallback";
     const durationS = Math.max(0, finishedAt - startedAt);
     await saveBundle({
-      category: "Live PD Monitor",
+      dataType: "monitor_data",
       name: pdMonitorName,
       fallbackName: "pd_monitor",
       eventKind: "pd_temperature_monitor",
@@ -747,13 +753,13 @@ export default function LockPanel({
             2,
           )}\n`,
         },
-        { path: "live_pd_temperature_monitor.csv", contents: monitorCsv(samples, startedAt, tzOhm, pdCurrentOffsetMicroamp) },
+        { path: "live_pd_temperature_monitor.csv", contents: monitorCsv(samples, startedAt, tzOhm, pdZeroAdcCode) },
         { path: "trend_samples.json", contents: `${JSON.stringify(samples, null, 2)}\n` },
       ],
     });
     setPdMonitorRecordedWindows((previous) => [...previous, { startedAt, finishedAt }]);
     setPdMonitorStartTime(null);
-  }, [monitorSamplesRef, pdMonitorName, pdMonitorStartTime, pdCurrentOffsetMicroamp, recordingMetadata, saveBundle, tzOhm]);
+  }, [monitorSamplesRef, pdMonitorName, pdMonitorStartTime, pdZeroAdcCode, recordingMetadata, saveBundle, tzOhm]);
 
   useEffect(() => {
     if (laserStatus.mode !== "lock" || lockSnapshot) return;
@@ -903,16 +909,13 @@ export default function LockPanel({
 
   const showLockAcquisition = laserStatus.mode === "lock" && lockSnapshot !== null;
   const livePdSamples = useMemo(
-    () =>
-      state.trend
-        .filter((sample) => typeof sample.pd === "number" && Number.isFinite(sample.pd))
-        .slice(-1000),
-    [state.trend],
+    () => deriveLockLivePdSamples(active, monitorSamples),
+    [active, monitorSamples, state.lastStatus],
   );
   const livePdValues = useMemo(() => livePdSamples.map((sample) => sample.pd as number), [livePdSamples]);
   const livePdCurrentValues = useMemo(
-    () => livePdValues.map((value) => adcCodeToInputCurrentMicroamp(value, tzOhm, pdCurrentOffsetMicroamp)),
-    [livePdValues, pdCurrentOffsetMicroamp, tzOhm],
+    () => livePdValues.map((value) => adcCodeToInputCurrentMicroamp(value, tzOhm, pdZeroAdcCode)),
+    [livePdValues, pdZeroAdcCode, tzOhm],
   );
   const livePdModeWindows = useMemo(() => monitorModeWindows(livePdSamples), [livePdSamples]);
   const livePdModeHighlights = useMemo(
@@ -949,10 +952,10 @@ export default function LockPanel({
   const monitorRange = useMemo(() => {
     const series = [livePdCurrentValues];
     if (typeof lock?.target_adc === "number" && Number.isFinite(lock.target_adc)) {
-      series.push([adcCodeToInputCurrentMicroamp(lock.target_adc, tzOhm, pdCurrentOffsetMicroamp)]);
+      series.push([adcCodeToInputCurrentMicroamp(lock.target_adc, tzOhm, pdZeroAdcCode)]);
     }
     return paddedRangeForSeries(series, 0.1);
-  }, [lock?.target_adc, livePdCurrentValues, pdCurrentOffsetMicroamp, tzOhm]);
+  }, [lock?.target_adc, livePdCurrentValues, pdZeroAdcCode, tzOhm]);
   const acquisitionMarkers = useMemo(() => {
     if (!lockSnapshot) return [];
     const markers = [
@@ -969,11 +972,6 @@ export default function LockPanel({
     });
     return markers;
   }, [lockSnapshot]);
-
-  const selectRecordingDirectory = async () => {
-    const directory = await chooseDataDirectory();
-    if (directory) setRecordBaseDir(directory);
-  };
 
   const livePdMonitorPlot = (
     <div>
@@ -993,7 +991,7 @@ export default function LockPanel({
         height={360}
         yRange={monitorRange}
         yTickFormatter={(value) => `${formatMicroamp(value)} uA`}
-        rightAxisLabel="ADC code"
+        rightAxisLabel="signed ADC"
         rightTickFormatter={currentTickToAdcCodeLabel}
         highlightWindows={livePdHighlights}
         active={active}
@@ -1094,9 +1092,12 @@ export default function LockPanel({
                 Auto Y Once
               </button>
               <label className="compact-field lock-toolbar-field">
-                Tz Ohm
-                <input value={tzOhmText} onChange={(event) => setTzOhmText?.(event.target.value)} />
+                LP Shift
+                <input {...liveSpectrumLpShift.bind} />
               </label>
+              <button type="button" className="command compact" onClick={() => command("Update LP Shift", updateLiveSpectrumLpShift)}>
+                Apply LP
+              </button>
               <label className="inline-toggle">
                 <input type="checkbox" checked={autoYContinuous} onChange={(event) => setAutoYContinuous(event.target.checked)} />
                 Auto Update Y
@@ -1140,7 +1141,7 @@ export default function LockPanel({
                   height={360}
                   yRange={lockedYRange}
                   yTickFormatter={relativeTickToCurrentLabel}
-                  rightAxisLabel="ADC code"
+                  rightAxisLabel="signed ADC"
                   rightTickFormatter={relativeTickToAdcCodeLabel}
                   active={active}
                   overlays={[
@@ -1169,7 +1170,7 @@ export default function LockPanel({
                 height={380}
                 yRange={lockedYRange}
                 yTickFormatter={relativeTickToCurrentLabel}
-                rightAxisLabel="ADC code"
+                rightAxisLabel="signed ADC"
                 rightTickFormatter={relativeTickToAdcCodeLabel}
                 thresholdFormatter={relativeTickToCurrentLabel}
                 threshold={threshold}
@@ -1267,11 +1268,8 @@ export default function LockPanel({
             </div>
 
             <div className="recording-footer">
-              <button type="button" className="command compact" onClick={() => command("Select Recording Directory", selectRecordingDirectory)}>
-                Save Directory
-              </button>
               <div className="recording-status">
-                <strong>{recordBaseDir || DEFAULT_RECORD_BASE_DIR_LABEL}</strong>
+                <strong>Global Data Root</strong>
                 <span>{recordingMessage}</span>
               </div>
             </div>

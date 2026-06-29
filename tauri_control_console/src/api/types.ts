@@ -154,6 +154,7 @@ export type AdaFilterStatus = {
   enabled?: boolean;
   glitch_reject?: boolean;
   raw_use_filtered?: boolean;
+  raw_glitch_reject?: boolean;
   spectrum_use_filtered?: boolean;
   monitor_use_filtered?: boolean;
   glitch_threshold?: number;
@@ -175,6 +176,22 @@ export type AdaRawStatus = {
   capacity_samples?: number;
   buffer_words?: number;
   storage?: string;
+};
+
+export type AdaAnalogConfig = {
+  available: boolean;
+  gain_ohms: number | null;
+  low_pass_enabled: boolean | null;
+  low_pass_label: string | null;
+  allowed_gain_ohms?: number[];
+  allowed_low_pass?: Array<{ label: string; enabled: boolean }>;
+  sysfs_dir?: string;
+  error?: string;
+};
+
+export type AdaAnalogConfigUpdate = {
+  gain_ohms?: number;
+  low_pass_enabled?: boolean;
 };
 
 export type AdaStatus = {
@@ -203,6 +220,8 @@ export type SystemStatus = {
   tec: TecStatus;
   laser: LaserStatus;
   ada4355: AdaStatus;
+  pa?: PaCaptureStatus;
+  pa_scheduler?: PaSchedulerStatus;
 };
 
 export type Spectrum = {
@@ -224,6 +243,240 @@ export type RawCapture = {
   raw_status_hex?: string;
   raw_write_count?: number;
   decim?: number;
+};
+
+export type PaCaptureParams = {
+  x_start?: number;
+  x_step?: number;
+  x_points?: number;
+  y_start?: number;
+  y_step?: number;
+  y_points?: number;
+  frame_number?: number;
+  task_id?: number;
+  gap_time?: number;
+  galvo_settle_time?: number;
+  ld_trigger_time?: number;
+  adc_trigger_time?: number;
+  ld_time?: number;
+  scan_mode?: number;
+  return_mode?: number;
+};
+
+export type PaPointCaptureConfig = {
+  manual_x: number;
+  manual_y: number;
+  period_cycles: number;
+  shot_limit: number;
+  pulse_enabled: boolean;
+  capture_enabled: boolean;
+  ld_delay_cycles: number;
+  ld_width_cycles: number;
+  adc_delay_cycles: number;
+  adc_width_cycles: number;
+};
+
+export type PaSchedulerConfig = {
+  mode: number;
+  control?: number;
+  period_cycles?: number;
+  manual_x?: number;
+  manual_y?: number;
+  shot_limit?: number;
+  pulse_phase_cycles?: number;
+  ld_delay_cycles?: number;
+  ld_width_cycles?: number;
+  adc_delay_cycles?: number;
+  adc_width_cycles?: number;
+  waveform_control?: number;
+  waveform_x_min?: number;
+  waveform_x_max?: number;
+  waveform_y_min?: number;
+  waveform_y_max?: number;
+  waveform_x_step?: number;
+  waveform_y_step?: number;
+};
+
+export type PaSchedulerStatus = {
+  available?: boolean;
+  version?: number;
+  mode?: number;
+  mode_name?: string;
+  fsm_state?: number;
+  active?: boolean;
+  capture_required?: boolean;
+  capture_enabled?: boolean;
+  running_without_capture?: boolean;
+  parked?: boolean;
+  stop_pending?: boolean;
+  abort_observed?: boolean;
+  fault_latched?: boolean;
+  current_x?: number;
+  current_y?: number;
+  x_idx?: number;
+  y_idx?: number;
+  x_index?: number;
+  y_index?: number;
+  current_frame?: number;
+  shot_count?: number;
+  capture_count?: number;
+  pixel_count?: number;
+  command_count?: number;
+  last_command?: number;
+  stop_count?: number;
+  park_count?: number;
+  manual_update_count?: number;
+  waveform_cycle_count?: number;
+  fault_detail?: number;
+  control_snapshot?: number;
+  period_active?: number;
+  last_error?: string;
+  last_config?: PaSchedulerConfig | null;
+  error?: string;
+  raw?: Record<string, unknown>;
+};
+
+export type PaStreamDiagnosticIssue = {
+  message: string;
+  block_id?: number | null;
+  frame_id?: number | null;
+};
+
+export type PaStreamDiagnostics = {
+  records_checked?: number;
+  data_records_checked?: number;
+  blocks_checked?: number;
+  frames_checked?: number;
+  metadata_frames_checked?: number;
+  record_sequence_gaps?: number;
+  block_id_gaps?: number;
+  frame_id_gaps?: number;
+  global_shot_gaps?: number;
+  frame_count_mismatches?: number;
+  malformed_blocks?: number;
+  malformed_frames?: number;
+  metadata_parse_errors?: number;
+  first_sequence?: number | null;
+  last_sequence?: number | null;
+  first_block_id?: number | null;
+  last_block_id?: number | null;
+  first_frame_id?: number | null;
+  last_frame_id?: number | null;
+  first_global_shot_idx?: number | null;
+  last_global_shot_idx?: number | null;
+  issues?: PaStreamDiagnosticIssue[];
+};
+
+export type PaAxisCaptureStatus = {
+  running?: boolean;
+  stop_requested?: boolean;
+  removing?: boolean;
+  frame_bytes?: number;
+  superblock_bytes?: number;
+  active_dma_count?: number;
+  done_count?: number;
+  ready_block_count?: number;
+  free_block_count?: number;
+  completed_frames?: number;
+  aggregated_frames?: number;
+  completed_blocks?: number;
+  dropped_frames?: number;
+  dropped_blocks?: number;
+  draining_done?: boolean;
+  submit_count?: number;
+  callback_count?: number;
+  rearm_count?: number;
+  done_q_high_watermark?: number;
+  ready_block_high_watermark?: number;
+  free_block_low_watermark?: number;
+  active_dma_low_watermark?: number;
+  active_dma_zero_events?: number;
+  done_q_overflow_count?: number;
+  aggregate_fail_count?: number;
+  rearm_fail_count?: number;
+  abort_count?: number;
+  copy_to_user_fault_count?: number;
+};
+
+export type PaPlCounters = {
+  error?: string;
+  status?: number;
+  fault_code?: number;
+  accepted_trigger_count?: number;
+  rejected_trigger_busy_count?: number;
+  busy_hold_events?: number;
+  busy_hold_cycles?: number;
+  busy_hold_max_cycles?: number;
+  axis_tready_low_cycles?: number;
+  axis_stall_events?: number;
+  axis_stall_max_cycles?: number;
+  fifo_overflow_count?: number;
+  capture_done_count?: number;
+  tx_done_count?: number;
+};
+
+export type PaCaptureStatus = {
+  connected: boolean;
+  running: boolean;
+  stop_requested?: boolean;
+  last_error: string;
+  blocks_sent?: number;
+  frames_sent?: number;
+  bytes_sent?: number;
+  expected_frames?: number;
+  end_reason?: string;
+  diagnostics?: PaStreamDiagnostics;
+  last_block?: {
+    block_id?: number;
+    used_bytes?: number;
+    frame_count?: number;
+    first_frame_id?: number;
+    last_frame_id?: number;
+  } | null;
+  axis_status_initial?: PaAxisCaptureStatus | null;
+  axis_status_before_stop?: PaAxisCaptureStatus | null;
+  axis_status_after_stop?: PaAxisCaptureStatus | null;
+  axis_status_after_drain?: PaAxisCaptureStatus | null;
+  axis_status_end?: PaAxisCaptureStatus | null;
+  pl_counters?: PaPlCounters | null;
+  pl_counters_initial?: PaPlCounters | null;
+  pl_counters_latest?: PaPlCounters | null;
+  pl_counters_end?: PaPlCounters | null;
+  blocks_received?: number;
+  frames_received?: number;
+  output_path?: string;
+  worker_alive?: boolean;
+  client_peer?: string;
+  client_local?: string;
+  client_connected_at?: number;
+  last_client_peer?: string;
+  last_client_local?: string;
+  last_client_disconnected_at?: number;
+  connection_count?: number;
+  rejected_connection_count?: number;
+};
+
+export type PaServiceResponse = {
+  pa: PaCaptureStatus;
+};
+
+export type PaTcpListenerStatus = {
+  host: string;
+  port: number;
+  listening: boolean;
+  thread_started?: boolean;
+  thread_alive?: boolean;
+  accept_count?: number;
+  last_client_addr?: string;
+  last_accept_time?: number;
+  last_error?: string;
+};
+
+export type PaDiagnostics = {
+  ok: true;
+  timestamp: number;
+  pa: PaCaptureStatus;
+  tcp_listener: PaTcpListenerStatus | null;
 };
 
 export type StatusEvent = { timestamp: number; status: SystemStatus };

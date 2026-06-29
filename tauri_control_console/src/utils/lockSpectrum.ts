@@ -26,11 +26,49 @@ type NudgeOptions = {
   digits?: number;
 };
 
+type FiniteStats = {
+  count: number;
+  min: number;
+  max: number;
+};
+
 function clamp(value: number, min?: number, max?: number): number {
   let next = value;
   if (typeof min === "number" && Number.isFinite(min)) next = Math.max(min, next);
   if (typeof max === "number" && Number.isFinite(max)) next = Math.min(max, next);
   return next;
+}
+
+function emptyStats(): FiniteStats {
+  return { count: 0, min: Infinity, max: -Infinity };
+}
+
+function includeFiniteValue(stats: FiniteStats, value: number) {
+  if (!Number.isFinite(value)) return;
+  stats.count += 1;
+  if (value < stats.min) stats.min = value;
+  if (value > stats.max) stats.max = value;
+}
+
+function finiteStatsForValues(values: number[]): FiniteStats {
+  const stats = emptyStats();
+  values.forEach((value) => includeFiniteValue(stats, value));
+  return stats;
+}
+
+function finiteStatsForSeries(series: number[][]): FiniteStats {
+  const stats = emptyStats();
+  series.forEach((values) => {
+    values.forEach((value) => includeFiniteValue(stats, value));
+  });
+  return stats;
+}
+
+function paddedRangeFromStats(stats: FiniteStats, marginFraction: number): PlotRange {
+  if (stats.count === 0) return { min: 0, max: 1 };
+  const span = stats.max > stats.min ? stats.max - stats.min : Math.max(1, Math.abs(stats.max));
+  const margin = span * Math.max(0, marginFraction);
+  return { min: stats.min - margin, max: stats.max + margin };
 }
 
 export function findLevelCrossings(values: number[], level: number): LevelCrossing[] {
@@ -107,24 +145,34 @@ export function searchHalfspanToIndexSpan(halfspanCode: number, startCode: numbe
 }
 
 export function paddedRangeForSeries(series: number[][], marginFraction = 0.1): PlotRange {
-  const values = series.flat().filter((value) => Number.isFinite(value));
-  if (values.length === 0) return { min: 0, max: 1 };
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max > min ? max - min : Math.max(1, Math.abs(max));
-  const margin = span * Math.max(0, marginFraction);
-  return { min: min - margin, max: max + margin };
+  return paddedRangeFromStats(finiteStatsForSeries(series), marginFraction);
 }
 
 export function normalizeLevelForSeries(level: number | undefined, values: number[]): number | undefined {
-  const finiteValues = values.filter((value) => Number.isFinite(value));
-  if (finiteValues.length === 0) return level;
-  const min = Math.min(...finiteValues);
-  const max = Math.max(...finiteValues);
-  const midpoint = (min + max) / 2;
+  const stats = finiteStatsForValues(values);
+  if (stats.count === 0) return level;
+  const midpoint = (stats.min + stats.max) / 2;
   if (typeof level !== "number" || !Number.isFinite(level)) return midpoint;
-  if (level < min || level > max) return midpoint;
+  if (level < stats.min || level > stats.max) return midpoint;
   return level;
+}
+
+export function nextLockYRange(
+  current: PlotRange | undefined,
+  series: number[][],
+  autoUpdate: boolean,
+  marginFraction = 0.1,
+): PlotRange | undefined {
+  const stats = finiteStatsForSeries(series);
+  if (stats.count === 0) return current;
+
+  const next = paddedRangeFromStats(stats, marginFraction);
+  if (!current || autoUpdate || !Number.isFinite(current.min) || !Number.isFinite(current.max) || current.max <= current.min) {
+    return next;
+  }
+
+  const fullyVisible = stats.min >= current.min && stats.max <= current.max;
+  return fullyVisible ? current : next;
 }
 
 function pearsonScore(reference: number[], current: number[], shift: number, maxSamples: number): { score: number; compared: number } {

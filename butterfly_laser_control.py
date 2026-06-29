@@ -281,6 +281,15 @@ ADA_REG = {
     "RAW_FILTERED_ADC_LAST": 0xA0,
     "RAW_CAPACITY_SAMPLES": 0xA4,
     "RAW_BUFFER_WORDS": 0xA8,
+    "RAW_DEBUG": 0xAC,
+    "RAW_WRITER_WORDS": 0xB0,
+    "RAW_MEM_WRITES": 0xB4,
+    "RAW_LAST_FIFO": 0xB8,
+    "RAW_LAST_MEM_LO": 0xBC,
+    "RAW_LAST_MEM_HI": 0xC0,
+    "RAW_READ_LO": 0xC4,
+    "RAW_READ_HI": 0xC8,
+    "RAW_READ_ADDR": 0xCC,
 }
 
 ADA_CTRL_ENABLE = 1 << 0
@@ -300,6 +309,7 @@ ADA_FILTER_GLITCH_REJECT = 1 << 1
 ADA_FILTER_RAW_USE_FILTERED = 1 << 2
 ADA_FILTER_SPECTRUM_USE_FILTERED = 1 << 3
 ADA_FILTER_MONITOR_USE_FILTERED = 1 << 4
+ADA_FILTER_RAW_GLITCH_REJECT = 1 << 5
 ADA_FILTER_DEFAULT = (
     ADA_FILTER_ENABLE
     | ADA_FILTER_SPECTRUM_USE_FILTERED
@@ -325,6 +335,26 @@ ADA_STATUS_BITS = [
     (7, "drop_when_full"),
     (8, "monitor_valid"),
     (9, "monitor_updated"),
+]
+
+ADA_RAW_DEBUG_BITS = [
+    (0, "raw_arm_inflight"),
+    (1, "raw_busy_effective"),
+    (2, "raw_busy"),
+    (3, "raw_done"),
+    (4, "raw_adc_busy"),
+    (5, "raw_writer_busy"),
+    (6, "raw_writer_active"),
+    (7, "raw_writer_finish_seen"),
+    (8, "raw_fifo_empty"),
+    (9, "raw_fifo_rd_rst_busy"),
+    (10, "raw_store_reset"),
+    (11, "raw_pack64_half"),
+    (12, "raw_start_evt"),
+    (13, "raw_finished_evt"),
+    (14, "raw_done_evt"),
+    (15, "raw_done_toggle_seen"),
+    (31, "raw_debug_signature"),
 ]
 
 
@@ -1116,6 +1146,7 @@ class Ada4355Capture:
         enable=None,
         glitch_reject=None,
         raw_filtered=None,
+        raw_glitch_reject=None,
         spectrum_filtered=None,
         monitor_filtered=None,
     ):
@@ -1125,6 +1156,7 @@ class Ada4355Capture:
                 (ADA_FILTER_ENABLE, enable),
                 (ADA_FILTER_GLITCH_REJECT, glitch_reject),
                 (ADA_FILTER_RAW_USE_FILTERED, raw_filtered),
+                (ADA_FILTER_RAW_GLITCH_REJECT, raw_glitch_reject),
                 (ADA_FILTER_SPECTRUM_USE_FILTERED, spectrum_filtered),
                 (ADA_FILTER_MONITOR_USE_FILTERED, monitor_filtered),
             ]
@@ -1254,6 +1286,7 @@ class Ada4355Capture:
         debug_adc_last = self.read("DEBUG_ADC_LAST") & 0xFFFF
         filter_control = self.read("FILTER_CONTROL")
         filtered_adc = self.read("FILTERED_ADC_LAST") & 0xFFFF
+        raw_debug = self.read("RAW_DEBUG")
         return {
             "base_hex": f"0x{self.regs.base:08X}",
             "buf0_base_hex": f"0x{self.buf0_regs.base:08X}",
@@ -1278,6 +1311,7 @@ class Ada4355Capture:
                 "enabled": bool(filter_control & ADA_FILTER_ENABLE),
                 "glitch_reject": bool(filter_control & ADA_FILTER_GLITCH_REJECT),
                 "raw_use_filtered": bool(filter_control & ADA_FILTER_RAW_USE_FILTERED),
+                "raw_glitch_reject": bool(filter_control & ADA_FILTER_RAW_GLITCH_REJECT),
                 "spectrum_use_filtered": bool(filter_control & ADA_FILTER_SPECTRUM_USE_FILTERED),
                 "monitor_use_filtered": bool(filter_control & ADA_FILTER_MONITOR_USE_FILTERED),
                 "glitch_threshold": self.read("GLITCH_THRESHOLD"),
@@ -1315,6 +1349,25 @@ class Ada4355Capture:
                 "write_count": self.read("RAW_WRITE_COUNT"),
                 "capacity_samples": self.read("RAW_CAPACITY_SAMPLES"),
                 "buffer_words": self.read("RAW_BUFFER_WORDS"),
+                "debug": raw_debug,
+                "debug_hex": f"0x{raw_debug:08X}",
+                "debug_flags": flags_from_bits(raw_debug, ADA_RAW_DEBUG_BITS),
+                "diagnostics": {
+                    "writer_words": self.read("RAW_WRITER_WORDS"),
+                    "mem_writes": self.read("RAW_MEM_WRITES"),
+                    "last_fifo_word": self.read("RAW_LAST_FIFO"),
+                    "last_fifo_word_hex": f"0x{self.read('RAW_LAST_FIFO'):08X}",
+                    "last_mem_lo": self.read("RAW_LAST_MEM_LO"),
+                    "last_mem_lo_hex": f"0x{self.read('RAW_LAST_MEM_LO'):08X}",
+                    "last_mem_hi": self.read("RAW_LAST_MEM_HI"),
+                    "last_mem_hi_hex": f"0x{self.read('RAW_LAST_MEM_HI'):08X}",
+                    "read_lo": self.read("RAW_READ_LO"),
+                    "read_lo_hex": f"0x{self.read('RAW_READ_LO'):08X}",
+                    "read_hi": self.read("RAW_READ_HI"),
+                    "read_hi_hex": f"0x{self.read('RAW_READ_HI'):08X}",
+                    "read_addr": self.read("RAW_READ_ADDR"),
+                    "read_addr_hex": f"0x{self.read('RAW_READ_ADDR'):08X}",
+                },
                 "storage": "packed_u16_le",
             },
         }
@@ -1518,13 +1571,15 @@ def build_parser():
     p.add_argument("--no-filter", dest="enable", action="store_false", help="Disable low-pass filter")
     p.add_argument("--glitch", dest="glitch_reject", action="store_true", help="Enable glitch reject")
     p.add_argument("--no-glitch", dest="glitch_reject", action="store_false", help="Disable glitch reject")
+    p.add_argument("--raw-glitch", dest="raw_glitch_reject", action="store_true", help="Enable raw-capture 3-point median")
+    p.add_argument("--raw-no-glitch", dest="raw_glitch_reject", action="store_false", help="Disable raw-capture 3-point median")
     p.add_argument("--raw-filtered", dest="raw_filtered", action="store_true", help="Store filtered samples in raw snapshot")
     p.add_argument("--raw-raw", dest="raw_filtered", action="store_false", help="Store original ADC samples in raw snapshot")
     p.add_argument("--spectrum-filtered", dest="spectrum_filtered", action="store_true", help="Use filtered samples for spectrum")
     p.add_argument("--spectrum-raw", dest="spectrum_filtered", action="store_false", help="Use original samples for spectrum")
     p.add_argument("--monitor-filtered", dest="monitor_filtered", action="store_true", help="Use filtered samples for monitor")
     p.add_argument("--monitor-raw", dest="monitor_filtered", action="store_false", help="Use original samples for monitor")
-    p.set_defaults(enable=None, glitch_reject=None, raw_filtered=None, spectrum_filtered=None, monitor_filtered=None)
+    p.set_defaults(enable=None, glitch_reject=None, raw_glitch_reject=None, raw_filtered=None, spectrum_filtered=None, monitor_filtered=None)
 
     p = sub.add_parser("ada-read-spectrum", help="Read latest ADA4355 spectrum to stdout or CSV")
     p.add_argument("--points", type=parse_int)
@@ -1669,6 +1724,7 @@ def main():
                 enable=args.enable,
                 glitch_reject=args.glitch_reject,
                 raw_filtered=args.raw_filtered,
+                raw_glitch_reject=args.raw_glitch_reject,
                 spectrum_filtered=args.spectrum_filtered,
                 monitor_filtered=args.monitor_filtered,
             )

@@ -1,0 +1,18 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2023.2.2 (lin64) Build 4126759 Thu Feb  8 23:52:05 MST 2024
+| Date              : Sat Jun 27 01:59:05 2026
+| Host              : qian-MS-7E25 running 64-bit Ubuntu 22.04.5 LTS
+| Command           : report_timing -setup -max_paths 100 -nworst 10 -slack_lesser_than 0 -file /home/qian/Portable_System_Project/Butterfly_Laser_Driver/milestones/vivado_warning_cleanup_20260626_180839/timing_debug_after_lock_pipeline/failing_setup_paths_short.rpt
+| Design            : design_top
+| Device            : xck26-sfvc784
+| Speed File        : -2LVI  PRODUCTION 1.30 05-15-2022
+| Design State      : Routed
+| Temperature Grade : I
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+No timing paths found.
+
+

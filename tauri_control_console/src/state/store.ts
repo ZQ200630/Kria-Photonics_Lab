@@ -1,5 +1,5 @@
 import type { Spectrum, SystemStatus } from "../api/types";
-import { statusToMonitorSample, type MonitorSample } from "../utils/monitorSamples";
+import type { MonitorSample } from "../utils/monitorSamples";
 
 export type AppState = {
   backendUrl: string;
@@ -46,8 +46,7 @@ export function reducer(state: AppState, action: AppAction): AppState {
   if (action.type === "selectedLockPoint") return { ...state, selectedLockPoint: action.selectedLockPoint };
   if (action.type === "log") return { ...state, commandLog: [action.message, ...state.commandLog].slice(0, 200) };
   if (action.type === "status") {
-    const nextTrend = [...state.trend, statusToMonitorSample(action.timestamp, action.status)].slice(-30000);
-    return { ...state, connected: true, stale: false, lastStatus: action.status, trend: nextTrend };
+    return { ...state, connected: true, stale: false, lastStatus: action.status };
   }
   return state;
 }

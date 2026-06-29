@@ -1,0 +1,2 @@
+ M library/xilinx/common/ad_serdes_in.v
+ M scripts/adi_env.tcl

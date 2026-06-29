@@ -1,5 +1,5 @@
 import type { Spectrum } from "../api/types";
-import { DEFAULT_TZ_OHM, adcCodeToInputCurrentMicroamp } from "./ada4355";
+import { DEFAULT_PD_ZERO_ADC_CODE, DEFAULT_TZ_OHM, adcCodeToInputCurrentMicroamp } from "./ada4355";
 
 export type SpectrumRecordRow = {
   recordIndex: number;
@@ -27,14 +27,14 @@ export type AppendSpectrumOptions = {
   nowMs: number;
   minIntervalMs: number;
   tzOhm?: number;
-  currentOffsetMicroamp?: number;
+  zeroAdcCode?: number;
 };
 
 export function createSpectrumRecordRows(
   spectrum: Spectrum,
   recordIndex: number,
   tzOhm = DEFAULT_TZ_OHM,
-  currentOffsetMicroamp = 0,
+  zeroAdcCode = DEFAULT_PD_ZERO_ADC_CODE,
 ): SpectrumRecordRow[] {
   const dtMs = spectrum.count > 1 ? spectrum.duration_ms / (spectrum.count - 1) : 0;
   return spectrum.points.map((word, pointIndex) => {
@@ -46,7 +46,7 @@ export function createSpectrumRecordRows(
       timeMs: pointIndex * dtMs,
       relativeIntensity: Math.max(0, 0xffff - rawAdc),
       rawAdc,
-      pdCurrentMicroamp: adcCodeToInputCurrentMicroamp(rawAdc, tzOhm, currentOffsetMicroamp),
+      pdCurrentMicroamp: adcCodeToInputCurrentMicroamp(rawAdc, tzOhm, zeroAdcCode),
     };
   });
 }
@@ -73,7 +73,7 @@ export function appendSpectrumFrame(
       {
         recordIndex,
         frameCounter: spectrum.frame_counter,
-        rows: createSpectrumRecordRows(spectrum, recordIndex, options.tzOhm, options.currentOffsetMicroamp),
+        rows: createSpectrumRecordRows(spectrum, recordIndex, options.tzOhm, options.zeroAdcCode),
       },
     ],
     lastFrameCounter: spectrum.frame_counter,

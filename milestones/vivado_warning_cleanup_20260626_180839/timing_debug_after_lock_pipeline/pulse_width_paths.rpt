@@ -1,0 +1,87 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2023.2.2 (lin64) Build 4126759 Thu Feb  8 23:52:05 MST 2024
+| Date              : Sat Jun 27 01:59:05 2026
+| Host              : qian-MS-7E25 running 64-bit Ubuntu 22.04.5 LTS
+| Command           : report_pulse_width -file /home/qian/Portable_System_Project/Butterfly_Laser_Driver/milestones/vivado_warning_cleanup_20260626_180839/timing_debug_after_lock_pipeline/pulse_width_paths.rpt
+| Design            : design_top
+| Device            : xck26-sfvc784
+| Speed File        : -2LVI  PRODUCTION 1.30 05-15-2022
+| Design State      : Routed
+| Temperature Grade : I
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Pulse Width Report
+
+Clock Name:         AXI_ADA4355_adc_clk
+Waveform(ns):       { 0.000 4.000 }
+Period(ns):         8.000
+Sources:            { u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_div_clk_buf/O }
+
+Check Type        Corner  Lib Pin           Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location               Pin
+Min Period        n/a     ISERDESE3/CLKDIV  n/a            3.200         8.000       4.800      BITSLICE_RX_TX_X0Y123  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/g_data[0].i_iserdes/CLKDIV
+Low Pulse Width   Slow    ISERDESE3/CLKDIV  n/a            1.440         4.000       2.560      BITSLICE_RX_TX_X0Y123  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/g_data[0].i_iserdes/CLKDIV
+High Pulse Width  Slow    ISERDESE3/CLKDIV  n/a            1.440         4.000       2.560      BITSLICE_RX_TX_X0Y123  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/g_data[0].i_iserdes/CLKDIV
+
+Clock Name:         ada4355_dco
+Waveform(ns):       { 0.000 1.000 }
+Period(ns):         2.000
+Sources:            { ada4355_dco_p }
+
+Check Type        Corner  Lib Pin          Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location               Pin
+Min Period        n/a     ISERDESE3/CLK    n/a            1.600         2.000       0.400      BITSLICE_RX_TX_X0Y123  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/g_data[0].i_iserdes/CLK
+Low Pulse Width   Slow    ISERDESE3/CLK    n/a            0.720         1.000       0.280      BITSLICE_RX_TX_X0Y123  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/g_data[0].i_iserdes/CLK
+High Pulse Width  Slow    ISERDESE3/CLK    n/a            0.720         1.000       0.280      BITSLICE_RX_TX_X0Y123  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/g_data[0].i_iserdes/CLK
+Max Skew          Slow    ISERDESE3/CLK_B  ISERDESE3/CLK  0.625         0.063       0.562      BITSLICE_RX_TX_X0Y125  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/g_data[1].i_iserdes/CLK_B
+
+Clock Name:         clk_pl_0
+Waveform(ns):       { 0.000 5.000 }
+Period(ns):         10.000
+Sources:            { u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[0] }
+
+Check Type        Corner  Lib Pin            Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location   Pin
+Min Period        n/a     MMCME4_ADV/DCLK    n/a            4.000         10.000      6.000      MMCM_X0Y2  u_project_1_wrapper/project_1_i/axi_clkgen_0/inst/i_mmcm_drp/i_mmcme4/DCLK
+Max Period        n/a     MMCME4_ADV/CLKIN1  n/a            100.000       10.000      90.000     MMCM_X0Y2  u_project_1_wrapper/project_1_i/axi_clkgen_0/inst/i_mmcm_drp/i_mmcme4/CLKIN1
+Low Pulse Width   Slow    MMCME4_ADV/CLKIN1  n/a            3.000         5.000       2.000      MMCM_X0Y2  u_project_1_wrapper/project_1_i/axi_clkgen_0/inst/i_mmcm_drp/i_mmcme4/CLKIN1
+High Pulse Width  Slow    MMCME4_ADV/CLKIN1  n/a            3.000         5.000       2.000      MMCM_X0Y2  u_project_1_wrapper/project_1_i/axi_clkgen_0/inst/i_mmcm_drp/i_mmcme4/CLKIN1
+
+Clock Name:         clk_pl_1
+Waveform(ns):       { 0.000 2.500 }
+Period(ns):         5.000
+Sources:            { u_project_1_wrapper/project_1_i/K26_SOM/inst/PS8_i/PLCLK[1] }
+
+Check Type        Corner  Lib Pin            Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location                Pin
+Min Period        n/a     IDELAYCTRL/REFCLK  n/a            1.250         5.000       3.750      BITSLICE_CONTROL_X0Y19  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/i_delay_ctrl/REFCLK
+Max Period        n/a     IDELAYCTRL/REFCLK  n/a            3.333         5.000       -1.667     BITSLICE_CONTROL_X0Y19  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/i_delay_ctrl/REFCLK
+Low Pulse Width   Slow    IDELAYCTRL/REFCLK  n/a            0.563         2.500       1.937      BITSLICE_CONTROL_X0Y19  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/i_delay_ctrl/REFCLK
+High Pulse Width  Slow    IDELAYCTRL/REFCLK  n/a            0.563         2.500       1.937      BITSLICE_CONTROL_X0Y19  u_project_1_wrapper/project_1_i/AXI_ADA4355/inst/i_ada4355_interface/i_serdes/i_delay_ctrl/REFCLK
+
+Clock Name:         dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/INTERNAL_TCK
+Waveform(ns):       { 0.000 25.000 }
+Period(ns):         50.000
+Sources:            { dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/INTERNAL_TCK }
+
+Check Type        Corner  Lib Pin     Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location       Pin
+Min Period        n/a     RAMD32/CLK  n/a            1.572         50.000      48.428     SLICE_X58Y144  dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_WR/U_WR_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_wrfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.mem/gdm.dm_gen.dm/RAM_reg_0_15_0_13/RAMA/CLK
+Low Pulse Width   Slow    RAMD32/CLK  n/a            0.762         25.000      24.238     SLICE_X58Y144  dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_WR/U_WR_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_wrfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.mem/gdm.dm_gen.dm/RAM_reg_0_15_0_13/RAMA/CLK
+High Pulse Width  Slow    RAMD32/CLK  n/a            0.762         25.000      24.238     SLICE_X58Y144  dbg_hub/inst/BSCANID.u_xsdbm_id/CORE_XSDB.UUT_MASTER/U_ICON_INTERFACE/U_CMD6_WR/U_WR_FIFO/SUBCORE_FIFO.xsdbm_v3_0_0_wrfifo_inst/inst_fifo_gen/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.mem/gdm.dm_gen.dm/RAM_reg_0_15_0_13/RAMA/CLK
+
+Clock Name:         mmcm_clk_0_s
+Waveform(ns):       { 0.000 4.167 }
+Period(ns):         8.333
+Sources:            { u_project_1_wrapper/project_1_i/axi_clkgen_0/inst/i_mmcm_drp/i_mmcme4/CLKOUT0 }
+
+Check Type        Corner  Lib Pin             Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location       Pin
+Min Period        n/a     RAMB18E2/CLKARDCLK  n/a            1.937         8.333       6.396      RAMB18_X0Y38   u_project_1_wrapper/project_1_i/AXI_AD3552_C1_DMA/inst/i_transfer/i_request_arb/i_store_and_forward/i_mem/m_ram_reg/CLKARDCLK
+Low Pulse Width   Slow    SRL16E/CLK          n/a            0.762         4.167       3.405      SLICE_X28Y123  u_project_1_wrapper/project_1_i/AXI_AD3552_C1/inst/axi_ad3552r_up_core/axi_ad3552r_channel_0/i_dds/dds_phase[1].i_dds_2/dds_data_out_reg[0]_srl2/CLK
+High Pulse Width  Slow    SRL16E/CLK          n/a            0.762         4.167       3.405      SLICE_X28Y123  u_project_1_wrapper/project_1_i/AXI_AD3552_C1/inst/axi_ad3552r_up_core/axi_ad3552r_channel_0/i_dds/dds_phase[1].i_dds_2/dds_data_out_reg[0]_srl2/CLK
+
+Clock Name:         mmcm_fb_clk_s
+Waveform(ns):       { 0.000 5.000 }
+Period(ns):         10.000
+Sources:            { u_project_1_wrapper/project_1_i/axi_clkgen_0/inst/i_mmcm_drp/i_mmcme4/CLKFBOUT }
+
+Check Type  Corner  Lib Pin             Reference Pin  Required(ns)  Actual(ns)  Slack(ns)  Location      Pin
+Min Period  n/a     BUFGCE/I            n/a            1.379         10.000      8.621      BUFGCE_X0Y67  u_project_1_wrapper/project_1_i/axi_clkgen_0/inst/i_mmcm_drp/i_fb_clk_bufg/I
+Max Period  n/a     MMCME4_ADV/CLKFBIN  n/a            100.000       10.000      90.000     MMCM_X0Y2     u_project_1_wrapper/project_1_i/axi_clkgen_0/inst/i_mmcm_drp/i_mmcme4/CLKFBIN
+

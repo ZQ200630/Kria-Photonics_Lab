@@ -23,6 +23,7 @@ const state: AppState = {
         lp_shift: 13,
         raw_lp_shift: 9,
         glitch_threshold: 3000,
+        raw_glitch_reject: false,
         raw_use_filtered: false,
       },
       raw: { length: 524288, decim: 1, capacity_samples: 524288, storage: "packed_u16_le" },
@@ -44,13 +45,26 @@ describe("AdaPanel layout", () => {
     const html = renderToStaticMarkup(<AdaPanel state={state} client={client} command={command} />);
 
     expect(html).toContain("Update Parameters");
-    expect(html).toContain("Spectrum/Monitor LP Shift");
+    expect(html).toContain("PD Zero ADC Code");
+    expect(html).toContain("Calibrate Zero");
+    expect(html).toContain("ADA4355 Gain / Tz");
+    expect(html).toContain("2 kOhm");
+    expect(html).toContain("20 kOhm");
+    expect(html).toContain("200 kOhm");
+    expect(html).toContain("Analog Low-pass");
+    expect(html).toContain("1 MHz");
+    expect(html).toContain("100 MHz");
+    expect(html).not.toContain("Spectrum/Monitor LP Shift");
     expect(html).toContain("Raw LP Shift");
+    expect(html).toContain("Raw Median");
     expect(html).toContain("Raw Filter");
     expect(html).toContain("Raw Name");
     expect(html).toContain("524288");
     expect(html).toContain("Capture Raw ADC");
     expect(html).toContain("Save Raw");
+    expect(html).toContain("Raw ADC plot with X-only zoom");
+    expect(html).toContain("Left-drag to zoom X");
+    expect(html).toContain("right-click to restore");
     expect(html).not.toContain("Start ADA");
     expect(html).not.toContain("Stop ADA");
     expect(html).not.toContain("Clear ADA");

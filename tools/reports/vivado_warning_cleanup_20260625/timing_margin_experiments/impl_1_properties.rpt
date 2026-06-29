@@ -1,0 +1,95 @@
+Property                                             Type     Read-only  Value
+CURRENT_STEP                                         string   true       write_bitstream
+CLASS                                                string   true       run
+CONSTRSET                                            fileset  false      constrs_1
+DESCRIPTION                                          string   false      Default settings for Implementation.
+DIRECTORY                                            string   true       /home/qian/xilinx/Xilinx/Vivado_Projects/Demo1013/hardware/xilinx-k26-som-2023.2/xilinx-k26-som-2023.2.runs/impl_1
+STATS.ELAPSED                                        string   true       00:04:36
+STATS.TNS                                            string   true       0.000000
+STATS.THS                                            string   true       0.000000
+STATS.WNS                                            string   true       0.173330
+STATS.WHS                                            string   true       0.010378
+STATS.TPWS                                           string   true       0.000000
+STATS.TOTAL_POWER                                    string   true       3.252405
+STATS.FAILED_NETS                                    string   true       0
+FLOW                                                 string   false      Vivado Implementation 2023
+IS_IMPLEMENTATION                                    bool     true       1
+IS_SYNTHESIS                                         bool     true       0
+NAME                                                 string   false      impl_1
+NEEDS_REFRESH                                        bool     false      0
+PARENT                                               run      true       synth_1
+PART                                                 part     false      xck26-sfvc784-2LVI-i
+PR_CONFIGURATION                                     string   false      
+DFX_MODE                                             enum     false      STANDARD
+PROGRESS                                             string   true       100%
+SRCSET                                               fileset  false      sources_1
+STATUS                                               string   true       write_bitstream Complete!
+INCREMENTAL_CHECKPOINT                               file     false      
+AUTO_INCREMENTAL_CHECKPOINT                          bool     false      0
+INCREMENTAL_CHECKPOINT.DIRECTIVE                     string   false      
+RQS_FILES                                            string*  false      
+ML_STRATEGY_RUNS                                     string*  false      
+AUTO_RQS                                             bool     false      0
+AUTO_RQS.DIRECTORY                                   string   false      /home/qian/xilinx/Xilinx/Vivado_Projects/Demo1013/hardware/xilinx-k26-som-2023.2/xilinx-k26-som-2023.2.srcs/utils_1/imports/impl_1
+INCREMENTAL_CHECKPOINT.MORE_OPTIONS                  string   false      
+INCLUDE_IN_ARCHIVE                                   bool     false      1
+GEN_FULL_BITSTREAM                                   bool     false      1
+JOB_ID                                               string   true       
+AUTO_INCREMENTAL_CHECKPOINT.DIRECTORY                string   false      /home/qian/xilinx/Xilinx/Vivado_Projects/Demo1013/hardware/xilinx-k26-som-2023.2/xilinx-k26-som-2023.2.srcs/utils_1/imports/impl_1
+MIN_RQA_SCORE                                        int      false      0
+REPORT_STRATEGY                                      string   false      Vivado Implementation Default Reports
+STRATEGY                                             string   false      Vivado Implementation Defaults
+STEPS.INIT_DESIGN.TCL.PRE                            file     false      
+STEPS.INIT_DESIGN.TCL.POST                           file     false      
+STEPS.INIT_DESIGN.REPORTS                            string*  true       impl_1_init_report_timing_summary_0
+STEPS.INIT_DESIGN.ARGS.MORE OPTIONS                  string   false      
+STEPS.OPT_DESIGN.IS_ENABLED                          bool     false      1
+STEPS.OPT_DESIGN.TCL.PRE                             file     false      
+STEPS.OPT_DESIGN.TCL.POST                            file     false      
+STEPS.OPT_DESIGN.REPORTS                             string*  true       impl_1_opt_report_drc_0 impl_1_opt_report_timing_summary_0
+STEPS.OPT_DESIGN.ARGS.VERBOSE                        bool     false      0
+STEPS.OPT_DESIGN.ARGS.DIRECTIVE                      enum     false      Default
+STEPS.OPT_DESIGN.ARGS.MORE OPTIONS                   string   false      
+STEPS.POWER_OPT_DESIGN.IS_ENABLED                    bool     false      0
+STEPS.POWER_OPT_DESIGN.TCL.PRE                       file     false      
+STEPS.POWER_OPT_DESIGN.TCL.POST                      file     false      
+STEPS.POWER_OPT_DESIGN.REPORTS                       string*  true       impl_1_power_opt_report_timing_summary_0
+STEPS.POWER_OPT_DESIGN.ARGS.MORE OPTIONS             string   false      
+STEPS.PLACE_DESIGN.TCL.PRE                           file     false      
+STEPS.PLACE_DESIGN.TCL.POST                          file     false      
+STEPS.PLACE_DESIGN.REPORTS                           string*  true       impl_1_place_report_io_0 impl_1_place_report_utilization_0 impl_1_place_report_control_sets_0 impl_1_place_report_incremental_reuse_0 impl_1_place_report_incremental_reuse_1 impl_1_place_report_timing_summary_0
+STEPS.PLACE_DESIGN.ARGS.DIRECTIVE                    enum     false      Default
+STEPS.PLACE_DESIGN.ARGS.MORE OPTIONS                 string   false      
+STEPS.POST_PLACE_POWER_OPT_DESIGN.IS_ENABLED         bool     false      0
+STEPS.POST_PLACE_POWER_OPT_DESIGN.TCL.PRE            file     false      
+STEPS.POST_PLACE_POWER_OPT_DESIGN.TCL.POST           file     false      
+STEPS.POST_PLACE_POWER_OPT_DESIGN.REPORTS            string*  true       impl_1_post_place_power_opt_report_timing_summary_0
+STEPS.POST_PLACE_POWER_OPT_DESIGN.ARGS.MORE OPTIONS  string   false      
+STEPS.PHYS_OPT_DESIGN.IS_ENABLED                     bool     false      1
+STEPS.PHYS_OPT_DESIGN.TCL.PRE                        file     false      
+STEPS.PHYS_OPT_DESIGN.TCL.POST                       file     false      
+STEPS.PHYS_OPT_DESIGN.REPORTS                        string*  true       impl_1_phys_opt_report_timing_summary_0
+STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE                 enum     false      Default
+STEPS.PHYS_OPT_DESIGN.ARGS.MORE OPTIONS              string   false      
+STEPS.ROUTE_DESIGN.TCL.PRE                           file     false      
+STEPS.ROUTE_DESIGN.TCL.POST                          file     false      
+STEPS.ROUTE_DESIGN.REPORTS                           string*  true       impl_1_route_report_drc_0 impl_1_route_report_methodology_0 impl_1_route_report_power_0 impl_1_route_report_route_status_0 impl_1_route_report_timing_summary_0 impl_1_route_report_incremental_reuse_0 impl_1_route_report_clock_utilization_0 impl_1_route_report_bus_skew_0 impl_1_route_implementation_log_0
+STEPS.ROUTE_DESIGN.ARGS.DIRECTIVE                    enum     false      Default
+STEPS.ROUTE_DESIGN.ARGS.MORE OPTIONS                 string   false      
+STEPS.POST_ROUTE_PHYS_OPT_DESIGN.IS_ENABLED          bool     false      0
+STEPS.POST_ROUTE_PHYS_OPT_DESIGN.TCL.PRE             file     false      
+STEPS.POST_ROUTE_PHYS_OPT_DESIGN.TCL.POST            file     false      
+STEPS.POST_ROUTE_PHYS_OPT_DESIGN.REPORTS             string*  true       impl_1_post_route_phys_opt_report_timing_summary_0 impl_1_post_route_phys_opt_report_bus_skew_0
+STEPS.POST_ROUTE_PHYS_OPT_DESIGN.ARGS.DIRECTIVE      enum     false      Default
+STEPS.POST_ROUTE_PHYS_OPT_DESIGN.ARGS.MORE OPTIONS   string   false      
+STEPS.WRITE_BITSTREAM.TCL.PRE                        file     false      
+STEPS.WRITE_BITSTREAM.TCL.POST                       file     false      
+STEPS.WRITE_BITSTREAM.REPORTS                        string*  true       impl_1_bitstream_implementation_log_0
+STEPS.WRITE_BITSTREAM.ARGS.RAW_BITFILE               bool     false      0
+STEPS.WRITE_BITSTREAM.ARGS.MASK_FILE                 bool     false      0
+STEPS.WRITE_BITSTREAM.ARGS.NO_BINARY_BITFILE         bool     false      0
+STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE                  bool     false      1
+STEPS.WRITE_BITSTREAM.ARGS.READBACK_FILE             bool     false      0
+STEPS.WRITE_BITSTREAM.ARGS.LOGIC_LOCATION_FILE       bool     false      0
+STEPS.WRITE_BITSTREAM.ARGS.VERBOSE                   bool     false      0
+STEPS.WRITE_BITSTREAM.ARGS.MORE OPTIONS              string   false      

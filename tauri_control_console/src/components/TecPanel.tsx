@@ -1,9 +1,13 @@
+import { useMemo } from "react";
 import type { PanelProps } from "./types";
 import PlotCanvas from "./PlotCanvas";
 import { fmtInt, fmtNumber, inputInt, inputNumber, parseNumber } from "../utils/format";
 import { useSyncedInput } from "../utils/syncedInput";
 import { classifyTecStatus, isTecRunning, temperatureStats, type TecStatusSummary } from "../utils/tec";
 import { makeTecRampPayload, rampEnabledInput } from "../utils/tecRamp";
+import type { MonitorSample } from "../utils/monitorSamples";
+
+const TEC_DISPLAY_SAMPLE_LIMIT = 600;
 
 function StatusLamp({ status, compact = false }: { status: TecStatusSummary; compact?: boolean }) {
   return (
@@ -36,7 +40,20 @@ function Field({ label, input }: { label: string; input: ReturnType<typeof useSy
   );
 }
 
-export default function TecPanel({ state, client, command, active = true, compact = false }: PanelProps) {
+export function deriveTecTemperatureValues(active: boolean, trend: MonitorSample[]): number[] {
+  if (!active) return [];
+  const latest: number[] = [];
+  for (let index = trend.length - 1; index >= 0 && latest.length < TEC_DISPLAY_SAMPLE_LIMIT; index -= 1) {
+    const value = trend[index]?.temp;
+    if (typeof value === "number" && Number.isFinite(value)) {
+      latest.push(value);
+    }
+  }
+  latest.reverse();
+  return latest;
+}
+
+export default function TecPanel({ state, client, command, active = true, compact = false, monitorSamplesRef }: PanelProps) {
   const tec = state.lastStatus?.tec;
   const targetReadback = tec?.ramp?.active ? tec.ramp.target_celsius : tec?.target_celsius;
   const target = useSyncedInput(inputNumber(targetReadback, 3), "31.0");
@@ -55,10 +72,14 @@ export default function TecPanel({ state, client, command, active = true, compac
   const rampEnabled = useSyncedInput(rampEnabledInput(tec?.ramp?.enabled), "yes");
   const rampRate = useSyncedInput(inputNumber(tec?.ramp?.rate_c_per_s, 3), "0.05");
   const rampInterval = useSyncedInput(inputInt(tec?.ramp?.interval_ms), "200");
-  const values = state.trend.map((item) => item.temp).filter((value): value is number => typeof value === "number");
+  const monitorSamples = monitorSamplesRef?.current ?? state.trend;
+  const values = useMemo(
+    () => deriveTecTemperatureValues(active, monitorSamples),
+    [active, monitorSamples, state.lastStatus],
+  );
   const tecOn = isTecRunning(tec?.status_flags);
   const status = classifyTecStatus(tec);
-  const stats = temperatureStats(values);
+  const stats = useMemo(() => temperatureStats(values), [values]);
 
   const updateParameters = async () => {
     await client.post("/api/tec/pid", {

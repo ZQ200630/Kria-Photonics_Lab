@@ -36,6 +36,8 @@ export type MonitorRecordingInterval = {
 };
 
 export const MONITOR_SAMPLE_HISTORY_LIMIT = 180000;
+const MONITOR_SAMPLE_EXACT_TRIM_LIMIT = 64;
+const MONITOR_SAMPLE_MAX_TRIM_CHUNK = 4096;
 
 export function statusToMonitorSample(timestamp: number, status: SystemStatus, serverTimestamp?: number): MonitorSample {
   const tec = status.tec;
@@ -72,7 +74,31 @@ export function appendBoundedMonitorSample(
   sample: MonitorSample,
   limit = MONITOR_SAMPLE_HISTORY_LIMIT,
 ): MonitorSample[] {
-  return [...samples, sample].slice(-Math.max(1, limit));
+  const safeLimit = Math.max(1, limit);
+  if (samples.length >= safeLimit) {
+    const trimCount = Math.max(samples.length - safeLimit + 1, monitorSampleTrimCount(safeLimit));
+    return [...samples.slice(Math.min(samples.length, trimCount)), sample];
+  }
+  return [...samples, sample];
+}
+
+function monitorSampleTrimCount(limit: number): number {
+  if (limit <= MONITOR_SAMPLE_EXACT_TRIM_LIMIT) return 1;
+  return Math.max(1, Math.min(MONITOR_SAMPLE_MAX_TRIM_CHUNK, Math.floor(limit * 0.05)));
+}
+
+export function pushBoundedMonitorSample(
+  samples: MonitorSample[],
+  sample: MonitorSample,
+  limit = MONITOR_SAMPLE_HISTORY_LIMIT,
+): MonitorSample[] {
+  const safeLimit = Math.max(1, limit);
+  samples.push(sample);
+  if (samples.length > safeLimit) {
+    const excess = samples.length - safeLimit;
+    samples.splice(0, Math.max(excess, monitorSampleTrimCount(safeLimit)));
+  }
+  return samples;
 }
 
 function monitorDisplayMode(mode: LaserOutputMode | undefined): MonitorDisplayMode | undefined {

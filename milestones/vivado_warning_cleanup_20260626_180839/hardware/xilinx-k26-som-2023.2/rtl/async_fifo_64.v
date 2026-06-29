@@ -1,0 +1,85 @@
+`timescale 1ns / 1ps
+/*
+ * async_fifo_64.v
+ *
+ * XPM-based 64-bit async FIFO wrapper.
+ *
+ * 说明：
+ *   - 这是 64/64 异步 FIFO，读模式为标准模式（READ_MODE="std"）。
+ *   - rd_en 发起一次读请求后，FIFO_READ_LATENCY=1，因此 rd_valid 在下一个 rd_clk 周期有效。
+ *   - 该模块依赖 Vivado 自带的 xpm_fifo_async，适合在 Vivado/xsim 工程中使用。
+ */
+module async_fifo_64 #(
+    parameter integer FIFO_WRITE_DEPTH = 2048
+) (
+    input  wire        rst_n,
+
+    input  wire        wr_clk,
+    input  wire        wr_en,
+    input  wire [63:0] wr_data,
+    output wire        full,
+    output wire        overflow,
+    output wire        wr_rst_busy,
+
+    input  wire        rd_clk,
+    input  wire        rd_en,
+    output wire [63:0] rd_data,
+    output wire        rd_valid,
+    output wire        empty,
+    output wire        underflow,
+    output wire        rd_rst_busy
+);
+
+    xpm_fifo_async #(
+        .CASCADE_HEIGHT      (0),
+        .CDC_SYNC_STAGES     (2),
+        .DOUT_RESET_VALUE    ("0"),
+        .ECC_MODE            ("no_ecc"),
+        .FIFO_MEMORY_TYPE    ("block"),
+        .FIFO_READ_LATENCY   (1),
+        .FIFO_WRITE_DEPTH    (FIFO_WRITE_DEPTH),
+        .FULL_RESET_VALUE    (0),
+        .PROG_EMPTY_THRESH   (10),
+        .PROG_FULL_THRESH    (10),
+        .RD_DATA_COUNT_WIDTH (1),
+        .READ_DATA_WIDTH     (64),
+        .READ_MODE           ("std"),
+        .RELATED_CLOCKS      (0),
+        .SIM_ASSERT_CHK      (1),
+        .USE_ADV_FEATURES    ("0707"),
+        .WAKEUP_TIME         (0),
+        .WRITE_DATA_WIDTH    (64),
+        .WR_DATA_COUNT_WIDTH (1)
+    ) xpm_fifo_async_inst (
+        .sleep          (1'b0),
+        .rst            (~rst_n),
+
+        .wr_clk         (wr_clk),
+        .wr_en          (wr_en),
+        .din            (wr_data),
+        .full           (full),
+        .overflow       (overflow),
+        .wr_ack         (),
+        .almost_full    (),
+        .prog_full      (),
+        .wr_data_count  (),
+        .wr_rst_busy    (wr_rst_busy),
+
+        .rd_clk         (rd_clk),
+        .rd_en          (rd_en),
+        .dout           (rd_data),
+        .data_valid     (rd_valid),
+        .empty          (empty),
+        .underflow      (underflow),
+        .almost_empty   (),
+        .prog_empty     (),
+        .rd_data_count  (),
+        .rd_rst_busy    (rd_rst_busy),
+
+        .injectdbiterr  (1'b0),
+        .injectsbiterr  (1'b0),
+        .dbiterr        (),
+        .sbiterr        ()
+    );
+
+endmodule

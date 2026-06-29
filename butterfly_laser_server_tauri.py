@@ -29,6 +29,7 @@ from butterfly_laser_server import (
     PA_SHUTDOWN_JOIN_TIMEOUT_S,
     ButterflyHandler,
     PaService,
+    PaSchedulerService,
     PaTcpListener,
     build_parser as build_legacy_parser,
     cleanup_call,
@@ -233,6 +234,7 @@ def main():
         initialize_pl_parameters(system, settings)
         httpd.stop_event = threading.Event()
         httpd.pa_service = PaService(pa_regs, capture_dev_path=args.pa_capture_dev)
+        httpd.pa_scheduler = PaSchedulerService(pa_regs)
         httpd.pa_tcp_listener = PaTcpListener(args.host, args.pa_tcp_port, httpd.pa_service, httpd.stop_event)
         httpd.pa_tcp_listener.start()
         httpd.sse_status_hz = max(float(args.sse_status_hz), 0.1)
@@ -270,6 +272,9 @@ def main():
             pa_tcp_listener = getattr(httpd, "pa_tcp_listener", None)
             if pa_tcp_listener is not None:
                 cleanup_call("PA TCP listener", pa_tcp_listener.stop)
+            pa_scheduler = getattr(httpd, "pa_scheduler", None)
+            if pa_scheduler is not None:
+                cleanup_call("PA scheduler", pa_scheduler.abort_and_park)
             pa_service = getattr(httpd, "pa_service", None)
             if pa_service is not None:
                 pa_status = cleanup_call(

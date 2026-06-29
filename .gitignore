@@ -5,8 +5,13 @@ __pycache__/
 tauri_control_console/node_modules/
 tauri_control_console/dist/
 tauri_control_console/src-tauri/target/
+release_artifacts/
 
 *.log
 *.jou
 *.pb
+*.backup.*
+*_backup*.v
+*_backup*.sv
+*_Backup*.xdc
 xsim.dir/
