@@ -71,8 +71,12 @@ The Python examples can operate on saved files directly. For direct control, con
 - POST /api/ada/filter
 - POST /api/pa/start
 - POST /api/pa/stop
-- POST /api/pa/scheduler/scan/start
-- POST /api/pa/scheduler/abort
+- GET /api/pa/scheduler/status
+- POST /api/pa/scheduler/config
+- POST /api/pa/scheduler/command
+- POST /api/pa/scheduler/manual-position
+- POST /api/pa/scheduler/pulse
+- POST /api/pa/scheduler/waveform
 - POST /api/settings
 - POST /api/settings/apply
 
@@ -737,7 +741,7 @@ class ButterflyClient:
         return self.get("/api/status")
 
     def abort_pa(self) -> Dict[str, Any]:
-        return self.post("/api/pa/scheduler/abort")
+        return self.post("/api/pa/stop")
 
     def start_raw_capture(self, length: int = 16384) -> Dict[str, Any]:
         return self.post("/api/ada/raw-capture", {"length": length})

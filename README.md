@@ -228,7 +228,7 @@ The board server exposes a trusted-lab REST API. Examples:
 curl http://192.168.8.236:8080/api/status
 curl http://192.168.8.236:8080/api/settings
 curl -X POST http://192.168.8.236:8080/api/stop-all
-curl -X POST http://192.168.8.236:8080/api/pa/scheduler/abort
+curl -X POST http://192.168.8.236:8080/api/pa/stop
 ```
 
 The API is intentionally low-friction for lab automation and does not include
