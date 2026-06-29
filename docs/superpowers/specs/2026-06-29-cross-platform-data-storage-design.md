@@ -37,6 +37,9 @@ The root contains only data-type folders and the temporary folder:
   lock_spectrum_pair/
   monitor_data/
   pa_image/
+  settings_export/
+  spectrum_recording/
+  spectrum_snapshot/
 ```
 
 Each data-type folder contains only date folders:
@@ -149,6 +152,26 @@ monitor_data/YYYYMMDD/<name>_<index>/
 ```
 
 Future data types add a new top-level data-type folder and reuse the same date-folder and record-folder allocation logic.
+
+General spectrum panel exports go to:
+
+```text
+spectrum_snapshot/YYYYMMDD/<name>_<index>/
+  spectrum.csv
+  metadata.json
+
+spectrum_recording/YYYYMMDD/<name>_<index>/
+  spectra.csv
+  metadata.json
+```
+
+Settings exports go to:
+
+```text
+settings_export/YYYYMMDD/<name>_<index>/
+  settings.json
+  metadata.json
+```
 
 ## Project-Wide Storage Coverage
 
