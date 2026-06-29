@@ -150,6 +150,25 @@ monitor_data/YYYYMMDD/<name>_<index>/
 
 Future data types add a new top-level data-type folder and reuse the same date-folder and record-folder allocation logic.
 
+## Project-Wide Storage Coverage
+
+The implementation must audit and migrate every current experiment-data save path, not only PA Image. The covered Tauri UI save sources are:
+
+- `SpectrumPanel`: latest spectrum snapshot and spectrum recording.
+- `LockPanel`: idle spectrum snapshot, idle spectrum recording, lock spectrum pair, and live PD/temperature monitor recording.
+- `AdaPanel`: raw ADC capture save.
+- `PaImagingPanel`: PA current capture, PA canvas capture, and saved PA image records.
+- `SettingsPanel`: exported settings snapshots. These are configuration records rather than experiment records, but they should still use the same storage manager so exports land under the selected data root.
+
+The Rust/Tauri commands that currently write files or choose save locations must be replaced or narrowed:
+
+- `save_text_file`: no longer used for experiment data; either removed or kept only as a compatibility wrapper around the storage manager.
+- `save_experiment_bundle`: replaced by a storage command that always writes `data_type/YYYYMMDD/name_index/`.
+- `choose_data_directory`: replaced by global root selection for Settings.
+- `pa_receiver_start`: no longer receives an arbitrary UI-edited output path for PA image capture; the caller asks the storage manager for the current PA temporary legacy bin path.
+
+The server-side Python setting file, command line `--settings`, device paths, and FPGA driver paths are not experiment data. They remain server configuration and are not moved into the data root. Legacy web GUI files, milestone archives, generated Vivado reports, and test fixtures are outside the runtime application migration scope.
+
 ## Tauri API Shape
 
 The Rust storage manager exposes commands with logical inputs:
