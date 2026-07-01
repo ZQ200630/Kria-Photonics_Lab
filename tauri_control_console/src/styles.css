@@ -1,5 +1,7 @@
 :root {
-  font-family: Inter, Segoe UI, system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Segoe UI, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
   color: #162033;
   background: #edf2f7;
 }
@@ -656,7 +658,7 @@ textarea {
 
 .pa-imaging-workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+  grid-template-columns: minmax(0, 1.02fr) minmax(420px, 0.98fr);
   gap: 14px;
   align-items: start;
 }
@@ -668,8 +670,9 @@ textarea {
 .pa-live-image-preview {
   display: grid;
   gap: 12px;
+  align-self: start;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 14px;
   border: 1px solid #c8d6ea;
   border-radius: 8px;
@@ -677,10 +680,15 @@ textarea {
 }
 
 .pa-preview-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
   align-items: center;
-  gap: 14px;
+}
+
+.pa-preview-header > div:first-child {
+  flex: 1 1 260px;
+  min-width: 0;
 }
 
 .pa-preview-header h3 {
@@ -696,6 +704,8 @@ textarea {
 .pa-preview-actions {
   display: flex;
   flex-wrap: wrap;
+  flex: 0 1 auto;
+  margin-left: auto;
   justify-content: flex-end;
   gap: 8px;
   align-items: center;
@@ -709,6 +719,7 @@ textarea {
 .pa-preview-main-actions {
   display: inline-flex;
   flex-wrap: wrap;
+  margin-left: 0;
   gap: 8px;
   align-items: center;
 }
@@ -719,10 +730,10 @@ textarea {
 
 .pa-preview-toolstrip {
   display: grid;
-  grid-template-columns: minmax(96px, 0.8fr) minmax(88px, 0.7fr) repeat(3, minmax(108px, 1fr));
-  align-items: center;
+  grid-template-columns: 1fr;
+  align-items: stretch;
   justify-content: stretch;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   box-sizing: border-box;
   padding: 10px;
@@ -731,10 +742,36 @@ textarea {
   background: #f8fafc;
 }
 
+.pa-preview-control-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pa-preview-display-controls {
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(96px, 0.55fr);
+}
+
+.pa-preview-roi-controls {
+  grid-template-columns: minmax(88px, 0.72fr) minmax(64px, 0.52fr) minmax(104px, 0.84fr) minmax(104px, 0.84fr) minmax(150px, 1.08fr);
+  align-items: end;
+}
+
 .pa-preview-toolstrip .command {
   width: 100%;
   min-width: 0;
   padding: 0 9px;
+}
+
+.pa-preview-roi-controls .command.primary {
+  padding: 0 8px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.pa-preview-toolstrip .pa-inline-control {
+  grid-template-columns: 1fr;
+  gap: 4px;
 }
 
 .pa-inline-control {
@@ -822,10 +859,49 @@ textarea {
 }
 
 .pa-live-image-preview .pa-image-heatmap {
-  height: 410px;
   max-width: 100%;
   box-sizing: border-box;
   border-color: #cbd8e8;
+}
+
+.pa-preview-heatmap-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  gap: 8px;
+  align-items: stretch;
+  justify-self: center;
+  width: 100%;
+  height: clamp(360px, 48vh, 580px);
+  min-width: 0;
+}
+
+.pa-preview-heatmap-canvas-slot {
+  min-width: 0;
+  min-height: 0;
+}
+
+.pa-preview-heatmap-canvas-slot .pa-image-heatmap {
+  height: 100%;
+}
+
+.pa-preview-colorbar-slot {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pa-preview-colorbar-slot .pa-image-colorbar {
+  position: absolute;
+  right: auto;
+  bottom: auto;
+  left: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.pa-preview-colorbar-slot .pa-image-colorbar-ramp {
+  min-height: 80px;
 }
 
 .pa-preview-empty {
@@ -1357,8 +1433,9 @@ textarea {
 .pa-scheduler-shell {
   display: grid;
   gap: 12px;
+  align-self: start;
   min-width: 0;
-  margin-bottom: 14px;
+  margin-bottom: 0;
   border: 1px solid #c8d6ea;
   border-radius: 8px;
   padding: 12px;
@@ -2757,13 +2834,31 @@ textarea {
 
 .pa-image-visual-toolbar {
   display: grid;
-  grid-template-columns: repeat(3, minmax(100px, 1fr)) auto auto;
-  gap: 8px;
-  align-items: end;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
 }
 
-.pa-image-visual-toolbar .command {
+.pa-image-display-controls,
+.pa-image-similar-controls {
+  display: grid;
+  gap: 8px;
+  align-items: end;
+  min-width: 0;
+}
+
+.pa-image-display-controls {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pa-image-similar-controls {
+  grid-template-columns: minmax(96px, 0.7fr) repeat(2, minmax(128px, 1fr));
+}
+
+.pa-image-similar-controls .command {
+  min-width: 0;
   min-height: 34px;
+  width: 100%;
 }
 
 .pa-image-readouts {
@@ -2793,6 +2888,7 @@ textarea {
   display: block;
   width: 100%;
   height: 360px;
+  image-rendering: auto;
   border: 1px solid #d5dfeb;
   border-radius: 6px;
   background: #f8fafc;
@@ -2942,16 +3038,22 @@ textarea {
     height: 340px;
   }
 
-  .pa-preview-header,
   .pa-scheduler-save-panel {
     grid-template-columns: 1fr;
   }
 
   .pa-preview-actions {
+    width: 100%;
+    margin-left: 0;
     justify-content: flex-start;
   }
 
   .pa-preview-toolstrip {
+    grid-template-columns: 1fr;
+  }
+
+  .pa-preview-display-controls,
+  .pa-preview-roi-controls {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
   }
 
@@ -3119,6 +3221,8 @@ textarea {
   }
 
   .pa-preview-toolstrip,
+  .pa-preview-display-controls,
+  .pa-preview-roi-controls,
   .pa-series-viewer .pa-image-source-row,
   .pa-series-stats,
   .pa-save-checkboxes {

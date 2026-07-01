@@ -106,23 +106,85 @@ describe("PA Imaging panel layout", () => {
     expect(html).toContain("Save Name");
     expect(html).toContain(">Current</span>");
     expect(html).toContain(">Canvas</span>");
+    expect(html).toContain('class="pa-preview-control-group pa-preview-display-controls"');
+    expect(html).toContain('class="pa-preview-control-group pa-preview-roi-controls"');
     expect(html).toContain(">Save</button>");
     expect(html).not.toContain("Save Current");
     expect(html).not.toContain("Save Canvas");
     expect(html).not.toContain("Save Current + Canvas");
   });
 
+  it("adds preview colormap and enhancement controls with Magma selected by default", () => {
+    const html = renderToStaticMarkup(<PaImagingPanel state={state} client={client} command={command} />);
+    const previewStart = html.indexOf("PA Image Preview");
+    const schedulerStart = html.indexOf("PA Scheduler");
+    const previewHtml = html.slice(previewStart, schedulerStart);
+
+    expect(previewHtml).toContain("Colormap");
+    expect(previewHtml).toContain('<option value="magma" selected="">Magma</option>');
+    expect(previewHtml).toContain("Enhance");
+    expect(previewHtml).toContain('<option value="percentile" selected="">Percentile</option>');
+  });
+
+  it("renders the live preview heatmap with a separate colorbar slot and rotation control", () => {
+    const html = renderToStaticMarkup(<PaImagingPanel state={state} client={client} command={command} />);
+    const previewStart = html.indexOf("PA Image Preview");
+    const schedulerStart = html.indexOf("PA Scheduler");
+    const previewHtml = html.slice(previewStart, schedulerStart);
+
+    expect(previewHtml).toContain('class="pa-preview-heatmap-frame"');
+    expect(previewHtml).toContain('class="pa-preview-heatmap-canvas-slot"');
+    expect(previewHtml).toContain('class="pa-preview-colorbar-slot"');
+    expect(previewHtml).toContain('aria-label="PA preview color scale"');
+    expect(previewHtml).toContain('class="pa-image-colorbar-ramp"');
+    expect(previewHtml).toContain("Rotate");
+    expect(previewHtml).toContain('<option value="0" selected="">0</option>');
+    expect(previewHtml).toContain('<option value="90">90</option>');
+    expect(previewHtml).toContain('<option value="180">180</option>');
+    expect(previewHtml).toContain('<option value="270">270</option>');
+    expect(previewHtml.indexOf("Enhance")).toBeLessThan(previewHtml.indexOf("Rotate"));
+    expect(previewHtml.indexOf("Rotate")).toBeLessThan(previewHtml.indexOf("Aspect"));
+    expect(previewHtml.indexOf('aria-label="PA image heatmap"')).toBeLessThan(previewHtml.indexOf('aria-label="PA preview color scale"'));
+  });
+
   it("keeps the live preview column shrinkable so it cannot overlap the scheduler", () => {
     expect(styles).toMatch(
-      /\.pa-imaging-workbench\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.08fr\)\s+minmax\(360px,\s*0\.92fr\)/s,
+      /\.pa-imaging-workbench\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.02fr\)\s+minmax\(420px,\s*0\.98fr\)/s,
     );
+    expect(styles).toMatch(/\.pa-imaging-workbench\s*\{[^}]*align-items:\s*start/s);
+    expect(styles).toMatch(/\.pa-live-image-preview\s*\{[^}]*align-self:\s*start/s);
+    expect(styles).toMatch(/\.pa-live-image-preview\s*\{[^}]*overflow:\s*visible/s);
+    expect(styles).toMatch(/\.pa-preview-header\s*\{[^}]*display:\s*flex/s);
+    expect(styles).toMatch(/\.pa-preview-header\s*\{[^}]*flex-wrap:\s*wrap/s);
+    expect(styles).toMatch(/\.pa-preview-actions\s*\{[^}]*margin-left:\s*auto/s);
+    expect(styles).toMatch(/\.pa-preview-actions\s*\{[^}]*justify-content:\s*flex-end/s);
+    expect(styles).toMatch(/\.pa-preview-main-actions\s*\{[^}]*margin-left:\s*0/s);
+    expect(styles).toMatch(/\.pa-scheduler-shell\s*\{[^}]*align-self:\s*start/s);
+    expect(styles).toMatch(/\.pa-scheduler-shell\s*\{[^}]*margin-bottom:\s*0/s);
     expect(styles).toMatch(/\.pa-imaging-workbench\s*>\s*\*\s*\{[^}]*min-width:\s*0/s);
     expect(styles).toMatch(/\.pa-imaging-setup-actions\s*\{[^}]*margin-left:\s*auto/s);
     expect(styles).toMatch(/\.pa-imaging-setup-actions\s*\{[^}]*justify-content:\s*flex-end/s);
+    expect(styles).toMatch(/\.pa-preview-toolstrip\s*\{[^}]*grid-template-columns:\s*1fr/s);
     expect(styles).toMatch(
-      /\.pa-preview-toolstrip\s*\{[^}]*grid-template-columns:\s*minmax\(96px,\s*0\.8fr\)\s+minmax\(88px,\s*0\.7fr\)\s+repeat\(3,\s*minmax\(108px,\s*1fr\)\)/s,
+      /\.pa-preview-display-controls\s*\{[^}]*grid-template-columns:\s*minmax\(160px,\s*1fr\)\s+minmax\(160px,\s*1fr\)\s+minmax\(96px,\s*0\.55fr\)/s,
     );
+    expect(styles).toMatch(
+      /\.pa-preview-roi-controls\s*\{[^}]*grid-template-columns:\s*minmax\(88px,\s*0\.72fr\)\s+minmax\(64px,\s*0\.52fr\)\s+minmax\(104px,\s*0\.84fr\)\s+minmax\(104px,\s*0\.84fr\)\s+minmax\(150px,\s*1\.08fr\)/s,
+    );
+    expect(styles).not.toMatch(/\.pa-preview-roi-controls\s+\.command\.primary\s*\{[^}]*grid-column:\s*span 2/s);
+    expect(styles).toMatch(/\.pa-preview-roi-controls\s+\.command\.primary\s*\{[^}]*white-space:\s*nowrap/s);
+    expect(styles).toMatch(/\.pa-preview-heatmap-frame\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+52px/s);
+    expect(styles).toMatch(/\.pa-preview-heatmap-frame\s*\{[^}]*height:\s*clamp\(360px,\s*48vh,\s*580px\)/s);
+    expect(styles).toMatch(/\.pa-preview-heatmap-canvas-slot\s+\.pa-image-heatmap\s*\{[^}]*height:\s*100%/s);
+    expect(styles).toMatch(/\.pa-preview-colorbar-slot\s*\{[^}]*position:\s*relative/s);
+    expect(styles).toMatch(/\.pa-preview-colorbar-slot\s+\.pa-image-colorbar\s*\{[^}]*position:\s*absolute/s);
     expect(styles).toMatch(/\.pa-live-image-preview\s+\.pa-image-heatmap\s*\{[^}]*max-width:\s*100%/s);
+  });
+
+  it("uses high-DPI friendly text and canvas rendering defaults", () => {
+    expect(styles).toMatch(/:root\s*\{[^}]*-webkit-font-smoothing:\s*antialiased/s);
+    expect(styles).toMatch(/:root\s*\{[^}]*text-rendering:\s*geometricPrecision/s);
+    expect(styles).toMatch(/\.pa-image-heatmap\s*\{[^}]*image-rendering:\s*auto/s);
   });
 
   it("keeps detailed PA link diagnostics inside the diagnostics tab", () => {

@@ -124,6 +124,12 @@ export type PaImageZoomLike = { xStart: number; xEnd: number; yStart: number; yE
 export type PaImageAxisLabelsLike = { xStart?: number | null; xEnd?: number | null; yStart?: number | null; yEnd?: number | null };
 export type PaPreviewSourceLike = "current" | "canvas";
 export type PaPreviewRoiPurposeLike = "manual" | "fineScan" | null;
+export type PaPreviewDisplayDimensionsInput = {
+  source: PaPreviewSourceLike;
+  params: Pick<PaCaptureParams, "x_points" | "y_points">;
+  image?: { width?: number | null; height?: number | null } | null;
+};
+export type PaPreviewDisplayDimensions = { width: number; height: number };
 export type PaZoomCommitState = {
   zoom: PaImageZoomLike;
   roi: null;
@@ -358,6 +364,19 @@ export function paCanvasRoiFromScanParams(input: PaCanvasRoiFromScanParamsInput)
 export function paPreviewSourceAfterScanComplete(input: PaPreviewSourceAfterScanCompleteInput): PaPreviewSourceLike {
   if (input.complete && input.roiPurpose === "fineScan") return "current";
   return input.currentSource;
+}
+
+export function paPreviewDisplayDimensions(input: PaPreviewDisplayDimensionsInput): PaPreviewDisplayDimensions {
+  if (input.source === "canvas" && input.image) {
+    return {
+      width: positiveInteger(input.image.width),
+      height: positiveInteger(input.image.height),
+    };
+  }
+  return {
+    width: positiveInteger(input.params.x_points),
+    height: positiveInteger(input.params.y_points),
+  };
 }
 
 function scanAxisFromRange(start: number, end: number, stepCounts: unknown): { start: number; step: number; points: number } {

@@ -50,6 +50,15 @@ describe("PA Image Viewer layout", () => {
     expect(html).toContain("Colormap");
     expect(html).toContain('<option value="magma" selected="">Magma</option>');
     expect(html).toContain("Enhance");
+    expect(html).toContain("Rotate");
+    expect(html).toContain('class="pa-image-display-controls"');
+    expect(html).toContain('class="pa-image-similar-controls"');
+    expect(html).toContain('<option value="0" selected="">0</option>');
+    expect(html).toContain('<option value="90">90</option>');
+    expect(html).toContain('<option value="180">180</option>');
+    expect(html).toContain('<option value="270">270</option>');
+    expect(html.indexOf("Enhance")).toBeLessThan(html.indexOf("Rotate"));
+    expect(html.indexOf("Rotate")).toBeLessThan(html.indexOf("Similar %"));
     expect(html).toContain("Find Similar");
     expect(html).toContain("Clear Mask");
     expect(html).toContain("PA image color scale");
@@ -63,6 +72,10 @@ describe("PA Image Viewer layout", () => {
 
   it("keeps the PA image workbench balanced and attaches the colorbar to the image", () => {
     expect(styles).toMatch(/\.pa-image-workbench\s*\{[^}]*align-items:\s*stretch/s);
+    expect(styles).toMatch(/\.pa-image-visual-toolbar\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+    expect(styles).toMatch(/\.pa-image-display-controls\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/s);
+    expect(styles).toMatch(/\.pa-image-similar-controls\s*\{[^}]*grid-template-columns:\s*minmax\(96px,\s*0\.7fr\)\s+repeat\(2,\s*minmax\(128px,\s*1fr\)\)/s);
+    expect(styles).toMatch(/\.pa-image-similar-controls\s+\.command\s*\{[^}]*min-width:\s*0/s);
     expect(styles).toMatch(/\.pa-image-heatmap-with-colorbar\s*\{[^}]*position:\s*relative/s);
     expect(styles).toMatch(/\.pa-image-colorbar\s*\{[^}]*position:\s*absolute/s);
     expect(styles).not.toMatch(/\.pa-image-heatmap-with-colorbar\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+52px/s);

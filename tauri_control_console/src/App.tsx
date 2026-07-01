@@ -136,6 +136,7 @@ export default function App() {
   const savedUrl = localStorage.getItem("backendUrl") || DEFAULT_BACKEND_URL;
   const [state, dispatch] = useReducer(reducer, savedUrl, initialState);
   const [tab, setTab] = useState<Tab>("Monitor");
+  const [connectionEnabled, setConnectionEnabled] = useState(true);
   const [connectNonce, setConnectNonce] = useState(0);
   const [tzOhmText, setTzOhmTextState] = useState(() => localStorage.getItem("adaTzOhm") || String(DEFAULT_TZ_OHM));
   const [pdZeroAdcCodeText, setPdZeroAdcCodeTextState] = useState(
@@ -170,6 +171,11 @@ export default function App() {
   }, [client]);
 
   useEffect(() => {
+    if (!connectionEnabled) {
+      dispatch({ type: "connection", connected: false });
+      return;
+    }
+
     dispatch({ type: "connection", connected: false });
     dispatch({ type: "log", message: `Connecting to ${state.backendUrl}` });
     pendingStatus.current = null;
@@ -196,7 +202,7 @@ export default function App() {
     });
     stream.connect();
     return () => stream.close();
-  }, [state.backendUrl, connectNonce]);
+  }, [state.backendUrl, connectNonce, connectionEnabled]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -235,6 +241,7 @@ export default function App() {
   }, [client, state]);
 
   useEffect(() => {
+    if (!connectionEnabled) return;
     let cancelled = false;
     const poll = () => {
       refreshStatus().catch((error) => {
@@ -250,14 +257,15 @@ export default function App() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [refreshStatus, connectNonce]);
+  }, [refreshStatus, connectNonce, connectionEnabled]);
 
   useEffect(() => {
+    if (!connectionEnabled) return;
     refreshStatus().catch((error) => {
       dispatch({ type: "connection", connected: false });
       dispatch({ type: "log", message: `Tab status sync failed: ${(error as Error).message}` });
     });
-  }, [tab, refreshStatus]);
+  }, [tab, refreshStatus, connectionEnabled]);
 
   const command = useCallback(async (label: string, action: () => Promise<unknown>) => {
     try {
@@ -272,9 +280,23 @@ export default function App() {
   const connectBackend = useCallback((url: string) => {
     const nextUrl = url.trim();
     localStorage.setItem("backendUrl", nextUrl);
+    setConnectionEnabled(true);
     dispatch({ type: "backendUrl", backendUrl: nextUrl });
     setConnectNonce((value) => value + 1);
   }, []);
+
+  const disconnectBackend = useCallback(() => {
+    setConnectionEnabled(false);
+    setConnectNonce((value) => value + 1);
+    pendingStatus.current = null;
+    pendingSpectrum.current = null;
+    initialSpectrumRequestInFlight.current = false;
+    dispatch({ type: "connection", connected: false });
+    dispatch({ type: "log", message: "Disconnected by user" });
+    client.paDisconnect(2_000, 1_000).catch((error) => {
+      dispatch({ type: "log", message: `PA TCP disconnect skipped: ${(error as Error).message}` });
+    });
+  }, [client]);
   const tabPanelClass = (item: Tab) => `tab-panel ${item === tab ? "active" : ""}`;
   const stateForPanel = (item: Tab) => resolvePanelState(item, tab, state, panelStateCache.current);
   const stateForPaImagingPanel = () =>
@@ -282,7 +304,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <StatusBar state={state} client={client} command={command} setBackendUrl={connectBackend} />
+      <StatusBar state={state} client={client} command={command} setBackendUrl={connectBackend} disconnectBackend={disconnectBackend} />
       <nav className="tabs">
         {tabs.map((item) => (
           <button key={item} className={item === tab ? "active" : ""} onClick={() => setTab(item)}>

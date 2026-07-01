@@ -8,7 +8,15 @@ type Props = {
   client: ApiClient;
   command: CommandRunner;
   setBackendUrl: (url: string) => void;
+  disconnectBackend: () => void;
 };
+
+export type ConnectionButtonAction = "connect" | "disconnect" | "wait";
+
+export function connectionButtonAction(connected: boolean, connecting: boolean): ConnectionButtonAction {
+  if (connecting) return "wait";
+  return connected ? "disconnect" : "connect";
+}
 
 export function connectionButtonState(connected: boolean, connecting: boolean) {
   if (connecting) {
@@ -32,7 +40,7 @@ export function connectionButtonState(connected: boolean, connecting: boolean) {
   };
 }
 
-export default function StatusBar({ state, client, command, setBackendUrl }: Props) {
+export default function StatusBar({ state, client, command, setBackendUrl, disconnectBackend }: Props) {
   const [url, setUrl] = useState(state.backendUrl);
   const [connecting, setConnecting] = useState(false);
   const reconnectTimer = useRef<number | undefined>();
@@ -52,7 +60,16 @@ export default function StatusBar({ state, client, command, setBackendUrl }: Pro
     };
   }, []);
 
-  const connect = () => {
+  const handleConnectionClick = () => {
+    const action = connectionButtonAction(state.connected, connecting);
+    if (action === "wait") return;
+    if (action === "disconnect") {
+      if (reconnectTimer.current !== undefined) window.clearTimeout(reconnectTimer.current);
+      setConnecting(false);
+      disconnectBackend();
+      return;
+    }
+
     setConnecting(true);
     setBackendUrl(url);
     if (reconnectTimer.current !== undefined) window.clearTimeout(reconnectTimer.current);
@@ -64,7 +81,7 @@ export default function StatusBar({ state, client, command, setBackendUrl }: Pro
       <div className="brand">
         <strong>Butterfly Laser Control</strong>
         <input className="backend-url" value={url} onChange={(event) => setUrl(event.target.value)} />
-        <button className={connectionButton.className} disabled={connectionButton.disabled} onClick={connect}>
+        <button className={connectionButton.className} disabled={connectionButton.disabled} onClick={handleConnectionClick}>
           {connectionButton.label}
         </button>
       </div>

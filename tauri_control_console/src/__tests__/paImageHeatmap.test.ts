@@ -23,6 +23,7 @@ import {
   resolvePaImagePixelFromCanvasPoint,
   resolvePaImageSelectedPixelRectangle,
   dispatchPaImageCreatedDomain,
+  shouldRefreshPaImageCanvasRect,
   shouldDrawPaImageDragPreview,
   shouldPreviewPaImageRoiDrag,
 } from "../components/PaImageHeatmap";
@@ -52,6 +53,12 @@ describe("PA image heatmap layout", () => {
     expect(size.cssHeight).toBe(430);
     expect(size.backingWidth).toBe(1040);
     expect(size.backingHeight).toBe(860);
+  });
+
+  it("refreshes the backing store when the canvas settles into its final CSS size", () => {
+    expect(shouldRefreshPaImageCanvasRect(null, { width: 0, height: 330 })).toBe(false);
+    expect(shouldRefreshPaImageCanvasRect({ width: 520, height: 360 }, { width: 584.04, height: 330 })).toBe(true);
+    expect(shouldRefreshPaImageCanvasRect({ width: 584.04, height: 330 }, { width: 584.2, height: 330.1 })).toBe(false);
   });
 
   it("does not write inline display dimensions when updating the canvas backing store", () => {

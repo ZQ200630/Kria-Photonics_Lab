@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { connectionButtonState } from "../components/StatusBar";
+import { connectionButtonAction, connectionButtonState } from "../components/StatusBar";
 
 describe("StatusBar connection button", () => {
   it("shows connection state in the reconnect button", () => {
@@ -18,5 +18,11 @@ describe("StatusBar connection button", () => {
       className: "connection-button connecting",
       disabled: true,
     });
+  });
+
+  it("uses the connected button as a manual disconnect action", () => {
+    expect(connectionButtonAction(true, false)).toBe("disconnect");
+    expect(connectionButtonAction(false, false)).toBe("connect");
+    expect(connectionButtonAction(false, true)).toBe("wait");
   });
 });

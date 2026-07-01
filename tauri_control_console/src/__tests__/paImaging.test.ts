@@ -22,6 +22,7 @@ import {
   paFineScanParamsFromImageRoi,
   paCanvasRoiFromScanParams,
   paPreviewSourceAfterScanComplete,
+  paPreviewDisplayDimensions,
   paScanDefaultsFromParams,
   paImageZoomToScanRange,
   paZoomCommitStateFromRoi,
@@ -295,6 +296,24 @@ describe("PA imaging helpers", () => {
       roiPurpose: "manual",
       complete: true,
     })).toBe("canvas");
+  });
+
+  it("keeps live preview display dimensions pinned to the planned scan size while data fills in", () => {
+    expect(paPreviewDisplayDimensions({
+      source: "current",
+      params: { x_points: 400, y_points: 400 },
+      image: { width: 400, height: 12 },
+    })).toEqual({ width: 400, height: 400 });
+    expect(paPreviewDisplayDimensions({
+      source: "current",
+      params: { x_points: 400, y_points: 400 },
+      image: null,
+    })).toEqual({ width: 400, height: 400 });
+    expect(paPreviewDisplayDimensions({
+      source: "canvas",
+      params: { x_points: 400, y_points: 400 },
+      image: { width: 96, height: 128 },
+    })).toEqual({ width: 96, height: 128 });
   });
 
   it("captures and restores scan defaults without changing timing fields", () => {

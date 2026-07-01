@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { DEFAULT_PD_ZERO_ADC_CODE } from "../utils/ada4355";
 import {
@@ -27,13 +27,15 @@ import {
   type PaImageBuildProgressEvent,
 } from "../utils/paImageTauri";
 import PaImageHeatmap, {
+  formatPaImageValue,
+  PaImageColorbar,
+  paImageColorbarPlacementStyle,
   formatPaImageDistanceUm,
-  paImageColorRgbForUnit,
   paImageCountsOrEmpty,
   paImageDisplayRange,
   paImageValuesOrEmpty,
 } from "./PaImageHeatmap";
-import type { PaImageAxisLabels, PaImageColormap, PaImageEnhancement, PaImagePixel, PaImageZoomDomain } from "./PaImageHeatmap";
+import type { PaImageAxisLabels, PaImageColormap, PaImageEnhancement, PaImagePixel, PaImageRotation, PaImageZoomDomain } from "./PaImageHeatmap";
 import type { PaImageRenderedLayout } from "./PaImageHeatmap";
 import PlotCanvas, { type PlotDomainWindow, type PlotPoint, type PlotXDomain } from "./PlotCanvas";
 
@@ -51,9 +53,8 @@ export type TraceSelectionMode = "zoom" | "ptp" | "baseline";
 const PA_IMAGE_BUILD_PROGRESS_FRAMES = 512;
 const PA_IMAGE_BUILD_SNAPSHOT_FRAMES = 8192;
 const PA_IMAGE_BUILD_TARGET_SNAPSHOTS = 24;
-const PA_IMAGE_COLORBAR_GAP_PX = 10;
-const PA_IMAGE_COLORBAR_BOX_WIDTH_PX = 52;
-const PA_IMAGE_COLORBAR_CANVAS_PADDING_PX = 8;
+
+export { paImageColorbarPlacementStyle };
 
 export function shouldClearPaImageForProcessingChange(_key: keyof PaImageProcessing): boolean {
   return true;
@@ -225,19 +226,6 @@ export function paImageSourceTotalFrames(summary?: PaFileSummary): number {
   return Math.max(1, Math.floor((summary?.frame_count ?? 0) + (summary?.bad_frame_count ?? 0)));
 }
 
-export function paImageColorbarPlacementStyle(layout: PaImageRenderedLayout | null): CSSProperties | undefined {
-  if (!layout) return undefined;
-  const idealLeft = layout.x0 + layout.gridWidth + PA_IMAGE_COLORBAR_GAP_PX;
-  const maxLeft = layout.cssWidth - PA_IMAGE_COLORBAR_BOX_WIDTH_PX - PA_IMAGE_COLORBAR_CANVAS_PADDING_PX;
-  return {
-    left: `${Math.round(Math.max(PA_IMAGE_COLORBAR_CANVAS_PADDING_PX, Math.min(maxLeft, idealLeft)))}px`,
-    top: `${Math.round(layout.y0)}px`,
-    height: `${Math.round(layout.gridHeight)}px`,
-    right: "auto",
-    bottom: "auto",
-  };
-}
-
 function sameRenderedLayout(a: PaImageRenderedLayout | null, b: PaImageRenderedLayout): boolean {
   return (
     Boolean(a) &&
@@ -250,40 +238,8 @@ function sameRenderedLayout(a: PaImageRenderedLayout | null, b: PaImageRenderedL
   );
 }
 
-function colorbarGradient(colormap: PaImageColormap): string {
-  const stops = [0, 0.2, 0.4, 0.6, 0.8, 1].map((unit) => {
-    const [r, g, b] = paImageColorRgbForUnit(unit, colormap);
-    return `rgb(${r}, ${g}, ${b}) ${Math.round(unit * 100)}%`;
-  });
-  return `linear-gradient(to top, ${stops.join(", ")})`;
-}
-
 function formatPaValue(value: number): string {
-  if (!Number.isFinite(value)) return "--";
-  const abs = Math.abs(value);
-  if (abs >= 100) return `${value.toFixed(0)} uA`;
-  if (abs >= 10) return `${value.toFixed(1)} uA`;
-  return `${value.toFixed(2)} uA`;
-}
-
-function PaImageColorbar({
-  colormap,
-  low,
-  high,
-  style,
-}: {
-  colormap: PaImageColormap;
-  low: number;
-  high: number;
-  style?: CSSProperties;
-}) {
-  return (
-    <div className="pa-image-colorbar" aria-label="PA image color scale" style={style}>
-      <strong>{formatPaValue(high)}</strong>
-      <div className="pa-image-colorbar-ramp" style={{ background: colorbarGradient(colormap) }} />
-      <strong>{formatPaValue(low)}</strong>
-    </div>
-  );
+  return formatPaImageValue(value);
 }
 
 export default function PaImageViewer({
@@ -312,6 +268,7 @@ export default function PaImageViewer({
   const [selectedImagePixel, setSelectedImagePixel] = useState<PaImagePixel | null>(null);
   const [imageColormap, setImageColormap] = useState<PaImageColormap>("magma");
   const [imageEnhancement, setImageEnhancement] = useState<PaImageEnhancement>("percentile");
+  const [imageRotation, setImageRotation] = useState<PaImageRotation>(0);
   const [similarToleranceText, setSimilarToleranceText] = useState("5");
   const [similarMask, setSimilarMask] = useState<PaSimilarPixelMask | null>(null);
   const [buildRequestId, setBuildRequestId] = useState<string | null>(null);
@@ -794,35 +751,48 @@ export default function PaImageViewer({
             </div>
           </div>
           <div className="pa-image-visual-toolbar">
-            <label>
-              Colormap
-              <select value={imageColormap} onChange={(event) => setImageColormap(event.target.value as PaImageColormap)}>
-                <option value="emerald">Emerald</option>
-                <option value="viridis">Viridis</option>
-                <option value="magma">Magma</option>
-                <option value="turbo">Turbo</option>
-                <option value="gray">Gray</option>
-              </select>
-            </label>
-            <label>
-              Enhance
-              <select value={imageEnhancement} onChange={(event) => setImageEnhancement(event.target.value as PaImageEnhancement)}>
-                <option value="percentile">Percentile</option>
-                <option value="minmax">Min / Max</option>
-                <option value="sqrt">Sqrt</option>
-                <option value="log">Log</option>
-              </select>
-            </label>
-            <label>
-              Similar %
-              <input value={similarToleranceText} onChange={(event) => setSimilarToleranceText(event.target.value)} inputMode="decimal" />
-            </label>
-            <button type="button" className="command compact" onClick={findSimilarPixels} disabled={!image || !selectedImagePixel}>
-              Find Similar
-            </button>
-            <button type="button" className="command compact" onClick={clearSimilarMask} disabled={!similarMask}>
-              Clear Mask
-            </button>
+            <div className="pa-image-display-controls">
+              <label>
+                Colormap
+                <select value={imageColormap} onChange={(event) => setImageColormap(event.target.value as PaImageColormap)}>
+                  <option value="emerald">Emerald</option>
+                  <option value="viridis">Viridis</option>
+                  <option value="magma">Magma</option>
+                  <option value="turbo">Turbo</option>
+                  <option value="gray">Gray</option>
+                </select>
+              </label>
+              <label>
+                Enhance
+                <select value={imageEnhancement} onChange={(event) => setImageEnhancement(event.target.value as PaImageEnhancement)}>
+                  <option value="percentile">Percentile</option>
+                  <option value="minmax">Min / Max</option>
+                  <option value="sqrt">Sqrt</option>
+                  <option value="log">Log</option>
+                </select>
+              </label>
+              <label>
+                Rotate
+                <select value={imageRotation} onChange={(event) => setImageRotation(Number(event.target.value) as PaImageRotation)}>
+                  <option value={0}>0</option>
+                  <option value={90}>90</option>
+                  <option value={180}>180</option>
+                  <option value={270}>270</option>
+                </select>
+              </label>
+            </div>
+            <div className="pa-image-similar-controls">
+              <label>
+                Similar %
+                <input value={similarToleranceText} onChange={(event) => setSimilarToleranceText(event.target.value)} inputMode="decimal" />
+              </label>
+              <button type="button" className="command compact" onClick={findSimilarPixels} disabled={!image || !selectedImagePixel}>
+                Find Similar
+              </button>
+              <button type="button" className="command compact" onClick={clearSimilarMask} disabled={!similarMask}>
+                Clear Mask
+              </button>
+            </div>
           </div>
           <div className="pa-image-heatmap-with-colorbar">
             <PaImageHeatmap
@@ -836,6 +806,7 @@ export default function PaImageViewer({
               zoom={imageZoom}
               colormap={imageColormap}
               enhancement={imageEnhancement}
+              rotation={imageRotation}
               mask={similarMask?.mask ?? null}
               onPixelSelect={selectImagePixel}
               onZoom={setImageZoom}

@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { fmtInt, parseNumber } from "../utils/format";
 import {
   adcCaptureEndCounts,
@@ -26,6 +26,7 @@ import {
   paLivePreviewMinFrameDelta,
   paImagePixelToScanPoint,
   paImageZoomToScanRange,
+  paPreviewDisplayDimensions,
   paScanDefaultsFromParams,
   paPreviewSourceAfterScanComplete,
   paZoomCommitStateFromRoi,
@@ -87,11 +88,20 @@ import { useSyncedInput } from "../utils/syncedInput";
 import PaImageHeatmap from "./PaImageHeatmap";
 import type {
   PaImageAxisLabels,
+  PaImageColormap,
+  PaImageEnhancement,
   PaImagePixel,
+  PaImageRenderedLayout,
+  PaImageRotation,
   PaImageRoiAspectRatio,
   PaImageZoomDomain,
 } from "./PaImageHeatmap";
-import { paImageCountsOrEmpty, paImageValuesOrEmpty } from "./PaImageHeatmap";
+import {
+  PaImageColorbar,
+  paImageCountsOrEmpty,
+  paImageDisplayRange,
+  paImageValuesOrEmpty,
+} from "./PaImageHeatmap";
 import PaImageViewer from "./PaImageViewer";
 import PaSeriesViewer from "./PaSeriesViewer";
 import ErrorBoundary from "./ErrorBoundary";
@@ -149,6 +159,29 @@ function clampPositiveInteger(value: number, fallback: number): number {
 
 function clampInteger(value: number, fallback: number): number {
   return Number.isFinite(value) && Number.isInteger(value) ? value : fallback;
+}
+
+function sameRenderedLayout(a: PaImageRenderedLayout | null, b: PaImageRenderedLayout): boolean {
+  return (
+    Boolean(a) &&
+    Math.round((a as PaImageRenderedLayout).cssWidth) === Math.round(b.cssWidth) &&
+    Math.round((a as PaImageRenderedLayout).cssHeight) === Math.round(b.cssHeight) &&
+    Math.round((a as PaImageRenderedLayout).x0) === Math.round(b.x0) &&
+    Math.round((a as PaImageRenderedLayout).y0) === Math.round(b.y0) &&
+    Math.round((a as PaImageRenderedLayout).gridWidth) === Math.round(b.gridWidth) &&
+    Math.round((a as PaImageRenderedLayout).gridHeight) === Math.round(b.gridHeight)
+  );
+}
+
+function paPreviewColorbarSlotPlacementStyle(layout: PaImageRenderedLayout | null): CSSProperties | undefined {
+  if (!layout) return undefined;
+  return {
+    top: `${Math.round(layout.y0)}px`,
+    height: `${Math.round(layout.gridHeight)}px`,
+    left: "0",
+    right: "auto",
+    bottom: "auto",
+  };
 }
 
 function scanKeyFromParams(params: PaCaptureParams): string {
@@ -1068,6 +1101,10 @@ export default function PaImagingPanel({
   const [livePreviewImage, setLivePreviewImage] = useState<PaImageBuildResult | null>(null);
   const [livePreviewError, setLivePreviewError] = useState("");
   const [previewSource, setPreviewSource] = useState<PaPreviewSource>("current");
+  const [previewColormap, setPreviewColormap] = useState<PaImageColormap>("magma");
+  const [previewEnhancement, setPreviewEnhancement] = useState<PaImageEnhancement>("percentile");
+  const [previewRotation, setPreviewRotation] = useState<PaImageRotation>(0);
+  const [previewRenderedLayout, setPreviewRenderedLayout] = useState<PaImageRenderedLayout | null>(null);
   const [roiAspectRatio, setRoiAspectRatio] = useState<PaImageRoiAspectRatio>("free");
   const [fineStepCounts, setFineStepCounts] = useState("5");
   const [canvasImage, setCanvasImage] = useState<PaImageBuildResult | null>(null);
@@ -1783,16 +1820,19 @@ export default function PaImagingPanel({
     ["diagnostics", "Diagnostics"],
   ];
 
-  const emptyPreviewWidth = Math.max(1, Math.min(96, Math.round(currentParams.x_points || 1)));
-  const emptyPreviewHeight = Math.max(1, Math.min(96, Math.round(currentParams.y_points || 1)));
   const livePreviewReady = Boolean(livePreviewImage && livePreviewImage.width > 0 && livePreviewImage.height > 0);
   const showingCanvas = previewSource === "canvas" && Boolean(canvasImage);
   const displayedPreviewSource: PaPreviewSource = showingCanvas ? "canvas" : "current";
   const displayedPreviewImage = showingCanvas ? canvasImage : livePreviewImage;
   const displayedPreviewReady = Boolean(displayedPreviewImage && displayedPreviewImage.width > 0 && displayedPreviewImage.height > 0);
-  const displayedPreviewWidth = displayedPreviewReady ? Math.max(1, displayedPreviewImage!.width) : emptyPreviewWidth;
-  const displayedPreviewHeight = displayedPreviewReady ? Math.max(1, displayedPreviewImage!.height) : emptyPreviewHeight;
-  const displayedPreviewAxisLabels: PaImageAxisLabels = displayedPreviewReady
+  const displayedPreviewDimensions = paPreviewDisplayDimensions({
+    source: displayedPreviewSource,
+    params: currentParams,
+    image: displayedPreviewImage,
+  });
+  const displayedPreviewWidth = displayedPreviewDimensions.width;
+  const displayedPreviewHeight = displayedPreviewDimensions.height;
+  const displayedPreviewAxisLabels: PaImageAxisLabels = showingCanvas && displayedPreviewReady
     ? {
         xStart: displayedPreviewImage!.x_start ?? currentScanAxisLabels.xStart,
         xEnd: displayedPreviewImage!.x_end ?? currentScanAxisLabels.xEnd,
@@ -1800,6 +1840,23 @@ export default function PaImagingPanel({
         yEnd: displayedPreviewImage!.y_end ?? currentScanAxisLabels.yEnd,
       }
     : currentScanAxisLabels;
+  const displayedPreviewValues = paImageValuesOrEmpty(displayedPreviewImage?.values);
+  const displayedPreviewCounts = paImageCountsOrEmpty(displayedPreviewImage?.counts);
+  const displayedPreviewRange = useMemo(
+    () =>
+      paImageDisplayRange(
+        displayedPreviewValues,
+        displayedPreviewCounts,
+        canvasZoom,
+        displayedPreviewWidth,
+        displayedPreviewHeight,
+        previewEnhancement,
+      ),
+    [canvasZoom, displayedPreviewCounts, displayedPreviewHeight, displayedPreviewValues, displayedPreviewWidth, previewEnhancement],
+  );
+  const updatePreviewRenderedLayout = useCallback((layout: PaImageRenderedLayout) => {
+    setPreviewRenderedLayout((current) => (sameRenderedLayout(current, layout) ? current : layout));
+  }, []);
   const livePreviewStatusText = livePreviewReady
     ? `Live image ${fmtInt(livePreviewImage!.frame_count)} frames`
     : "Live image pending";
@@ -2326,45 +2383,94 @@ export default function PaImagingPanel({
             </div>
           </div>
           <div className="pa-preview-toolstrip">
-            <label className="pa-inline-control">
-              Aspect
-              <select value={roiAspectRatio} onChange={(event) => setRoiAspectRatio(event.target.value as PaImageRoiAspectRatio)}>
-                <option value="free">Free</option>
-                <option value="1:1">1:1</option>
-                <option value="4:3">4:3</option>
-                <option value="16:9">16:9</option>
-              </select>
-            </label>
-            <label className="pa-inline-control">
-              Fine Step
-              <input value={fineStepCounts} onChange={(event) => setFineStepCounts(event.target.value)} />
-            </label>
-            <button type="button" className="command compact" onClick={zoomToPreviewRoi} disabled={!displayedPreviewRoi}>
-              Zoom To ROI
-            </button>
-            <button type="button" className="command compact" onClick={resetCanvasZoom} disabled={!canvasZoom}>
-              Reset Zoom
-            </button>
-            <button type="button" className="command primary compact" onClick={applyPreviewRoiToScan} disabled={!displayedPreviewRoi || !displayedPreviewImage}>
-              Apply ROI To Scan
-            </button>
+            <div className="pa-preview-control-group pa-preview-display-controls" aria-label="PA preview display controls">
+              <label className="pa-inline-control">
+                Colormap
+                <select value={previewColormap} onChange={(event) => setPreviewColormap(event.target.value as PaImageColormap)}>
+                  <option value="emerald">Emerald</option>
+                  <option value="viridis">Viridis</option>
+                  <option value="magma">Magma</option>
+                  <option value="turbo">Turbo</option>
+                  <option value="gray">Gray</option>
+                </select>
+              </label>
+              <label className="pa-inline-control">
+                Enhance
+                <select value={previewEnhancement} onChange={(event) => setPreviewEnhancement(event.target.value as PaImageEnhancement)}>
+                  <option value="percentile">Percentile</option>
+                  <option value="minmax">Min / Max</option>
+                  <option value="sqrt">Sqrt</option>
+                  <option value="log">Log</option>
+                </select>
+              </label>
+              <label className="pa-inline-control">
+                Rotate
+                <select value={previewRotation} onChange={(event) => setPreviewRotation(Number(event.target.value) as PaImageRotation)}>
+                  <option value={0}>0</option>
+                  <option value={90}>90</option>
+                  <option value={180}>180</option>
+                  <option value={270}>270</option>
+                </select>
+              </label>
+            </div>
+            <div className="pa-preview-control-group pa-preview-roi-controls" aria-label="PA preview ROI controls">
+              <label className="pa-inline-control">
+                Aspect
+                <select value={roiAspectRatio} onChange={(event) => setRoiAspectRatio(event.target.value as PaImageRoiAspectRatio)}>
+                  <option value="free">Free</option>
+                  <option value="1:1">1:1</option>
+                  <option value="4:3">4:3</option>
+                  <option value="16:9">16:9</option>
+                </select>
+              </label>
+              <label className="pa-inline-control">
+                Fine Step
+                <input value={fineStepCounts} onChange={(event) => setFineStepCounts(event.target.value)} />
+              </label>
+              <button type="button" className="command compact" onClick={zoomToPreviewRoi} disabled={!displayedPreviewRoi}>
+                Zoom To ROI
+              </button>
+              <button type="button" className="command compact" onClick={resetCanvasZoom} disabled={!canvasZoom}>
+                Reset Zoom
+              </button>
+              <button type="button" className="command primary compact" onClick={applyPreviewRoiToScan} disabled={!displayedPreviewRoi || !displayedPreviewImage}>
+                Apply ROI To Scan
+              </button>
+            </div>
           </div>
-          <PaImageHeatmap
-            width={displayedPreviewWidth}
-            height={displayedPreviewHeight}
-            values={paImageValuesOrEmpty(displayedPreviewImage?.values)}
-            counts={paImageCountsOrEmpty(displayedPreviewImage?.counts)}
-            axisLabels={displayedPreviewAxisLabels}
-            umPerCount={currentUmPerCount}
-            selectedPixel={canvasPixel}
-            zoom={canvasZoom}
-            roi={displayedPreviewRoi}
-            roiAspectRatio={roiAspectRatio}
-            onPixelSelect={selectCanvasPixel}
-            onRoiChange={updatePreviewRoi}
-            onResetZoom={resetCanvasZoom}
-            active
-          />
+          <div className="pa-preview-heatmap-frame">
+            <div className="pa-preview-heatmap-canvas-slot">
+              <PaImageHeatmap
+                width={displayedPreviewWidth}
+                height={displayedPreviewHeight}
+                values={displayedPreviewValues}
+                counts={displayedPreviewCounts}
+                axisLabels={displayedPreviewAxisLabels}
+                umPerCount={currentUmPerCount}
+                selectedPixel={canvasPixel}
+                zoom={canvasZoom}
+                colormap={previewColormap}
+                enhancement={previewEnhancement}
+                rotation={previewRotation}
+                roi={displayedPreviewRoi}
+                roiAspectRatio={roiAspectRatio}
+                onPixelSelect={selectCanvasPixel}
+                onRoiChange={updatePreviewRoi}
+                onResetZoom={resetCanvasZoom}
+                onLayout={updatePreviewRenderedLayout}
+                active
+              />
+            </div>
+            <div className="pa-preview-colorbar-slot">
+              <PaImageColorbar
+                ariaLabel="PA preview color scale"
+                colormap={previewColormap}
+                low={displayedPreviewRange.low}
+                high={displayedPreviewRange.high}
+                style={paPreviewColorbarSlotPlacementStyle(previewRenderedLayout)}
+              />
+            </div>
+          </div>
           <div className="pa-image-readouts pa-live-preview-readouts">
             <span>{canvasStatusText}</span>
             <span>{livePreviewStatusText}</span>

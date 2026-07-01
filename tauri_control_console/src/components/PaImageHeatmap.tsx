@@ -1,4 +1,6 @@
-import { memo, useEffect, useRef, type MouseEvent } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+
+const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export type PaImageHeatmapProps = {
   width: number;
@@ -14,6 +16,7 @@ export type PaImageHeatmapProps = {
   roiAspectRatio?: PaImageRoiAspectRatio;
   colormap?: PaImageColormap;
   enhancement?: PaImageEnhancement;
+  rotation?: PaImageRotation;
   mask?: boolean[] | null;
   onPixelSelect?: (pixel: PaImagePixel) => void;
   onZoom?: (zoom: PaImageZoomDomain) => void;
@@ -28,6 +31,7 @@ export type PaImageAxisLabels = { xStart?: number | null; xEnd?: number | null; 
 export type PaImageRoiAspectRatio = "free" | "1:1" | "4:3" | "16:9";
 export type PaImageColormap = "emerald" | "viridis" | "magma" | "turbo" | "gray";
 export type PaImageEnhancement = "percentile" | "minmax" | "sqrt" | "log";
+export type PaImageRotation = 0 | 90 | 180 | 270;
 export type PaImageDragKind = "create" | "move" | "resizeStart" | "resizeEnd" | "click";
 export type PaImageDisplayRange = { low: number; high: number; finiteCount: number };
 export type PaImageRenderedLayout = {
@@ -78,6 +82,10 @@ type HeatmapCanvasBackingStoreTarget = {
 
 const EMPTY_PA_IMAGE_VALUES: Array<number | null> = [];
 const EMPTY_PA_IMAGE_COUNTS: number[] = [];
+const PA_IMAGE_CANVAS_RECT_EPSILON = 0.5;
+const PA_IMAGE_COLORBAR_GAP_PX = 10;
+const PA_IMAGE_COLORBAR_BOX_WIDTH_PX = 52;
+const PA_IMAGE_COLORBAR_CANVAS_PADDING_PX = 8;
 
 export function paImageValuesOrEmpty(values: Array<number | null> | undefined | null): Array<number | null> {
   return values ?? EMPTY_PA_IMAGE_VALUES;
@@ -106,6 +114,31 @@ export function applyPaImageCanvasBackingStore(
 ) {
   canvas.width = size.backingWidth;
   canvas.height = size.backingHeight;
+}
+
+export function shouldRefreshPaImageCanvasRect(
+  previous: Pick<DOMRect, "width" | "height"> | null | undefined,
+  next: Pick<DOMRect, "width" | "height">,
+) {
+  if (next.width <= 0 || next.height <= 0) return false;
+  if (!previous) return true;
+  return (
+    Math.abs(previous.width - next.width) >= PA_IMAGE_CANVAS_RECT_EPSILON ||
+    Math.abs(previous.height - next.height) >= PA_IMAGE_CANVAS_RECT_EPSILON
+  );
+}
+
+export function paImageColorbarPlacementStyle(layout: PaImageRenderedLayout | null): CSSProperties | undefined {
+  if (!layout) return undefined;
+  const idealLeft = layout.x0 + layout.gridWidth + PA_IMAGE_COLORBAR_GAP_PX;
+  const maxLeft = layout.cssWidth - PA_IMAGE_COLORBAR_BOX_WIDTH_PX - PA_IMAGE_COLORBAR_CANVAS_PADDING_PX;
+  return {
+    left: `${Math.round(Math.max(PA_IMAGE_COLORBAR_CANVAS_PADDING_PX, Math.min(maxLeft, idealLeft)))}px`,
+    top: `${Math.round(layout.y0)}px`,
+    height: `${Math.round(layout.gridHeight)}px`,
+    right: "auto",
+    bottom: "auto",
+  };
 }
 
 export function copyPaImageBaseToCache(sourceCanvas: HTMLCanvasElement, cacheCanvas: HTMLCanvasElement): boolean {
@@ -161,6 +194,7 @@ export function arePaImageHeatmapPropsEqual(prev: PaImageHeatmapProps, next: PaI
     prev.roiAspectRatio === next.roiAspectRatio &&
     prev.colormap === next.colormap &&
     prev.enhancement === next.enhancement &&
+    prev.rotation === next.rotation &&
     prev.mask === next.mask &&
     sameAxisLabels(prev.axisLabels, next.axisLabels) &&
     samePixel(prev.selectedPixel, next.selectedPixel) &&
@@ -760,6 +794,65 @@ export function paImageDisplayRange(
   });
 }
 
+export function paImageColorbarGradient(colormap: PaImageColormap): string {
+  const stops = [0, 0.2, 0.4, 0.6, 0.8, 1].map((unit) => {
+    const [r, g, b] = paImageColorRgbForUnit(unit, colormap);
+    return `rgb(${r}, ${g}, ${b}) ${Math.round(unit * 100)}%`;
+  });
+  return `linear-gradient(to top, ${stops.join(", ")})`;
+}
+
+export function formatPaImageValue(value: number): string {
+  if (!Number.isFinite(value)) return "--";
+  const abs = Math.abs(value);
+  if (abs >= 100) return `${value.toFixed(0)} uA`;
+  if (abs >= 10) return `${value.toFixed(1)} uA`;
+  return `${value.toFixed(2)} uA`;
+}
+
+export function PaImageColorbar({
+  ariaLabel = "PA image color scale",
+  colormap,
+  low,
+  high,
+  style,
+}: {
+  ariaLabel?: string;
+  colormap: PaImageColormap;
+  low: number;
+  high: number;
+  style?: CSSProperties;
+}) {
+  return (
+    <div className="pa-image-colorbar" aria-label={ariaLabel} style={style}>
+      <strong>{formatPaImageValue(high)}</strong>
+      <div className="pa-image-colorbar-ramp" style={{ background: paImageColorbarGradient(colormap) }} />
+      <strong>{formatPaImageValue(low)}</strong>
+    </div>
+  );
+}
+
+function drawPaImageRasterCanvas(
+  ctx: CanvasRenderingContext2D,
+  rasterCanvas: HTMLCanvasElement,
+  layout: Pick<ReturnType<typeof resolvePaImageHeatmapLayout>, "x0" | "y0" | "gridWidth" | "gridHeight">,
+  rotation: PaImageRotation,
+) {
+  const { gridHeight, gridWidth, x0, y0 } = layout;
+  if (rotation === 0) {
+    ctx.drawImage(rasterCanvas, x0, y0, gridWidth, gridHeight);
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(x0 + gridWidth / 2, y0 + gridHeight / 2);
+  ctx.rotate((rotation * Math.PI) / 180);
+  const drawWidth = rotation === 180 ? gridWidth : gridHeight;
+  const drawHeight = rotation === 180 ? gridHeight : gridWidth;
+  ctx.drawImage(rasterCanvas, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+  ctx.restore();
+}
+
 export function paImageEnhancedUnit(
   value: number,
   range: PaImageDisplayRange,
@@ -898,6 +991,7 @@ function PaImageHeatmap({
   roiAspectRatio = "free",
   colormap = "emerald",
   enhancement = "percentile",
+  rotation = 0,
   mask,
   onPixelSelect,
   onZoom,
@@ -914,6 +1008,8 @@ function PaImageHeatmap({
   const dragPreviewAnimationFrame = useRef<number | null>(null);
   const pendingRoiPreviewRef = useRef<PaImageZoomDomain | null>(null);
   const roiPreviewAnimationFrame = useRef<number | null>(null);
+  const observedCanvasRectRef = useRef<Pick<DOMRect, "width" | "height"> | null>(null);
+  const [canvasResizeVersion, setCanvasResizeVersion] = useState(0);
 
   const redrawInteractiveOverlays = (
     dragPreview: { start: CanvasPoint; end: CanvasPoint; kind: PaImageDragKind } | null,
@@ -987,7 +1083,29 @@ function PaImageHeatmap({
     clearRoiPreview();
   };
 
-  useEffect(() => {
+  useBrowserLayoutEffect(() => {
+    if (!active) return;
+    const canvas = ref.current;
+    if (!canvas) return;
+
+    const refreshFromRect = (rect: Pick<DOMRect, "width" | "height">) => {
+      if (!shouldRefreshPaImageCanvasRect(observedCanvasRectRef.current, rect)) return;
+      observedCanvasRectRef.current = { width: rect.width, height: rect.height };
+      setCanvasResizeVersion((version) => version + 1);
+    };
+
+    refreshFromRect(canvas.getBoundingClientRect());
+
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      refreshFromRect(entry?.contentRect ?? canvas.getBoundingClientRect());
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [active]);
+
+  useBrowserLayoutEffect(() => {
     if (!active) return;
     const canvas = ref.current;
     if (!canvas) return;
@@ -1032,7 +1150,7 @@ function PaImageHeatmap({
       rasterCtx.putImageData(imageData, 0, 0);
       ctx.save();
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(rasterCanvas, x0, y0, gridWidth, gridHeight);
+      drawPaImageRasterCanvas(ctx, rasterCanvas, layout, rotation);
       ctx.restore();
     }
 
@@ -1041,7 +1159,7 @@ function PaImageHeatmap({
     ctx.strokeRect(x0 - 0.5, y0 - 0.5, gridWidth + 1, gridHeight + 1);
 
     ctx.fillStyle = "#475569";
-    ctx.font = "12px Segoe UI, sans-serif";
+    ctx.font = '12px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Segoe UI, system-ui, sans-serif';
     const axisTextLayout = resolvePaImageAxisTextLayout(layout);
     ctx.textAlign = "center";
     ctx.fillText(
@@ -1126,12 +1244,14 @@ function PaImageHeatmap({
     axisLabels?.xStart,
     axisLabels?.yEnd,
     axisLabels?.yStart,
+    canvasResizeVersion,
     counts,
     height,
     colormap,
     enhancement,
     mask,
     onLayout,
+    rotation,
     umPerCount,
     values,
     width,
