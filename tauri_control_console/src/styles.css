@@ -2764,6 +2764,7 @@ textarea {
 
 .pa-image-panel {
   display: grid;
+  align-content: start;
   gap: 10px;
   min-width: 0;
   border: 1px solid #d5dfeb;
@@ -2859,6 +2860,79 @@ textarea {
   min-width: 0;
   min-height: 34px;
   width: 100%;
+}
+
+.pa-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(122px, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.pa-trace-metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+}
+
+.pa-image-status-grid {
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+}
+
+.pa-metric-card {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+  min-height: 58px;
+  border: 1px solid #d5dfeb;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: #f8fafc;
+}
+
+.pa-metric-card.ok {
+  border-color: #bbf7d0;
+  background: #f3fbf6;
+}
+
+.pa-metric-card.warn {
+  border-color: #fed7aa;
+  background: #fff8ed;
+}
+
+.pa-metric-card.muted {
+  color: #64748b;
+}
+
+.pa-image-status-grid .pa-metric-card.wide {
+  grid-column: span 2;
+}
+
+.pa-metric-card span,
+.pa-metric-card strong,
+.pa-metric-card em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pa-metric-card span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.15;
+}
+
+.pa-metric-card strong {
+  color: #162033;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.pa-metric-card em {
+  color: #64748b;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .pa-image-readouts {
@@ -3057,10 +3131,6 @@ textarea {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
   }
 
-  .pa-image-visual-toolbar {
-    grid-template-columns: repeat(2, minmax(120px, 1fr));
-  }
-
   .pa-image-colorbar {
     top: 38px;
     right: 10px;
@@ -3223,9 +3293,16 @@ textarea {
   .pa-preview-toolstrip,
   .pa-preview-display-controls,
   .pa-preview-roi-controls,
+  .pa-image-display-controls,
+  .pa-image-similar-controls,
+  .pa-metric-grid,
   .pa-series-viewer .pa-image-source-row,
   .pa-series-stats,
   .pa-save-checkboxes {
     grid-template-columns: 1fr;
+  }
+
+  .pa-image-status-grid .pa-metric-card.wide {
+    grid-column: auto;
   }
 }

@@ -7,6 +7,7 @@ import {
   axisRangeFromStartStep,
   axisStartStepFromCenterRange,
   axisStartStepFromEndpoints,
+  captureProcessedFramesForCurrentRun,
   captureTimeSecondsForServerStart,
   captureProgressSnapshot,
   constrainedTimingCounts,
@@ -1212,13 +1213,20 @@ export default function PaImagingPanel({
     numberFromText(scanScaleCounts, DEFAULT_SCAN_SCALE_COUNTS),
     numberFromText(scanScaleUm, DEFAULT_SCAN_SCALE_UM),
   );
-  const captureProcessedFrames = Math.max(
-    Math.max(0, serverPa?.frames_sent ?? 0),
-    Math.max(0, receiverStatus?.frames_received ?? 0),
-  );
   const displayedScheduler = schedulerStatus ?? state.lastStatus?.pa_scheduler ?? null;
   const schedulerModeName = (displayedScheduler?.mode_name ?? "").toLowerCase();
   const pointModeActive = schedulerTab === "point" || schedulerModeName.includes("point");
+  const activeReceiverOutputPath = pointModeActive ? pointTmpPath : paCurrentTmpPath;
+  const receiverFramesForCurrentRun =
+    activeReceiverOutputPath && receiverStatus?.output_path === activeReceiverOutputPath
+      ? Math.max(0, receiverStatus.frames_received ?? 0)
+      : 0;
+  const captureProcessedFrames = captureProcessedFramesForCurrentRun({
+    serverFramesSent: serverPa?.frames_sent ?? serverPa?.frames_received,
+    receiverFramesReceived: receiverStatus?.frames_received,
+    receiverOutputPath: receiverStatus?.output_path,
+    activeReceiverOutputPath,
+  });
   const captureExpectedFrames = Math.max(
     0,
     (serverPa?.expected_frames ?? 0) > 0
@@ -1239,7 +1247,7 @@ export default function PaImagingPanel({
     dismissed: captureProgressDismissed,
     serverRunning: Boolean(serverPa?.running),
     processedFrames: captureProcessedFrames,
-    receiverFrames: receiverStatus?.frames_received ?? 0,
+    receiverFrames: receiverFramesForCurrentRun,
   });
   useEffect(() => {
     if (!showCurrentAfterCapture) return;
@@ -1389,8 +1397,10 @@ export default function PaImagingPanel({
 
       await stopReceiverIfRunning();
       const pointTmp = await storagePreparePaTmp("point_current");
-      await paReceiverStartWithTimeout(backendHost, port, pointTmp.path, PA_RECEIVER_CMD_TIMEOUT_MS);
+      const receiverStarting = await paReceiverStartWithTimeout(backendHost, port, pointTmp.path, PA_RECEIVER_CMD_TIMEOUT_MS);
+      setReceiverStatus(receiverStarting);
       const receiverReady = await waitForReceiverReady(WAIT_FOR_RECEIVER_READY_MS);
+      setReceiverStatus(receiverReady);
       if (!receiverReady.connected) {
         await paReceiverStopWithTimeout(PA_RECEIVER_CMD_TIMEOUT_MS).catch(() => undefined);
         setServerMessage("Point capture receiver failed to connect within timeout");
@@ -1551,8 +1561,10 @@ export default function PaImagingPanel({
         }),
       );
       const currentTmp = await storagePreparePaTmp("current");
-      await paReceiverStartWithTimeout(backendHost, port, currentTmp.path, PA_RECEIVER_CMD_TIMEOUT_MS);
+      const receiverStarting = await paReceiverStartWithTimeout(backendHost, port, currentTmp.path, PA_RECEIVER_CMD_TIMEOUT_MS);
+      setReceiverStatus(receiverStarting);
       const receiverReady = await waitForReceiverReady(WAIT_FOR_RECEIVER_READY_MS);
+      setReceiverStatus(receiverReady);
       if (!receiverReady.connected) {
         await paReceiverStopWithTimeout(PA_RECEIVER_CMD_TIMEOUT_MS).catch(() => undefined);
         setServerMessage("PA receiver failed to connect within timeout");

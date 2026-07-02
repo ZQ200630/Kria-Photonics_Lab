@@ -6,6 +6,7 @@ import {
   axisStartStepFromCenterRange,
   axisStartStepFromEndpoints,
   captureProgressSnapshot,
+  captureProcessedFramesForCurrentRun,
   captureTimeSecondsForServerStart,
   countsFromDurationDisplay,
   countsFromRateDisplay,
@@ -176,6 +177,38 @@ describe("PA imaging helpers", () => {
       pixelCount: 100,
       requestInFlight: true,
     })).toBe(false);
+  });
+
+  it("refreshes live PA image preview when a new capture run resets frame progress", () => {
+    expect(shouldRefreshPaLivePreview({
+      running: true,
+      processedFrames: 512,
+      lastSnapshotFrameCount: 104_000,
+      pixelCount: 160_000,
+    })).toBe(true);
+  });
+
+  it("ignores stale receiver frames from an old PA temporary file", () => {
+    expect(captureProcessedFramesForCurrentRun({
+      serverFramesSent: 0,
+      receiverFramesReceived: 104_000,
+      receiverOutputPath: "/tmp/pa/old/legacy.bin",
+      activeReceiverOutputPath: "/tmp/pa/current/legacy.bin",
+    })).toBe(0);
+
+    expect(captureProcessedFramesForCurrentRun({
+      serverFramesSent: 4_096,
+      receiverFramesReceived: 104_000,
+      receiverOutputPath: "/tmp/pa/old/legacy.bin",
+      activeReceiverOutputPath: "/tmp/pa/current/legacy.bin",
+    })).toBe(4_096);
+
+    expect(captureProcessedFramesForCurrentRun({
+      serverFramesSent: 4_096,
+      receiverFramesReceived: 8_192,
+      receiverOutputPath: "/tmp/pa/current/legacy.bin",
+      activeReceiverOutputPath: "/tmp/pa/current/legacy.bin",
+    })).toBe(8_192);
   });
 
   it("schedules live PA image preview updates as background UI work", () => {

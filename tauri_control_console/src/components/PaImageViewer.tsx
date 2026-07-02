@@ -26,6 +26,8 @@ import {
   type PaImageBuildResult,
   type PaImageBuildProgressEvent,
 } from "../utils/paImageTauri";
+import { paImagePngBytes, paImagePngDefaultFilename } from "../utils/paImagePng";
+import { saveBinaryFile } from "../utils/saveBinary";
 import PaImageHeatmap, {
   formatPaImageValue,
   PaImageColorbar,
@@ -125,6 +127,68 @@ type BuildProgress = {
   remainingSeconds: number | null;
   frameRate: number;
 };
+
+export type PaTraceQualityMetrics = {
+  baselineMeanUa: number;
+  noiseRmsUa: number;
+  baselinePeakToPeakUa: number;
+  signalPeakToPeakUa: number;
+  positivePeakUa: number;
+  negativePeakUa: number;
+  snrLinear: number | null;
+  snrDb: number | null;
+  baselineSampleCount: number;
+  signalSampleCount: number;
+};
+
+function valuesInTimeWindow(trace: PaFrameTrace, startNs: number, endNs: number, processing: PaImageProcessing): number[] {
+  const start = Math.min(startNs, endNs);
+  const end = Math.max(startNs, endNs);
+  const values: number[] = [];
+  trace.current_ua.forEach((value, index) => {
+    const timeNs = trace.time_ns[index] ?? processing.sampleStartIndex + index * Math.max(1, processing.sampleIntervalNs);
+    if (timeNs < start || timeNs > end || !Number.isFinite(value)) return;
+    values.push(value);
+  });
+  return values;
+}
+
+function mean(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+export function paTraceQualityMetrics(trace: PaFrameTrace | undefined, processing: PaImageProcessing): PaTraceQualityMetrics | null {
+  if (!trace || trace.current_ua.length === 0) return null;
+  const baselineValues = valuesInTimeWindow(trace, processing.baselineStartNs, processing.baselineEndNs, processing);
+  const signalValues = valuesInTimeWindow(trace, processing.ptpStartNs, processing.ptpEndNs, processing);
+  if (baselineValues.length === 0 || signalValues.length === 0) return null;
+
+  const baselineMeanUa = mean(baselineValues);
+  const noiseRmsUa = Math.sqrt(mean(baselineValues.map((value) => (value - baselineMeanUa) ** 2)));
+  const baselineMin = Math.min(...baselineValues);
+  const baselineMax = Math.max(...baselineValues);
+  const baselinePeakToPeakUa = baselineMax - baselineMin;
+  const signalMin = Math.min(...signalValues);
+  const signalMax = Math.max(...signalValues);
+  const signalPeakToPeakUa = signalMax - signalMin;
+  const positivePeakUa = signalMax - baselineMeanUa;
+  const negativePeakUa = signalMin - baselineMeanUa;
+  const snrLinear = baselinePeakToPeakUa > 0 ? signalPeakToPeakUa / baselinePeakToPeakUa : null;
+  const snrDb = snrLinear !== null && snrLinear > 0 ? 20 * Math.log10(snrLinear) : null;
+
+  return {
+    baselineMeanUa,
+    noiseRmsUa,
+    baselinePeakToPeakUa,
+    signalPeakToPeakUa,
+    positivePeakUa,
+    negativePeakUa,
+    snrLinear,
+    snrDb,
+    baselineSampleCount: baselineValues.length,
+    signalSampleCount: signalValues.length,
+  };
+}
 
 export function paImageSnapshotIntervalFrames(totalFrames: number, fastBuild: boolean): number {
   if (fastBuild) return 0;
@@ -242,6 +306,45 @@ function formatPaValue(value: number): string {
   return formatPaImageValue(value);
 }
 
+function formatSignedPaValue(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "--";
+  return value > 0 ? `+${formatPaValue(value)}` : formatPaValue(value);
+}
+
+function formatMetricPaValue(value: number | null | undefined): string {
+  return value === null || value === undefined || !Number.isFinite(value) ? "--" : formatPaValue(value);
+}
+
+function formatSnrValue(value: number | null | undefined): string {
+  return value === null || value === undefined || !Number.isFinite(value) ? "--" : `${value.toFixed(1)} dB`;
+}
+
+function formatSnrLinear(value: number | null | undefined): string {
+  return value === null || value === undefined || !Number.isFinite(value) ? "Signal PTP / Baseline PTP" : `${value.toFixed(1)}x PTP ratio`;
+}
+
+function PaMetricCard({
+  label,
+  value,
+  detail,
+  tone,
+  wide = false,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  tone?: "ok" | "warn" | "muted";
+  wide?: boolean;
+}) {
+  return (
+    <div className={`pa-metric-card${tone ? ` ${tone}` : ""}${wide ? " wide" : ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {detail && <em>{detail}</em>}
+    </div>
+  );
+}
+
 export default function PaImageViewer({
   active = true,
   tzOhm,
@@ -331,6 +434,15 @@ export default function PaImageViewer({
     () => [baselineSampleWindow, ptpSampleWindow].filter((window): window is PlotDomainWindow => Boolean(window)),
     [baselineSampleWindow, ptpSampleWindow],
   );
+  const traceMetrics = useMemo(() => paTraceQualityMetrics(trace, processing), [
+    processing.baselineEndNs,
+    processing.baselineStartNs,
+    processing.ptpEndNs,
+    processing.ptpStartNs,
+    processing.sampleIntervalNs,
+    processing.sampleStartIndex,
+    trace,
+  ]);
 
   const runBusy = useCallback(async (label: string, action: () => Promise<void>, onError?: () => void) => {
     setBusy(true);
@@ -587,13 +699,45 @@ export default function PaImageViewer({
     setSimilarMask(null);
     setMessage("Similarity mask cleared.");
   };
+  const saveCurrentImagePng = () =>
+    runBusy("Save PNG", async () => {
+      if (!image) {
+        setMessage("Build an image before saving PNG.");
+        return;
+      }
+      const bytes = await paImagePngBytes({
+        width: imageWidth,
+        height: imageHeight,
+        values: imageValues,
+        counts: imageCounts,
+        zoom: imageZoom,
+        colormap: imageColormap,
+        enhancement: imageEnhancement,
+        rotation: imageRotation,
+        mask: similarMask?.mask ?? null,
+      });
+      const savedPath = await saveBinaryFile({
+        defaultFilename: paImagePngDefaultFilename(path),
+        bytes,
+        mime: "image/png",
+        filters: [{ name: "PNG Image", extensions: ["png"] }],
+      });
+      setMessage(savedPath ? `Saved PNG ${savedPath}.` : "Save PNG cancelled.");
+    });
   const resetImageZoom = useCallback(() => setImageZoom(null), []);
-  const selectedPixelReadout = selectedImagePixel
-    ? `Selected x ${selectedImagePixel.x}, y ${selectedImagePixel.y}`
-    : "No pixel selected";
-  const maskReadout = similarMask
-    ? `Mask ${similarMask.matchedCount}/${similarMask.finiteCount} pixels · +/- ${formatPaValue(similarMask.toleranceValue)}`
-    : "Mask off";
+  const buildStatusValue = buildProgress ? `${Math.round(buildProgress.percent)}%` : image ? "Complete" : "Pending";
+  const buildStatusDetail = buildProgress
+    ? `${buildProgress.sourceFrameCount} / ${buildProgress.totalFrames} frames · ${formatFrameRate(buildProgress.frameRate)} · ${formatBuildDuration(buildProgress.remainingSeconds)} left`
+    : image
+      ? `${image.frame_count} frames`
+      : "Build uses current ROI settings";
+  const imageSizeValue = image ? `${image.width} x ${image.height}` : `${imageWidth} x ${imageHeight}`;
+  const selectedPixelMetricValue = selectedImagePixel ? `x ${selectedImagePixel.x}, y ${selectedImagePixel.y}` : "--";
+  const selectedPixelMetricDetail = selectedImagePixel && trace ? `frame ${trace.frame_id} · ${trace.current_ua.length} samples` : "No pixel selected";
+  const zoomMetricValue = imageZoom ? `x ${imageZoom.xStart}-${imageZoom.xEnd}` : "Full";
+  const zoomMetricDetail = imageZoom ? `y ${imageZoom.yStart}-${imageZoom.yEnd}` : "Image zoom full";
+  const maskZoomValue = similarMask ? `${similarMask.matchedCount}/${similarMask.finiteCount} mask` : `Mask off · ${zoomMetricValue}`;
+  const maskZoomDetail = similarMask ? `+/- ${formatPaValue(similarMask.toleranceValue)} · ${zoomMetricDetail}` : zoomMetricDetail;
   const frameSampleReadout =
     trace && trace.time_ns.length > 0
       ? `${trace.time_ns[0]}-${trace.time_ns[trace.time_ns.length - 1]} ns`
@@ -716,21 +860,30 @@ export default function PaImageViewer({
             onSelectionComplete={handleTraceSelection}
             onResetZoom={restoreTraceZoom}
             active={active}
-            height={390}
+            height={280}
           />
-          <div className="pa-image-readouts">
-            <span>Trace frame {trace?.frame_id ?? "-"}</span>
-            <span>{frameSampleReadout}</span>
-            <span>{traceSampleReadout}</span>
-            <span>
-              ROI {processing.ptpStartNs}-{processing.ptpEndNs} ns
-            </span>
-            <span>
-              Baseline {processing.baselineStartNs}-{processing.baselineEndNs} ns
-            </span>
-            <span>
-              View {visibleDomain.startIndex}-{visibleDomain.endIndex}
-            </span>
+          <div className="pa-metric-grid pa-trace-metric-grid">
+            <PaMetricCard label="SNR" value={formatSnrValue(traceMetrics?.snrDb)} detail={formatSnrLinear(traceMetrics?.snrLinear)} />
+            <PaMetricCard
+              label="Signal PTP"
+              value={formatMetricPaValue(traceMetrics?.signalPeakToPeakUa)}
+              detail={`${traceMetrics?.signalSampleCount ?? 0} ROI samples`}
+            />
+            <PaMetricCard
+              label="Baseline PTP"
+              value={formatMetricPaValue(traceMetrics?.baselinePeakToPeakUa)}
+              detail={`${traceMetrics?.baselineSampleCount ?? 0} baseline samples`}
+            />
+            <PaMetricCard
+              label="Noise RMS"
+              value={formatMetricPaValue(traceMetrics?.noiseRmsUa)}
+              detail="baseline stability"
+            />
+            <PaMetricCard label="Baseline" value={formatMetricPaValue(traceMetrics?.baselineMeanUa)} detail={`${processing.baselineStartNs}-${processing.baselineEndNs} ns`} />
+            <PaMetricCard label="Peak +" value={formatSignedPaValue(traceMetrics?.positivePeakUa)} detail="relative to baseline" />
+            <PaMetricCard label="Peak -" value={formatSignedPaValue(traceMetrics?.negativePeakUa)} detail="relative to baseline" />
+            <PaMetricCard label="Trace Frame" value={String(trace?.frame_id ?? "-")} detail={frameSampleReadout} />
+            <PaMetricCard label="View" value={`${visibleDomain.startIndex}-${visibleDomain.endIndex}`} detail={traceSampleReadout} />
           </div>
         </div>
 
@@ -744,6 +897,9 @@ export default function PaImageViewer({
               </label>
               <button type="button" className="command compact" onClick={cancelBuild} disabled={!buildRequestId}>
                 Cancel
+              </button>
+              <button type="button" className="command compact" onClick={saveCurrentImagePng} disabled={!active || busy || !image}>
+                Save PNG
               </button>
               <button type="button" className="command primary" onClick={buildImage} disabled={!active || busy || !path}>
                 Build Image
@@ -831,14 +987,18 @@ export default function PaImageViewer({
               </span>
             </div>
           )}
-          <div className="pa-image-readouts">
-            <span className={severityClass(image?.severity)}>{image ? issueSummary(summary, image) : "Image pending"}</span>
-            <span>{image ? `${image.width} x ${image.height} scan points · ${image.frame_count} frames` : "Build uses current ROI settings"}</span>
-            <span>{imageAxisReadout}</span>
-            <span>{selectedPixelReadout}</span>
-            <span>{maskReadout}</span>
-            <span>{imageZoom ? `Zoom x ${imageZoom.xStart}-${imageZoom.xEnd}, y ${imageZoom.yStart}-${imageZoom.yEnd}` : "Image zoom full"}</span>
-            <span>{message}</span>
+          <div className="pa-metric-grid pa-image-status-grid">
+            <PaMetricCard label="Build" value={buildStatusValue} detail={buildStatusDetail} tone={buildProgress || image ? "ok" : "muted"} />
+            <PaMetricCard
+              label="Image"
+              value={imageSizeValue}
+              detail={image ? `${image.frame_count} frames · ${imageAxisReadout}` : imageAxisReadout}
+              tone={image?.severity === "ok" ? "ok" : image ? "warn" : "muted"}
+              wide
+            />
+            <PaMetricCard label="Selected Pixel" value={selectedPixelMetricValue} detail={selectedPixelMetricDetail} />
+            <PaMetricCard label="Mask / Zoom" value={maskZoomValue} detail={maskZoomDetail} />
+            <PaMetricCard label="Status" value={image ? issueSummary(summary, image) : "Pending"} detail={message} tone={image?.severity === "ok" ? "ok" : image ? "warn" : "muted"} wide />
           </div>
         </div>
       </div>

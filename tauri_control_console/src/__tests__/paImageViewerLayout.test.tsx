@@ -7,6 +7,7 @@ import PaImageViewer, {
   paBuildProgressWidthStyle,
   paImageBuildProgressFromEvent,
   paImageSnapshotIntervalFrames,
+  paTraceQualityMetrics,
   isPaImageRequestCurrent,
   processingPatchForTraceSelection,
   shouldClearPaImageForProcessingChange,
@@ -47,6 +48,7 @@ describe("PA Image Viewer layout", () => {
     expect(html).toContain("checked=\"\"");
     expect(html).toContain("Fast Build");
     expect(html).toContain("Cancel");
+    expect(html).toContain("Save PNG");
     expect(html).toContain("Colormap");
     expect(html).toContain('<option value="magma" selected="">Magma</option>');
     expect(html).toContain("Enhance");
@@ -62,12 +64,19 @@ describe("PA Image Viewer layout", () => {
     expect(html).toContain("Find Similar");
     expect(html).toContain("Clear Mask");
     expect(html).toContain("PA image color scale");
+    expect(html).toContain('class="pa-metric-grid pa-trace-metric-grid"');
+    expect(html).toContain('class="pa-metric-grid pa-image-status-grid"');
+    expect(html).toContain("Signal PTP");
+    expect(html).toContain("Baseline PTP");
+    expect(html).toContain("Noise RMS");
+    expect(html).toContain("SNR");
+    expect(html).toContain("Selected Pixel");
     expect(html).not.toContain(">Colorbar<");
     expect(html).not.toContain("Download Manual");
     expect(html).not.toContain("Download Python Scripts");
     expect(html).toContain("X 0 um to 264.34 um");
     expect(html).toContain("Y 0 um to 265 um");
-    expect(html).toContain("height:390px");
+    expect(html).toContain("height:280px");
   });
 
   it("keeps the PA image workbench balanced and attaches the colorbar to the image", () => {
@@ -76,9 +85,43 @@ describe("PA Image Viewer layout", () => {
     expect(styles).toMatch(/\.pa-image-display-controls\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/s);
     expect(styles).toMatch(/\.pa-image-similar-controls\s*\{[^}]*grid-template-columns:\s*minmax\(96px,\s*0\.7fr\)\s+repeat\(2,\s*minmax\(128px,\s*1fr\)\)/s);
     expect(styles).toMatch(/\.pa-image-similar-controls\s+\.command\s*\{[^}]*min-width:\s*0/s);
+    expect(styles).toMatch(/\.pa-image-panel\s*\{[^}]*align-content:\s*start/s);
+    expect(styles).toMatch(/\.pa-metric-grid\s*\{[^}]*display:\s*grid/s);
+    expect(styles).toMatch(/\.pa-metric-card\s*\{[^}]*border:\s*1px solid #d5dfeb/s);
     expect(styles).toMatch(/\.pa-image-heatmap-with-colorbar\s*\{[^}]*position:\s*relative/s);
     expect(styles).toMatch(/\.pa-image-colorbar\s*\{[^}]*position:\s*absolute/s);
     expect(styles).not.toMatch(/\.pa-image-heatmap-with-colorbar\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+52px/s);
+  });
+
+  it("computes single-frame PA signal quality from the PTP ROI and baseline window", () => {
+    const metrics = paTraceQualityMetrics(
+      {
+        path: "trace.bin",
+        frame_index: 44,
+        frame_id: 45,
+        metadata: null,
+        samples: [],
+        time_ns: [0, 100, 200, 300, 400, 500, 600],
+        current_ua: [-5.2, -4.8, -5.0, -6.0, -2.0, -4.0, -5.1],
+      },
+      {
+        ...DEFAULT_PA_IMAGE_PROCESSING,
+        baselineStartNs: 0,
+        baselineEndNs: 200,
+        ptpStartNs: 300,
+        ptpEndNs: 500,
+      },
+    );
+
+    expect(metrics).not.toBeNull();
+    expect(metrics?.baselineMeanUa).toBeCloseTo(-5.0, 6);
+    expect(metrics?.noiseRmsUa).toBeCloseTo(Math.sqrt(0.08 / 3), 6);
+    expect(metrics?.baselinePeakToPeakUa).toBeCloseTo(0.4, 6);
+    expect(metrics?.signalPeakToPeakUa).toBeCloseTo(4.0, 6);
+    expect(metrics?.positivePeakUa).toBeCloseTo(3.0, 6);
+    expect(metrics?.negativePeakUa).toBeCloseTo(-1.0, 6);
+    expect(metrics?.snrLinear).toBeCloseTo(10, 6);
+    expect(metrics?.snrDb).toBeCloseTo(20 * Math.log10(10), 6);
   });
 
   it("renders the PA image colorbar without an outer box", () => {

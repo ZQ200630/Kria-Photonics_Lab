@@ -119,6 +119,13 @@ export type CaptureProgressVisibilityInput = {
   receiverFrames: number;
 };
 
+export type CaptureProcessedFramesForCurrentRunInput = {
+  serverFramesSent?: unknown;
+  receiverFramesReceived?: unknown;
+  receiverOutputPath?: string | null;
+  activeReceiverOutputPath?: string | null;
+};
+
 export type PaImagePixelLike = { x: number; y: number };
 export type PaImageZoomLike = { xStart: number; xEnd: number; yStart: number; yEnd: number };
 export type PaImageAxisLabelsLike = { xStart?: number | null; xEnd?: number | null; yStart?: number | null; yEnd?: number | null };
@@ -213,6 +220,17 @@ export function shouldShowCaptureProgress(input: CaptureProgressVisibilityInput)
   );
 }
 
+export function captureProcessedFramesForCurrentRun(input: CaptureProcessedFramesForCurrentRunInput): number {
+  const serverFrames = nonNegativeInteger(input.serverFramesSent);
+  const activePath = (input.activeReceiverOutputPath ?? "").trim();
+  const receiverPath = (input.receiverOutputPath ?? "").trim();
+  const receiverFrames =
+    activePath && receiverPath === activePath
+      ? nonNegativeInteger(input.receiverFramesReceived)
+      : 0;
+  return Math.max(serverFrames, receiverFrames);
+}
+
 export function paLivePreviewIntervalMs(pixelCount: unknown): number {
   const safePixelCount = nonNegativeInteger(pixelCount);
   if (safePixelCount <= 10_000) return 600;
@@ -233,6 +251,7 @@ export function shouldRefreshPaLivePreview(input: PaLivePreviewRefreshInput): bo
   if (processedFrames <= 0) return false;
   const lastSnapshotFrameCount = nonNegativeInteger(input.lastSnapshotFrameCount);
   if (lastSnapshotFrameCount <= 0) return true;
+  if (processedFrames < lastSnapshotFrameCount) return true;
   return processedFrames - lastSnapshotFrameCount >= paLivePreviewMinFrameDelta(input.pixelCount);
 }
 
