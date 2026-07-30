@@ -12,6 +12,9 @@ describe("classical OR-PAM GUI integration", () => {
     );
 
     expect(html).toContain("PTP ROI");
+    expect(html).toContain("Reconstruction mode");
+    expect(html).toContain("PTP 2D");
+    expect(html).toContain("Classical 3D");
     expect(html).toContain("Build Image");
     expect(html).toContain("Processed A-line");
     expect(html).toContain("A-line processing pipeline");
@@ -24,6 +27,9 @@ describe("classical OR-PAM GUI integration", () => {
     expect(html).toContain("Envelope");
     expect(html).toContain("Reconstruction Settings");
     expect(html).toContain("Reset from Metadata");
+    expect(html).toContain("Processed A-line selection mode");
+    expect(html).toContain("Processing");
+    expect(html).toContain("Output");
     expect(html).toContain("Save Preset");
   });
 
@@ -40,10 +46,15 @@ describe("classical OR-PAM GUI integration", () => {
     expect(html).toContain("X index");
     expect(html).toContain("Y index");
     expect(html).toContain("Z index");
+    expect(html).toContain("Rotation");
+    expect(html).toContain("90°");
     expect(html).toContain("Run + Save Numerical");
     expect(html).toContain("Save Current View PNG");
     expect(html).toContain("Saved numerical data stays linear");
-    expect(html).toContain("one-way PA time of flight");
+    expect(html).toContain("PTP ROI");
+    expect(html).toContain("Reconstruction mode");
+    expect(html).toContain("PTP 2D");
+    expect(html).toContain("Classical 3D");
   });
 
   it("uses a two-column additive layout and collapses the pipeline on narrow screens", () => {

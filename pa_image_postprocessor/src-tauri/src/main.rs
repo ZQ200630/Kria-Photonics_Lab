@@ -6,6 +6,7 @@ use std::{
 };
 
 mod classical_orpam;
+mod classical_orpam_qc;
 mod npy;
 mod pa_image;
 
@@ -223,16 +224,6 @@ fn pa_classical_pick_output_directory() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-fn pa_classical_preview_config(
-    config: classical_orpam::ClassicalOrpamConfig,
-    sample_count: usize,
-    width: usize,
-    height: usize,
-) -> Result<classical_orpam::ResolvedClassicalOrpamConfig, String> {
-    classical_orpam::resolve_classical_orpam_config(&config, sample_count, width, height)
-}
-
-#[tauri::command]
 fn pa_classical_load_pixel_traces(
     path: String,
     frame_index: u64,
@@ -346,7 +337,6 @@ fn main() {
             pa_image_cancel_build,
             pa_classical_load_adjacent_metadata,
             pa_classical_pick_output_directory,
-            pa_classical_preview_config,
             pa_classical_load_pixel_traces,
             pa_classical_reconstruct_path_streamed,
             pa_classical_cancel_reconstruction,

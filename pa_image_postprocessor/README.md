@@ -52,6 +52,18 @@ completed run:
 - `x_um.npy`, `y_um.npy`, `z_um.npy`: float64 coordinates
 - `resolved_config.json`
 - `reconstruction_metadata.json`
+- `qc/representative_raw_alines.png`
+- `qc/representative_filtered_alines.png`
+- `qc/representative_envelopes.png`
+- `qc/signal_and_noise_spectrum.png`
+- `qc/map_xy_linear.png`, `qc/map_xy_db.png`
+- `qc/bscan_xz.png`, `qc/bscan_yz.png`, `qc/cscan_xy.png`
+
+Metadata also records per-pixel frame counts, missing/duplicate/invalid data
+statistics, enabled processing stages, the duplicate-frame policy, and the
+Pearson correlation between the classical envelope MAP and the matching PTP
+reference values. Correlation is diagnostic only; parameters are never tuned
+to maximize it automatically.
 
 The saved volume remains linear. Colormap, percentile enhancement and dB
 dynamic range affect display only. Depth uses `z = c × (t - t0)` with no

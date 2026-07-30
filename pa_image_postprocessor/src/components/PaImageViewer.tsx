@@ -684,6 +684,10 @@ export default function PaImageViewer({
     }
     runBusy(`Load Pixel ${pixel.x},${pixel.y}`, () => loadFrameAtIndex(frameIndex, pixel));
   }, [image, imageWidth, loadFrameAtIndex, runBusy, similarMask]);
+  const selectClassicalPixel = useCallback((pixel: PaImagePixel, frameIndex: number) => {
+    setSelectedImagePixel(pixel);
+    runBusy(`Load Volume Pixel ${pixel.x},${pixel.y}`, () => loadFrameAtIndex(frameIndex, pixel));
+  }, [loadFrameAtIndex, runBusy]);
   const findSimilarPixels = () => {
     if (!image || !selectedImagePixel) {
       setMessage("Select a PA image pixel before finding similar PTP pixels.");
@@ -1022,6 +1026,7 @@ export default function PaImageViewer({
           zeroAdcCode={processing.zeroAdcCode}
           umPerCount={umPerCount}
           onPixelSelect={selectImagePixel}
+          onVolumePixelSelect={selectClassicalPixel}
           onMessage={setMessage}
         />
       </div>

@@ -36,6 +36,7 @@ export type ClassicalOrpamDiagnostics = {
   raw_adc_min_clip_count: number;
   raw_adc_max_clip_count: number;
   nan_or_inf_count: number;
+  map_ptp_pearson_correlation: number | null;
   warning_count: number;
   issues: PaParseIssue[];
 };
@@ -50,11 +51,16 @@ export type ClassicalOrpamResult = {
   x_um_path: string;
   y_um_path: string;
   z_um_path: string;
+  x_um: number[];
+  y_um: number[];
+  z_um: number[];
   metadata_path: string;
   resolved_config_path: string;
   npy_data_offset: number;
   map_values: Array<number | null>;
+  pixel_frame_indices: Array<number | null>;
   pixel_counts: number[];
+  qc_files: string[];
   x_start_um: number;
   x_end_um: number;
   y_start_um: number;
@@ -125,6 +131,12 @@ export type ClassicalVolumeSlice = {
   vertical_end_um: number;
 };
 
+export function clampClassicalSliceIndex(value: string | number, axisLength: number): number {
+  const parsed = Number(value);
+  const rounded = Number.isFinite(parsed) ? Math.round(parsed) : 0;
+  return Math.max(0, Math.min(Math.max(0, Math.floor(axisLength) - 1), rounded));
+}
+
 export function rustClassicalConfig(config: ClassicalOrpamConfig) {
   return {
     sample_interval_ns: config.sampleIntervalNs,
@@ -161,19 +173,6 @@ export const pickClassicalOutputDirectory = () =>
 
 export const loadAdjacentPaMetadata = (path: string) =>
   invoke<unknown | null>("pa_classical_load_adjacent_metadata", { path });
-
-export const previewClassicalConfig = (
-  config: ClassicalOrpamConfig,
-  sampleCount: number,
-  width: number,
-  height: number,
-) =>
-  invoke<ResolvedClassicalOrpamConfig>("pa_classical_preview_config", {
-    config: rustClassicalConfig(config),
-    sampleCount,
-    width,
-    height,
-  });
 
 export const loadClassicalPixelTraces = (
   path: string,

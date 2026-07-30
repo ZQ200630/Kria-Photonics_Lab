@@ -11,6 +11,7 @@ use sci_rs::signal::filter::design::{
 };
 use sci_rs::signal::filter::sosfiltfilt_dyn;
 
+use crate::classical_orpam_qc::{generate_qc, QcRequest, QcTrace};
 use crate::npy::{create_zeroed_f32, read_f32_at, write_f32_at, write_f64_vector, NpyLayout};
 use crate::pa_image::{
     parse_metadata, read_frame_trace_from_legacy_file, scan_legacy_file,
@@ -135,6 +136,7 @@ pub struct ClassicalOrpamDiagnostics {
     pub raw_adc_min_clip_count: u64,
     pub raw_adc_max_clip_count: u64,
     pub nan_or_inf_count: u64,
+    pub map_ptp_pearson_correlation: Option<f64>,
     pub warning_count: usize,
     pub issues: Vec<PaParseIssue>,
 }
@@ -150,11 +152,16 @@ pub struct ClassicalOrpamResult {
     pub x_um_path: String,
     pub y_um_path: String,
     pub z_um_path: String,
+    pub x_um: Vec<f64>,
+    pub y_um: Vec<f64>,
+    pub z_um: Vec<f64>,
     pub metadata_path: String,
     pub resolved_config_path: String,
     pub npy_data_offset: u64,
     pub map_values: Vec<Option<f32>>,
+    pub pixel_frame_indices: Vec<Option<u64>>,
     pub pixel_counts: Vec<u32>,
+    pub qc_files: Vec<String>,
     pub x_start_um: f64,
     pub x_end_um: f64,
     pub y_start_um: f64,
@@ -279,8 +286,8 @@ pub fn resolve_classical_orpam_config(
     if config.sample_end_trim >= sample_count.saturating_sub(config.sample_start_index) {
         return Err("sample end trim leaves an empty valid trace".to_string());
     }
-    if !config.tz_ohm.is_finite() || config.tz_ohm == 0.0 {
-        return Err("transimpedance must be finite and non-zero".to_string());
+    if !config.tz_ohm.is_finite() || config.tz_ohm <= 0.0 {
+        return Err("transimpedance must be finite and positive".to_string());
     }
     if !config.vfs.is_finite() || !config.zero_adc_code.is_finite() {
         return Err("VFS and zero ADC code must be finite".to_string());
@@ -434,6 +441,44 @@ fn rms(values: &[f64]) -> f64 {
     (values.iter().map(|value| value * value).sum::<f64>() / values.len() as f64).sqrt()
 }
 
+fn pearson_correlation(map: &[Option<f32>], ptp: &[Option<f64>]) -> Option<f64> {
+    let pairs: Vec<(f64, f64)> = map
+        .iter()
+        .zip(ptp)
+        .filter_map(|(map_value, ptp_value)| match (map_value, ptp_value) {
+            (Some(map_value), Some(ptp_value))
+                if map_value.is_finite() && ptp_value.is_finite() =>
+            {
+                Some((f64::from(*map_value), *ptp_value))
+            }
+            _ => None,
+        })
+        .collect();
+    if pairs.len() < 2 {
+        return None;
+    }
+    let count = pairs.len() as f64;
+    let mean_map = pairs.iter().map(|pair| pair.0).sum::<f64>() / count;
+    let mean_ptp = pairs.iter().map(|pair| pair.1).sum::<f64>() / count;
+    let covariance = pairs
+        .iter()
+        .map(|pair| (pair.0 - mean_map) * (pair.1 - mean_ptp))
+        .sum::<f64>();
+    let map_energy = pairs
+        .iter()
+        .map(|pair| (pair.0 - mean_map).powi(2))
+        .sum::<f64>();
+    let ptp_energy = pairs
+        .iter()
+        .map(|pair| (pair.1 - mean_ptp).powi(2))
+        .sum::<f64>();
+    let denominator = (map_energy * ptp_energy).sqrt();
+    if denominator > 0.0 {
+        Some(covariance / denominator)
+    } else {
+        None
+    }
+}
 fn hilbert_envelope(
     values: &[f64],
     forward: &Arc<dyn Fft<f64>>,
@@ -552,7 +597,7 @@ impl AlineProcessor {
                 &self.fft_inverse,
             )
         } else {
-            filtered_processing.iter().map(|value| value.abs()).collect()
+            filtered_processing.to_vec()
         };
         let output_start = self.resolved.output_start_index
             - self.resolved.processing_start_index;
@@ -627,8 +672,28 @@ fn product_kind(config: &ClassicalOrpamConfig) -> String {
     if config.pipeline.hilbert_envelope_enabled {
         "hilbert_envelope_linear".to_string()
     } else {
-        "absolute_signed_pipeline_output_linear".to_string()
+        "signed_pipeline_output_linear".to_string()
     }
+}
+
+fn processing_order(config: &ClassicalOrpamConfig) -> Vec<&'static str> {
+    let mut stages = vec![
+        "validated legacy frame stream",
+        "metadata placement y_idx * width + x_idx",
+        "valid source slice",
+    ];
+    if config.pipeline.median_baseline_enabled {
+        stages.push("per-A-line median baseline subtraction");
+    }
+    if config.pipeline.bandpass_enabled {
+        stages.push("Butterworth SOS forward-backward zero-phase band-pass");
+    }
+    if config.pipeline.hilbert_envelope_enabled {
+        stages.push("Hilbert analytic magnitude");
+    }
+    stages.push("output crop");
+    stages.push("one-way time-to-depth conversion");
+    stages
 }
 
 pub fn process_classical_aline(
@@ -686,6 +751,16 @@ fn write_json_new<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), Str
         .map_err(|err| format!("write {} failed: {err}", path.display()))?;
     file.flush()
         .map_err(|err| format!("flush {} failed: {err}", path.display()))
+}
+
+fn publish_partial(partial: &Path, final_path: &Path) -> Result<(), String> {
+    fs::rename(partial, final_path).map_err(|err| {
+        format!(
+            "publish {} as {} failed: {err}",
+            partial.display(),
+            final_path.display()
+        )
+    })
 }
 
 fn resolved_coordinates(
@@ -790,6 +865,15 @@ where
         )
     })?;
 
+    let qc_directory = request.output_directory.join("qc");
+    let qc_partial_directory = request.output_directory.join("qc.partial");
+    if qc_directory.exists() || qc_partial_directory.exists() {
+        return Err(format!(
+            "refusing to overwrite existing reconstruction QC output {} or {}",
+            qc_directory.display(),
+            qc_partial_directory.display()
+        ));
+    }
     let envelope_path = request.output_directory.join("envelope_linear.npy");
     let envelope_partial_path = request
         .output_directory
@@ -799,20 +883,34 @@ where
         .output_directory
         .join("filtered_rf.npy.partial");
     let x_um_path = request.output_directory.join("x_um.npy");
+    let x_um_partial_path = request.output_directory.join("x_um.npy.partial");
     let y_um_path = request.output_directory.join("y_um.npy");
+    let y_um_partial_path = request.output_directory.join("y_um.npy.partial");
     let z_um_path = request.output_directory.join("z_um.npy");
+    let z_um_partial_path = request.output_directory.join("z_um.npy.partial");
     let metadata_path = request
         .output_directory
         .join("reconstruction_metadata.json");
+    let metadata_partial_path = request
+        .output_directory
+        .join("reconstruction_metadata.json.partial");
     let resolved_config_path = request.output_directory.join("resolved_config.json");
+    let resolved_config_partial_path = request
+        .output_directory
+        .join("resolved_config.json.partial");
     let required_paths = [
         &envelope_path,
         &envelope_partial_path,
         &x_um_path,
+        &x_um_partial_path,
         &y_um_path,
+        &y_um_partial_path,
         &z_um_path,
+        &z_um_partial_path,
         &metadata_path,
+        &metadata_partial_path,
         &resolved_config_path,
+        &resolved_config_partial_path,
     ];
     for path in required_paths {
         if path.exists() {
@@ -860,6 +958,8 @@ where
     let pixel_count = width * height;
     let mut counts = vec![0u32; pixel_count];
     let mut map_values = vec![None::<f32>; pixel_count];
+    let mut ptp_values = vec![None::<f64>; pixel_count];
+    let mut pixel_frame_indices = vec![None::<u64>; pixel_count];
     let mut x_coordinates = vec![None::<f64>; width];
     let mut y_coordinates = vec![None::<f64>; height];
     let mut source_frame_count = 0u64;
@@ -873,6 +973,10 @@ where
     let stream_issues = std::cell::RefCell::new(Vec::<PaParseIssue>::new());
     let stream_bad_frame_count = std::cell::Cell::new(0u64);
     let mut completed_rows = HashSet::<usize>::new();
+    let mut representative_traces = Vec::<QcTrace>::new();
+    let mut strongest_frame_index = None::<u64>;
+    let mut strongest_peak = f64::NEG_INFINITY;
+    let mut strongest_cscan_z_index = 0usize;
     let emit_interval = (request.config.chunk_rows * width).max(512) as u64;
     let mut last_emit = 0u64;
 
@@ -972,6 +1076,41 @@ where
             let y = usize::from(metadata.y_idx);
             let pixel_index = y * width + x;
             let previous_count = counts[pixel_index];
+            pixel_frame_indices[pixel_index].get_or_insert(frame.frame_index);
+            let ptp_reference_window = &processed.raw_valid
+                [resolved.output_start_index..resolved.output_end_index];
+            let ptp_reference_min = ptp_reference_window
+                .iter()
+                .copied()
+                .fold(f64::INFINITY, f64::min);
+            let ptp_reference_max = ptp_reference_window
+                .iter()
+                .copied()
+                .fold(f64::NEG_INFINITY, f64::max);
+            let ptp_reference = ptp_reference_max - ptp_reference_min;
+            ptp_values[pixel_index] = Some(match ptp_values[pixel_index] {
+                Some(previous) => {
+                    (previous * f64::from(previous_count) + ptp_reference)
+                        / f64::from(previous_count + 1)
+                }
+                None => ptp_reference,
+            });
+            if representative_traces.len() < 2 {
+                representative_traces.push(QcTrace {
+                    raw: processed.raw_valid.clone(),
+                    filtered: processed.filtered_processing.clone(),
+                    envelope: processed.envelope_processing.clone(),
+                });
+            }
+            if processed.metrics.envelope_peak_ua > strongest_peak {
+                strongest_peak = processed.metrics.envelope_peak_ua;
+                strongest_cscan_z_index = processed
+                    .metrics
+                    .peak_valid_index
+                    .saturating_sub(resolved.output_start_index)
+                    .min(resolved.output_sample_count.saturating_sub(1));
+                strongest_frame_index = Some(frame.frame_index);
+            }
             let output = if previous_count == 0 {
                 processed.output_envelope.clone()
             } else {
@@ -981,13 +1120,17 @@ where
                     pixel_index as u64 * resolved.output_sample_count as u64,
                     resolved.output_sample_count,
                 )?;
-                previous
-                    .into_iter()
-                    .zip(processed.output_envelope.iter())
-                    .map(|(old, new)| {
-                        (old * previous_count as f32 + *new) / (previous_count + 1) as f32
-                    })
-                    .collect()
+                if request.config.pipeline.hilbert_envelope_enabled {
+                    previous
+                        .into_iter()
+                        .zip(processed.output_envelope.iter())
+                        .map(|(old, new)| {
+                            (old * previous_count as f32 + *new) / (previous_count + 1) as f32
+                        })
+                        .collect()
+                } else {
+                    previous
+                }
             };
             write_f32_at(
                 &mut envelope_file,
@@ -1005,20 +1148,12 @@ where
                 let averaged = if previous_count == 0 {
                     signed_output
                 } else {
-                    let previous = read_f32_at(
+                    read_f32_at(
                         file,
                         rf_layout,
                         pixel_index as u64 * resolved.output_sample_count as u64,
                         resolved.output_sample_count,
-                    )?;
-                    previous
-                        .into_iter()
-                        .zip(signed_output.iter())
-                        .map(|(old, new)| {
-                            (old * previous_count as f32 + *new)
-                                / (previous_count + 1) as f32
-                        })
-                        .collect()
+                    )?
                 };
                 write_f32_at(
                     file,
@@ -1082,12 +1217,55 @@ where
     let z_um: Vec<f64> = (resolved.output_start_index..resolved.output_end_index)
         .map(|index| processor.depth_um(index))
         .collect();
-    write_f64_vector(&x_um_path, &x_um)?;
-    write_f64_vector(&y_um_path, &y_um)?;
-    write_f64_vector(&z_um_path, &z_um)?;
+    write_f64_vector(&x_um_partial_path, &x_um)?;
+    write_f64_vector(&y_um_partial_path, &y_um)?;
+    write_f64_vector(&z_um_partial_path, &z_um)?;
 
     let missing_pixel_count = counts.iter().filter(|count| **count == 0).count() as u64;
     let duplicate_pixel_count = counts.iter().filter(|count| **count > 1).count() as u64;
+    let map_ptp_pearson_correlation = pearson_correlation(&map_values, &ptp_values);
+    if let Some(frame_index) = strongest_frame_index {
+        let trace = read_frame_trace_from_legacy_file(
+            &request.input_path,
+            frame_index,
+            request.config.tz_ohm,
+            request.config.vfs,
+            request.config.zero_adc_code,
+        )?;
+        let processed = processor.process_codes(&trace.samples)?;
+        representative_traces.push(QcTrace {
+            raw: processed.raw_valid,
+            filtered: processed.filtered_processing,
+            envelope: processed.envelope_processing,
+        });
+    }
+    on_progress(progress_event(
+        started_at,
+        source_frame_count,
+        valid_frame_count,
+        height,
+        height,
+        "qc",
+        issues.len(),
+    ))?;
+    let qc_paths = generate_qc(&QcRequest {
+        qc_directory: &qc_partial_directory,
+        volume_path: &envelope_partial_path,
+        data_offset: layout.data_offset,
+        shape_yxz: shape,
+        map_values: &map_values,
+        x_range_um: [*x_um.first().unwrap_or(&0.0), *x_um.last().unwrap_or(&0.0)],
+        y_range_um: [*y_um.first().unwrap_or(&0.0), *y_um.last().unwrap_or(&0.0)],
+        z_range_um: [*z_um.first().unwrap_or(&0.0), *z_um.last().unwrap_or(&0.0)],
+        sample_rate_hz: resolved.sampling_rate_hz,
+        cscan_z_index: strongest_cscan_z_index,
+        traces: &representative_traces,
+    })?;
+    let qc_files: Vec<String> = qc_paths
+        .iter()
+        .filter_map(|path| path.file_name())
+        .map(|name| qc_directory.join(name).display().to_string())
+        .collect();
     let diagnostics = ClassicalOrpamDiagnostics {
         source_frame_count,
         valid_frame_count,
@@ -1098,10 +1276,11 @@ where
         raw_adc_min_clip_count,
         raw_adc_max_clip_count,
         nan_or_inf_count,
+        map_ptp_pearson_correlation,
         warning_count: issues.len(),
         issues: issues.into_iter().take(100).collect(),
     };
-    write_json_new(&resolved_config_path, &resolved)?;
+    write_json_new(&resolved_config_partial_path, &resolved)?;
     let source_size = fs::metadata(&request.input_path)
         .map_err(|err| format!("metadata {} failed: {err}", request.input_path.display()))?
         .len();
@@ -1125,16 +1304,14 @@ where
             "linear": true,
             "product_kind": product_kind(&request.config),
         },
-        "processing_order": [
-            "validated legacy frame stream",
-            "metadata placement y_idx * width + x_idx",
-            "valid source slice",
-            "per-A-line median baseline subtraction",
-            "Butterworth SOS forward-backward zero-phase band-pass",
-            "Hilbert analytic magnitude",
-            "output crop",
-            "one-way time-to-depth conversion"
-        ],
+        "processing_order": processing_order(&request.config),
+        "duplicate_policy": if request.config.pipeline.hilbert_envelope_enabled {
+            "average linear envelopes; retain first signed RF because trigger phase stability is not established"
+        } else {
+            "retain first signed pipeline output because trigger phase stability is not established"
+        },
+        "per_pixel_frame_counts": &counts,
+        "qc_files": &qc_files,
         "resolved": &resolved,
         "diagnostics": &diagnostics,
         "application": { "name": "PA Image Post-Processor", "version": env!("CARGO_PKG_VERSION") },
@@ -1143,24 +1320,19 @@ where
             .map(|duration| duration.as_millis())
             .unwrap_or(0),
     });
-    write_json_new(&metadata_path, &metadata)?;
+    write_json_new(&metadata_partial_path, &metadata)?;
 
-    fs::rename(&envelope_partial_path, &envelope_path).map_err(|err| {
-        format!(
-            "publish {} as {} failed: {err}",
-            envelope_partial_path.display(),
-            envelope_path.display()
-        )
-    })?;
+    publish_partial(&x_um_partial_path, &x_um_path)?;
+    publish_partial(&y_um_partial_path, &y_um_path)?;
+    publish_partial(&z_um_partial_path, &z_um_path)?;
+    publish_partial(&resolved_config_partial_path, &resolved_config_path)?;
+    publish_partial(&qc_partial_directory, &qc_directory)?;
+    publish_partial(&metadata_partial_path, &metadata_path)?;
     if request.config.save_filtered_rf {
-        fs::rename(&filtered_rf_partial_path, &filtered_rf_path).map_err(|err| {
-            format!(
-                "publish {} as {} failed: {err}",
-                filtered_rf_partial_path.display(),
-                filtered_rf_path.display()
-            )
-        })?;
+        publish_partial(&filtered_rf_partial_path, &filtered_rf_path)?;
     }
+    // The main volume is the completion marker and is published last.
+    publish_partial(&envelope_partial_path, &envelope_path)?;
     on_progress(progress_event(
         started_at,
         source_frame_count,
@@ -1184,11 +1356,16 @@ where
         x_um_path: x_um_path.display().to_string(),
         y_um_path: y_um_path.display().to_string(),
         z_um_path: z_um_path.display().to_string(),
+        x_um: x_um.clone(),
+        y_um: y_um.clone(),
+        z_um: z_um.clone(),
         metadata_path: metadata_path.display().to_string(),
         resolved_config_path: resolved_config_path.display().to_string(),
         npy_data_offset: layout.data_offset,
         map_values,
+        pixel_frame_indices,
         pixel_counts: counts,
+        qc_files,
         x_start_um: *x_um.first().unwrap_or(&0.0),
         x_end_um: *x_um.last().unwrap_or(&0.0),
         y_start_um: *y_um.first().unwrap_or(&0.0),
@@ -1412,6 +1589,31 @@ mod tests {
     }
 
     #[test]
+    fn rejects_nonpositive_transimpedance_in_backend_validation() {
+        let mut config = ClassicalOrpamConfig::default();
+        config.tz_ohm = -2000.0;
+        let error = resolve_classical_orpam_config(&config, 2032, 400, 400)
+            .expect_err("negative transimpedance must fail");
+        assert!(error.contains("positive"));
+    }
+
+    #[test]
+    fn disabled_hilbert_is_a_signed_passthrough_and_is_omitted_from_metadata_order() {
+        let mut config = filter_config();
+        config.zero_adc_code = 0.0;
+        config.pipeline.bandpass_enabled = false;
+        config.pipeline.hilbert_envelope_enabled = false;
+        let resolved = resolve_classical_orpam_config(&config, 512, 1, 1).expect("resolve");
+        let processor = AlineProcessor::new(resolved).expect("processor");
+        let processed = processor.process_codes(&vec![100i16; 512]).expect("process");
+        assert!(processed.output_envelope.iter().all(|value| *value < 0.0));
+        let order = processing_order(&config);
+        assert!(!order.contains(&"Hilbert analytic magnitude"));
+        assert!(!order.contains(&"Butterworth SOS forward-backward zero-phase band-pass"));
+        assert_eq!(product_kind(&config), "signed_pipeline_output_linear");
+    }
+
+    #[test]
     fn median_baseline_preserves_relative_pulse_amplitudes() {
         let config = ClassicalOrpamConfig {
             sample_start_index: 0,
@@ -1601,6 +1803,26 @@ mod tests {
                 std::fs::remove_file(path).expect("remove output file");
             }
         }
+        let qc_directory = output.join("qc");
+        for name in [
+            "representative_raw_alines.png",
+            "representative_filtered_alines.png",
+            "representative_envelopes.png",
+            "signal_and_noise_spectrum.png",
+            "map_xy_linear.png",
+            "map_xy_db.png",
+            "bscan_xz.png",
+            "bscan_yz.png",
+            "cscan_xy.png",
+        ] {
+            let path = qc_directory.join(name);
+            if path.exists() {
+                std::fs::remove_file(path).expect("remove QC output file");
+            }
+        }
+        if qc_directory.exists() {
+            std::fs::remove_dir(qc_directory).expect("remove QC directory");
+        }
         if output.exists() {
             std::fs::remove_dir(output).expect("remove output directory");
         }
@@ -1622,10 +1844,15 @@ mod tests {
         let result = reconstruct_classical_orpam(&request, |_| Ok(()), || false)
             .expect("reconstruct");
         assert_eq!(result.shape_yxz, [2, 3, 443]);
+        assert_eq!((result.x_um.len(), result.y_um.len(), result.z_um.len()), (3, 2, 443));
         assert_eq!(result.pixel_counts, vec![1, 1, 1, 1, 1, 1]);
+        assert_eq!(result.pixel_frame_indices, vec![Some(0), Some(1), Some(2), Some(5), Some(4), Some(3)]);
         assert_eq!(result.diagnostics.valid_frame_count, 6);
         assert_eq!(result.diagnostics.missing_pixel_count, 0);
         assert_eq!(result.diagnostics.duplicate_pixel_count, 0);
+        assert_eq!(result.qc_files.len(), 9);
+        assert!(result.qc_files.iter().all(|path| Path::new(path).exists()));
+        assert!(result.diagnostics.map_ptp_pearson_correlation.is_some());
         let finite_map: Vec<f32> = result.map_values.iter().flatten().copied().collect();
         assert_eq!(finite_map.len(), 6);
         for pair in finite_map.windows(2) {

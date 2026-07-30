@@ -5,7 +5,7 @@ import {
   configFromAdjacentMetadata,
   validateClassicalOrpamConfig,
 } from "../utils/classicalOrpam";
-import { rustClassicalConfig } from "../utils/classicalOrpamTauri";
+import { clampClassicalSliceIndex, rustClassicalConfig } from "../utils/classicalOrpamTauri";
 
 describe("classical OR-PAM workflow", () => {
   it("resolves the CarbonfiberH2 valid trace, output samples and one-way depth", () => {
@@ -88,5 +88,12 @@ describe("classical OR-PAM workflow", () => {
     expect(display[1]).toBeCloseTo(-20);
     expect(display[2]).toBe(-40);
     expect(display[3]).toBe(-40);
+  });
+
+  it("rounds and clamps slice indices before invoking Rust", () => {
+    expect(clampClassicalSliceIndex("1.5", 10)).toBe(2);
+    expect(clampClassicalSliceIndex("-3", 10)).toBe(0);
+    expect(clampClassicalSliceIndex("99", 10)).toBe(9);
+    expect(clampClassicalSliceIndex("not-a-number", 10)).toBe(0);
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "../utils/classicalOrpam";
 import {
   cancelClassicalOrpam,
+  clampClassicalSliceIndex,
   loadAdjacentPaMetadata,
   loadClassicalPixelTraces,
   loadClassicalVolumeSlice,
@@ -28,8 +29,9 @@ import PaImageHeatmap, {
   type PaImageColormap,
   type PaImageEnhancement,
   type PaImagePixel,
+  type PaImageRotation,
 } from "./PaImageHeatmap";
-import PlotCanvas, { type PlotDomainWindow, type PlotOverlay } from "./PlotCanvas";
+import PlotCanvas, { type PlotDomainWindow, type PlotOverlay, type PlotXDomain } from "./PlotCanvas";
 
 type Props = {
   active: boolean;
@@ -42,10 +44,12 @@ type Props = {
   zeroAdcCode: number;
   umPerCount: number;
   onPixelSelect: (pixel: PaImagePixel) => void;
+  onVolumePixelSelect: (pixel: PaImagePixel, frameIndex: number) => void;
   onMessage: (message: string) => void;
 };
 
 type VolumeTab = "map" | "xz" | "yz" | "xy";
+type AlineSelectionMode = "zoom" | "baseline" | "processing" | "output";
 type NumericConfigKey = Exclude<
   keyof ClassicalOrpamConfig,
   "pipeline" | "relativeDepth" | "saveFilteredRf"
@@ -117,6 +121,7 @@ export default function ClassicalOrpamWorkspace({
   zeroAdcCode,
   umPerCount,
   onPixelSelect,
+  onVolumePixelSelect,
   onMessage,
 }: Props) {
   const [config, setConfig] = useState<ClassicalOrpamConfig>(() => ({
@@ -135,11 +140,14 @@ export default function ClassicalOrpamWorkspace({
   const [showCorrected, setShowCorrected] = useState(true);
   const [showFiltered, setShowFiltered] = useState(true);
   const [showEnvelope, setShowEnvelope] = useState(true);
+  const [alineSelectionMode, setAlineSelectionMode] = useState<AlineSelectionMode>("zoom");
+  const [alineZoom, setAlineZoom] = useState<PlotXDomain | undefined>();
   const [result, setResult] = useState<ClassicalOrpamResult | null>(null);
   const [resultStale, setResultStale] = useState(false);
   const [progress, setProgress] = useState<ClassicalOrpamProgressEvent | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [reconstructing, setReconstructing] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<"ptp" | "classical">("classical");
   const [volumeTab, setVolumeTab] = useState<VolumeTab>("map");
   const [volumeSlice, setVolumeSlice] = useState<ClassicalVolumeSlice | null>(null);
   const [sliceError, setSliceError] = useState("");
@@ -150,16 +158,18 @@ export default function ClassicalOrpamWorkspace({
   const [dynamicRangeDb, setDynamicRangeDb] = useState(40);
   const [colormap, setColormap] = useState<PaImageColormap>("magma");
   const [enhancement, setEnhancement] = useState<PaImageEnhancement>("percentile");
+  const [volumeRotation, setVolumeRotation] = useState<PaImageRotation>(0);
   const configVersionRef = useRef(0);
   const reconstructionCounterRef = useRef(0);
   const sliceGenerationRef = useRef(0);
+  const parentCalibrationRef = useRef({ tzOhm, zeroAdcCode, umPerCount });
 
   const markConfigChanged = useCallback(() => {
     configVersionRef.current += 1;
     setResultStale(Boolean(result));
   }, [result]);
 
-  const applyMetadata = useCallback(async (sourcePath: string) => {
+  const applyMetadata = useCallback(async (sourcePath: string, markExistingResultStale = false) => {
     if (!sourcePath) {
       setMetadataStatus("No source loaded");
       setPresetSource("application default");
@@ -179,6 +189,7 @@ export default function ClassicalOrpamWorkspace({
       });
       configVersionRef.current += 1;
       setMetadataStatus("Adjacent metadata.json loaded");
+      if (markExistingResultStale) setResultStale(true);
     } catch (error) {
       setMetadataStatus(`Metadata load failed: ${formatUnknownError(error)}`);
     }
@@ -191,16 +202,26 @@ export default function ClassicalOrpamWorkspace({
     setResultStale(false);
     setAline(null);
     setAlineError("");
+    setAlineZoom(undefined);
     void applyMetadata(path);
   }, [applyMetadata, path]);
 
   useEffect(() => {
+    const previous = parentCalibrationRef.current;
+    const changed = previous.tzOhm !== tzOhm
+      || previous.zeroAdcCode !== zeroAdcCode
+      || previous.umPerCount !== umPerCount;
+    parentCalibrationRef.current = { tzOhm, zeroAdcCode, umPerCount };
     setConfig((current) => ({
       ...current,
       tzOhm,
       zeroAdcCode,
       umPerCount,
     }));
+    if (changed) {
+      configVersionRef.current += 1;
+      setResultStale(true);
+    }
   }, [tzOhm, umPerCount, zeroAdcCode]);
 
   useEffect(() => {
@@ -367,14 +388,33 @@ export default function ClassicalOrpamWorkspace({
       });
   }, [result, volumeTab, xIndex, yIndex, zIndex]);
 
+  const handleAlineSelection = (startIndex: number, endIndex: number) => {
+    if (!aline) return;
+    const start = Math.max(0, Math.min(startIndex, endIndex));
+    const end = Math.min(aline.raw_current_ua.length - 1, Math.max(startIndex, endIndex));
+    if (alineSelectionMode === "zoom") {
+      setAlineZoom({ startIndex: start, endIndex: end });
+      return;
+    }
+    const startNs = start * config.sampleIntervalNs;
+    const endNs = (end + 1) * config.sampleIntervalNs;
+    const patch = alineSelectionMode === "baseline"
+      ? { baselineStartNs: startNs, baselineEndNs: endNs }
+      : alineSelectionMode === "processing"
+        ? { processingStartNs: startNs, processingEndNs: endNs }
+        : { outputStartNs: startNs, outputEndNs: endNs };
+    setConfig((current) => ({ ...current, ...patch }));
+    markConfigChanged();
+  };
+
   const traceOverlays = useMemo<PlotOverlay[]>(() => {
     if (!aline) return [];
     const overlays: PlotOverlay[] = [];
     if (showCorrected) overlays.push({ values: aline.baseline_corrected_ua, color: "#0ea5e9", label: "baseline-corrected", alpha: 0.9 });
     if (showFiltered) overlays.push({ values: aline.filtered_rf_ua, xOffset: aline.processing_offset, color: "#7c3aed", label: "filtered RF", alpha: 0.9 });
-    if (showEnvelope) overlays.push({ values: aline.envelope_ua, xOffset: aline.processing_offset, color: "#f59e0b", label: "Hilbert envelope", lineWidth: 2 });
+    if (showEnvelope) overlays.push({ values: aline.envelope_ua, xOffset: aline.processing_offset, color: "#f59e0b", label: config.pipeline.hilbertEnvelopeEnabled ? "Hilbert envelope" : "pipeline output", lineWidth: 2 });
     return overlays;
-  }, [aline, showCorrected, showEnvelope, showFiltered]);
+  }, [aline, config.pipeline.hilbertEnvelopeEnabled, showCorrected, showEnvelope, showFiltered]);
   const traceValues = aline
     ? showRaw
       ? aline.raw_current_ua
@@ -412,21 +452,28 @@ export default function ClassicalOrpamWorkspace({
       : undefined;
 
   const selectVolumePixel = (pixel: PaImagePixel) => {
+    if (!result) return;
+    const sourcePixel = volumeTab === "map" || volumeTab === "xy"
+      ? pixel
+      : volumeTab === "xz"
+        ? { x: pixel.x, y: yIndex }
+        : { x: xIndex, y: pixel.x };
     if (volumeTab === "map" || volumeTab === "xy") {
       setXIndex(pixel.x);
       setYIndex(pixel.y);
-      onPixelSelect(pixel);
-      return;
-    }
-    if (volumeTab === "xz") {
+    } else if (volumeTab === "xz") {
       setXIndex(pixel.x);
       setZIndex(pixel.y);
-      onPixelSelect({ x: pixel.x, y: yIndex });
+    } else {
+      setYIndex(pixel.x);
+      setZIndex(pixel.y);
+    }
+    const frameIndex = result.pixel_frame_indices[sourcePixel.y * result.shape_yxz[1] + sourcePixel.x];
+    if (frameIndex === null || frameIndex === undefined) {
+      onMessage(`Volume pixel x ${sourcePixel.x}, y ${sourcePixel.y} has no valid source frame.`);
       return;
     }
-    setYIndex(pixel.x);
-    setZIndex(pixel.y);
-    onPixelSelect({ x: xIndex, y: pixel.x });
+    onVolumePixelSelect(sourcePixel, frameIndex);
   };
 
   const saveCurrentViewPng = async () => {
@@ -440,7 +487,7 @@ export default function ClassicalOrpamWorkspace({
         zoom: null,
         colormap,
         enhancement: displayScale === "db" ? "minmax" : enhancement,
-        rotation: 0,
+        rotation: volumeRotation,
         mask: null,
       });
       const saved = await saveBinaryFile({
@@ -459,6 +506,9 @@ export default function ClassicalOrpamWorkspace({
     ? Math.min(100, Math.max(0, progress.completedRows / progress.totalRows * 100))
     : 0;
   const resultSeverity: PaSeverity = result?.diagnostics.warning_count ? "warning" : "ok";
+  const cursorCoordinates = result
+    ? `X ${formatNumber(result.x_um[xIndex] ?? Number.NaN)} µm · Y ${formatNumber(result.y_um[yIndex] ?? Number.NaN)} µm · Z ${formatNumber(result.z_um[zIndex] ?? Number.NaN)} µm`
+    : "Run reconstruction for calibrated coordinates";
   const selectedViewPixel = volumeTab === "map" || volumeTab === "xy"
     ? { x: xIndex, y: yIndex }
     : volumeTab === "xz"
@@ -467,6 +517,14 @@ export default function ClassicalOrpamWorkspace({
 
   return (
     <>
+      <div className="classical-mode-bar" aria-label="Reconstruction mode">
+        <strong>Reconstruction mode</strong>
+        <button type="button" className={`method-pill ${workspaceMode === "ptp" ? "active" : ""}`} onClick={() => setWorkspaceMode("ptp")}>PTP 2D</button>
+        <button type="button" className={`method-pill ${workspaceMode === "classical" ? "active" : ""}`} onClick={() => setWorkspaceMode("classical")}>Classical 3D</button>
+        <span>PTP 2D stays unchanged above; Classical 3D adds processed A-lines and volume sections.</span>
+      </div>
+      {workspaceMode === "classical" ? (
+        <>
       <div className="pa-image-panel classical-aline-panel">
         <div className="pa-image-section-title">
           <div>
@@ -474,7 +532,7 @@ export default function ClassicalOrpamWorkspace({
             <span className="classical-subtitle">Valid-trace time; index 0 = source sample {config.sampleStartIndex}</span>
           </div>
           <div className="pa-image-actions compact-actions">
-            <button type="button" className="command compact" onClick={() => void applyMetadata(path)} disabled={!path}>Reset from Metadata</button>
+            <button type="button" className="command compact" onClick={() => void applyMetadata(path, Boolean(result))} disabled={!path}>Reset from Metadata</button>
             <button type="button" className="command compact" onClick={loadLocalPreset}>Load Preset</button>
             <button type="button" className="command compact" onClick={saveLocalPreset}>Save Preset</button>
           </div>
@@ -512,22 +570,36 @@ export default function ClassicalOrpamWorkspace({
           </label>
         </div>
 
+        <div className="lock-method-control pa-image-mode-control classical-aline-selection" role="group" aria-label="Processed A-line selection mode">
+          {(["zoom", "baseline", "processing", "output"] as AlineSelectionMode[]).map((mode) => (
+            <button key={mode} type="button" className={`method-pill ${alineSelectionMode === mode ? "active" : ""}`} onClick={() => setAlineSelectionMode(mode)}>
+              {mode === "zoom" ? "Zoom" : mode === "baseline" ? "Baseline" : mode === "processing" ? "Processing" : "Output"}
+            </button>
+          ))}
+        </div>
         <div className="classical-trace-toggles">
           <label><input type="checkbox" checked={showRaw} onChange={(event) => setShowRaw(event.target.checked)} /> Raw current</label>
           <label><input type="checkbox" checked={showCorrected} onChange={(event) => setShowCorrected(event.target.checked)} /> Baseline-corrected</label>
           <label><input type="checkbox" checked={showFiltered} onChange={(event) => setShowFiltered(event.target.checked)} /> Filtered RF</label>
-          <label><input type="checkbox" checked={showEnvelope} onChange={(event) => setShowEnvelope(event.target.checked)} /> Envelope</label>
+          <label><input type="checkbox" checked={showEnvelope} onChange={(event) => setShowEnvelope(event.target.checked)} /> {config.pipeline.hilbertEnvelopeEnabled ? "Envelope" : "Pipeline output"}</label>
         </div>
         <PlotCanvas
           values={traceValues}
+          xDomain={alineZoom}
           color="#2563eb"
           label={showRaw ? "raw current" : "baseline-corrected"}
           overlays={traceOverlays}
           domainWindows={traceWindows}
           xLabel="valid trace sample index"
           ariaLabel="Processed PA A-line"
-          title={selectedFrameIndex === null ? "Click a PTP or volume pixel to load its processed A-line." : `Source frame index ${selectedFrameIndex}`}
+          title={selectedFrameIndex === null
+            ? "Click a PTP or volume pixel to load its processed A-line."
+            : alineSelectionMode === "zoom"
+              ? `Source frame ${selectedFrameIndex} · left-drag to zoom; right-click to reset.`
+              : `Source frame ${selectedFrameIndex} · left-drag to set ${alineSelectionMode} window.`}
           yTickFormatter={(value) => `${formatNumber(value, 1)} µA`}
+          onSelectionComplete={handleAlineSelection}
+          onResetZoom={() => setAlineZoom(undefined)}
           height={250}
           active={active}
         />
@@ -643,7 +715,7 @@ export default function ClassicalOrpamWorkspace({
               <input
                 value={xIndex}
                 inputMode="numeric"
-                onChange={(event) => setXIndex(Math.max(0, Math.min((result?.shape_yxz[1] ?? gridWidth) - 1, Number(event.target.value) || 0)))}
+                onChange={(event) => setXIndex(clampClassicalSliceIndex(event.target.value, result?.shape_yxz[1] ?? gridWidth))}
               />
             </label>
             <label>
@@ -651,7 +723,7 @@ export default function ClassicalOrpamWorkspace({
               <input
                 value={yIndex}
                 inputMode="numeric"
-                onChange={(event) => setYIndex(Math.max(0, Math.min((result?.shape_yxz[0] ?? gridHeight) - 1, Number(event.target.value) || 0)))}
+                onChange={(event) => setYIndex(clampClassicalSliceIndex(event.target.value, result?.shape_yxz[0] ?? gridHeight))}
               />
             </label>
             <label>
@@ -659,7 +731,7 @@ export default function ClassicalOrpamWorkspace({
               <input
                 value={zIndex}
                 inputMode="numeric"
-                onChange={(event) => setZIndex(Math.max(0, Math.min((result?.shape_yxz[2] ?? 1) - 1, Number(event.target.value) || 0)))}
+                onChange={(event) => setZIndex(clampClassicalSliceIndex(event.target.value, result?.shape_yxz[2] ?? 1))}
               />
             </label>
             <label>
@@ -684,6 +756,15 @@ export default function ClassicalOrpamWorkspace({
               </select>
             </label>
             <label>
+              Rotation
+              <select value={volumeRotation} onChange={(event) => setVolumeRotation(Number(event.target.value) as PaImageRotation)}>
+                <option value={0}>0°</option>
+                <option value={90}>90°</option>
+                <option value={180}>180°</option>
+                <option value={270}>270°</option>
+              </select>
+            </label>
+            <label>
               Enhance
               <select value={enhancement} onChange={(event) => setEnhancement(event.target.value as PaImageEnhancement)}>
                 <option value="percentile">Percentile</option>
@@ -705,6 +786,7 @@ export default function ClassicalOrpamWorkspace({
           selectedPixel={result ? selectedViewPixel : null}
           colormap={colormap}
           enhancement={displayScale === "db" ? "minmax" : enhancement}
+          rotation={volumeRotation}
           onPixelSelect={selectVolumePixel}
           active={active && Boolean(result)}
         />
@@ -715,19 +797,25 @@ export default function ClassicalOrpamWorkspace({
               <div className="pa-build-progress-fill" style={{ width: `${Math.round(progressPercent)}%` }} />
             </div>
             <span>
-              {progress.stage} · {Math.round(progressPercent)}% · {progress.validFrameCount}/{progress.sourceFrameCount} valid/source frames · {progress.warningCount} warnings
+              {progress.stage} · {Math.round(progressPercent)}% · {progress.validFrameCount}/{progress.sourceFrameCount} valid/source frames · {(progress.sourceFrameCount / Math.max(progress.elapsedMs, 1)).toFixed(1)} kfps · {(progress.elapsedMs / 1000).toFixed(1)}s elapsed · ETA {progress.estimatedRemainingMs === null ? "--" : `${(progress.estimatedRemainingMs / 1000).toFixed(1)}s`} · {progress.warningCount} warnings
             </span>
           </div>
         ) : null}
         <div className="pa-metric-grid classical-volume-metrics">
           <Metric label="Product" value={result ? result.product_kind : "Pending"} detail="Saved numerical data stays linear" />
           <Metric label="Shape [y,x,z]" value={result ? result.shape_yxz.join(" × ") : validation.preview?.shapeYxz.join(" × ") ?? "--"} />
-          <Metric label="Cursor" value={`x ${xIndex}, y ${yIndex}, z ${zIndex}`} detail={volumeTab === "map" ? "Click MAP to load processed A-line" : `Current ${volumeTab.toUpperCase()} section`} />
-          <Metric label="Diagnostics" value={result ? `${result.diagnostics.warning_count} warnings` : "--"} detail={result ? `${result.diagnostics.missing_pixel_count} missing · ${result.diagnostics.duplicate_pixel_count} duplicate` : "Run reconstruction first"} />
-          <Metric label="Numerical output" value={result ? result.output_directory : "--"} detail={resultStale ? "STALE: settings changed after this run" : result ? result.envelope_path : "NPY + coordinates + JSON metadata"} />
+          <Metric label="Cursor" value={`x ${xIndex}, y ${yIndex}, z ${zIndex}`} detail={cursorCoordinates} />
+          <Metric label="Diagnostics" value={result ? `${result.diagnostics.warning_count} warnings` : "--"} detail={result ? `${result.diagnostics.missing_pixel_count} missing · ${result.diagnostics.duplicate_pixel_count} duplicate · MAP/PTP r ${result.diagnostics.map_ptp_pearson_correlation?.toFixed(3) ?? "--"}` : "Run reconstruction first"} />
+          <Metric label="Numerical output" value={result ? result.output_directory : "--"} detail={resultStale ? "STALE: settings changed after this run" : result ? `${result.envelope_path} · ${result.qc_files.length} QC PNGs` : "NPY + coordinates + JSON metadata + 9 QC PNGs"} />
           <Metric label="Status" value={result ? resultSeverity.toUpperCase() : reconstructing ? "RUNNING" : "READY"} detail={resultStale ? "Run again before interpreting changed settings." : metadataStatus} />
         </div>
       </div>
+        </>
+      ) : (
+        <div className="pa-image-panel classical-mode-summary">
+          PTP 2D mode is active. The original Frame Trace and PA Image workspace above remains unchanged.
+        </div>
+      )}
     </>
   );
 }
