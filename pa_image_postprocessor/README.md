@@ -23,3 +23,36 @@ npm run tauri:dev
 ```
 
 The Vite development server listens on `http://127.0.0.1:1421`.
+
+## Classical 3D OR-PAM
+
+The original PTP 2D workflow remains available. The added classical workflow performs:
+
+```text
+validated legacy frames
+→ metadata placement
+→ valid source slice
+→ per-A-line median baseline
+→ Butterworth SOS zero-phase band-pass
+→ Hilbert envelope
+→ output crop
+→ one-way time-to-depth conversion
+```
+
+Click a PTP/MAP/C-scan pixel to load its processed A-line. Use `XZ B-scan`,
+`YZ B-scan`, or `XY C-scan` to inspect the saved linear volume. Pipeline stages
+are visible and can be enabled or disabled independently; the physically
+conventional complete workflow is enabled by default.
+
+`Run + Save Numerical` writes a new output directory without overwriting a
+completed run:
+
+- `envelope_linear.npy`: little-endian float32, C-order `[y,x,z]`
+- optional `filtered_rf.npy`: little-endian float32 `[y,x,z]`
+- `x_um.npy`, `y_um.npy`, `z_um.npy`: float64 coordinates
+- `resolved_config.json`
+- `reconstruction_metadata.json`
+
+The saved volume remains linear. Colormap, percentile enhancement and dB
+dynamic range affect display only. Depth uses `z = c × (t - t0)` with no
+factor of `1/2`; until `t0` is calibrated, use relative-depth mode.

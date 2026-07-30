@@ -3311,3 +3311,240 @@ textarea {
     grid-column: auto;
   }
 }
+
+/* Classical single-focus OR-PAM workflow */
+.classical-aline-panel,
+.classical-volume-panel {
+  grid-column: span 1;
+  align-self: stretch;
+}
+
+.classical-subtitle {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.classical-pipeline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+}
+
+.classical-pipeline > label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 7px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #d5dfeb;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.classical-pipeline > label.enabled {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.classical-pipeline > label input {
+  grid-row: span 2;
+  align-self: start;
+  margin-top: 2px;
+}
+
+.classical-pipeline > label strong,
+.classical-pipeline > label span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.classical-pipeline > label strong {
+  font-size: 13px;
+}
+
+.classical-pipeline > label span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.classical-pipeline > b {
+  color: #94a3b8;
+  font-size: 18px;
+}
+
+.classical-trace-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.classical-trace-toggles label,
+.classical-check-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.classical-aline-metrics,
+.classical-volume-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.classical-settings {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+}
+
+.classical-settings > summary {
+  cursor: pointer;
+  color: #172033;
+  font-weight: 900;
+}
+
+.classical-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.classical-settings-grid label,
+.classical-slice-controls label {
+  min-width: 0;
+}
+
+.classical-settings-grid input,
+.classical-slice-controls input,
+.classical-slice-controls select {
+  width: 100%;
+}
+
+.classical-settings-grid .classical-check-field {
+  min-height: 34px;
+  padding-top: 16px;
+}
+
+.classical-settings-grid .classical-check-field input {
+  width: auto;
+}
+
+.classical-preset-status,
+.classical-output-path {
+  margin-top: 8px;
+  padding: 7px 9px;
+  border: 1px solid #dbe5f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #52657f;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.classical-derived-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.classical-derived-grid span {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #dbe5f0;
+  border-radius: 6px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.classical-derived-grid strong {
+  display: block;
+  margin-top: 2px;
+  color: #172033;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.classical-validation-errors,
+.classical-error {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.classical-validation-errors {
+  padding-left: 28px;
+}
+
+.classical-physics-note {
+  margin: 8px 0 0;
+  color: #52657f;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.classical-volume-toolbar {
+  display: grid;
+  gap: 8px;
+}
+
+.classical-volume-tabs {
+  justify-self: start;
+}
+
+.classical-slice-controls {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+.classical-volume-panel .pa-image-heatmap {
+  min-height: 410px;
+  border: 1px solid #d5dfeb;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+@media (max-width: 1180px) {
+  .classical-settings-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .classical-slice-controls {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .classical-pipeline {
+    grid-template-columns: 1fr;
+  }
+
+  .classical-pipeline > b {
+    display: none;
+  }
+
+  .classical-settings-grid,
+  .classical-derived-grid,
+  .classical-slice-controls,
+  .classical-aline-metrics,
+  .classical-volume-metrics {
+    grid-template-columns: 1fr;
+  }
+}

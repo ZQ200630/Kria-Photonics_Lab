@@ -39,6 +39,7 @@ import PaImageHeatmap, {
 import type { PaImageAxisLabels, PaImageColormap, PaImageEnhancement, PaImagePixel, PaImageRotation, PaImageZoomDomain } from "./PaImageHeatmap";
 import type { PaImageRenderedLayout } from "./PaImageHeatmap";
 import PlotCanvas, { type PlotDomainWindow, type PlotPoint, type PlotXDomain } from "./PlotCanvas";
+import ClassicalOrpamWorkspace from "./ClassicalOrpamWorkspace";
 
 type Props = {
   active?: boolean;
@@ -782,6 +783,10 @@ export default function PaImageViewer({
             <span>
               Samples {summary ? `${summary.detected_sample_count_min}-${summary.detected_sample_count_max}` : "-"}
             </span>
+            <span>
+              Valid source {summary ? `[${processing.sampleStartIndex},${summary.detected_sample_count_max - processing.sampleEndTrim})` : "-"}
+            </span>
+            <span className="severity-warning">Legacy frames include 16-byte headers + 32-byte metadata; flat 2056-sample decoding is invalid.</span>
             <span>{continuitySummary(summary)}</span>
             <span className="pa-image-path">{path || "Path pending"}</span>
           </div>
@@ -1005,6 +1010,20 @@ export default function PaImageViewer({
             <PaMetricCard label="Status" value={image ? issueSummary(summary, image) : "Pending"} detail={message} tone={image?.severity === "ok" ? "ok" : image ? "warn" : "muted"} wide />
           </div>
         </div>
+
+        <ClassicalOrpamWorkspace
+          active={active}
+          path={path}
+          summary={summary}
+          ptpImage={image}
+          selectedPixel={selectedImagePixel}
+          selectedFrameIndex={trace?.frame_index ?? null}
+          tzOhm={processing.tzOhm}
+          zeroAdcCode={processing.zeroAdcCode}
+          umPerCount={umPerCount}
+          onPixelSelect={selectImagePixel}
+          onMessage={setMessage}
+        />
       </div>
     </section>
   );

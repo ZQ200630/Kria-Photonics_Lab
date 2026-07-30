@@ -156,16 +156,16 @@ struct AxisFrameHeader {
     reserved: u32,
 }
 
-struct LegacyFramePayload {
-    block_id: u64,
-    frame_index: u64,
-    frame_id: u64,
-    payload: Vec<u8>,
+pub(crate) struct LegacyFramePayload {
+    pub(crate) block_id: u64,
+    pub(crate) frame_index: u64,
+    pub(crate) frame_id: u64,
+    pub(crate) payload: Vec<u8>,
 }
 
-struct LegacyStreamWarning {
-    issue: PaParseIssue,
-    bad_frame_count: u64,
+pub(crate) struct LegacyStreamWarning {
+    pub(crate) issue: PaParseIssue,
+    pub(crate) bad_frame_count: u64,
 }
 
 struct PaBuildIssueState {
@@ -1042,7 +1042,7 @@ fn skip_exact_at<R: Read>(reader: &mut R, byte_count: usize, offset: u64, label:
     Ok(())
 }
 
-fn visit_legacy_frames<F, W>(path: &Path, mut on_frame: F, mut on_warning: W) -> Result<(), String>
+pub(crate) fn visit_legacy_frames<F, W>(path: &Path, mut on_frame: F, mut on_warning: W) -> Result<(), String>
 where
     F: FnMut(LegacyFramePayload) -> Result<bool, String>,
     W: FnMut(LegacyStreamWarning),

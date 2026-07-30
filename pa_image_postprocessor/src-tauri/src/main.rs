@@ -5,6 +5,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+mod classical_orpam;
+mod npy;
 mod pa_image;
 
 use tauri::Emitter;
@@ -18,6 +20,19 @@ struct PaImageBuildProgressEvent {
     image: Option<pa_image::PaImageBuildResult>,
 }
 
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClassicalOrpamProgressEvent {
+    request_id: String,
+    source_frame_count: u64,
+    valid_frame_count: u64,
+    completed_rows: usize,
+    total_rows: usize,
+    elapsed_ms: u64,
+    estimated_remaining_ms: Option<u64>,
+    stage: String,
+    warning_count: usize,
+}
 #[derive(Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SaveBinaryFilter {
@@ -30,6 +45,34 @@ struct PaImageBuildCancelState {
     request_ids: Arc<Mutex<HashSet<String>>>,
 }
 
+
+#[derive(Clone, Default)]
+struct ClassicalOrpamCancelState {
+    request_ids: Arc<Mutex<HashSet<String>>>,
+}
+
+impl ClassicalOrpamCancelState {
+    fn request_cancel(&self, request_id: &str) {
+        self.request_ids
+            .lock()
+            .expect("classical OR-PAM cancel mutex poisoned")
+            .insert(request_id.to_string());
+    }
+
+    fn clear(&self, request_id: &str) {
+        self.request_ids
+            .lock()
+            .expect("classical OR-PAM cancel mutex poisoned")
+            .remove(request_id);
+    }
+
+    fn is_cancelled(&self, request_id: &str) -> bool {
+        self.request_ids
+            .lock()
+            .expect("classical OR-PAM cancel mutex poisoned")
+            .contains(request_id)
+    }
+}
 impl PaImageBuildCancelState {
     fn request_cancel(&self, request_id: &str) {
         self.request_ids
@@ -155,6 +198,132 @@ async fn pa_image_build_path_streamed(
     result
 }
 
+
+#[tauri::command]
+fn pa_classical_load_adjacent_metadata(path: String) -> Result<Option<serde_json::Value>, String> {
+    let source = PathBuf::from(path);
+    let Some(parent) = source.parent() else {
+        return Ok(None);
+    };
+    let metadata_path = parent.join("metadata.json");
+    if !metadata_path.exists() {
+        return Ok(None);
+    }
+    let contents = fs::read_to_string(&metadata_path)
+        .map_err(|err| format!("read {} failed: {err}", metadata_path.display()))?;
+    serde_json::from_str(&contents)
+        .map(Some)
+        .map_err(|err| format!("parse {} failed: {err}", metadata_path.display()))
+}
+#[tauri::command]
+fn pa_classical_pick_output_directory() -> Result<Option<String>, String> {
+    Ok(rfd::FileDialog::new()
+        .pick_folder()
+        .map(|path| path.display().to_string()))
+}
+
+#[tauri::command]
+fn pa_classical_preview_config(
+    config: classical_orpam::ClassicalOrpamConfig,
+    sample_count: usize,
+    width: usize,
+    height: usize,
+) -> Result<classical_orpam::ResolvedClassicalOrpamConfig, String> {
+    classical_orpam::resolve_classical_orpam_config(&config, sample_count, width, height)
+}
+
+#[tauri::command]
+fn pa_classical_load_pixel_traces(
+    path: String,
+    frame_index: u64,
+    config: classical_orpam::ClassicalOrpamConfig,
+) -> Result<classical_orpam::ClassicalAlineView, String> {
+    classical_orpam::process_classical_aline(
+        std::path::Path::new(&path),
+        frame_index,
+        &config,
+    )
+}
+
+#[tauri::command]
+async fn pa_classical_reconstruct_path_streamed(
+    app: tauri::AppHandle,
+    cancel_state: tauri::State<'_, ClassicalOrpamCancelState>,
+    path: String,
+    output_directory: String,
+    config: classical_orpam::ClassicalOrpamConfig,
+    request_id: String,
+) -> Result<classical_orpam::ClassicalOrpamResult, String> {
+    let request = classical_orpam::ClassicalOrpamRequest {
+        input_path: PathBuf::from(path),
+        output_directory: PathBuf::from(output_directory),
+        config,
+        request_id: request_id.clone(),
+    };
+    let cancel_state = cancel_state.inner().clone();
+    cancel_state.clear(&request_id);
+    let cancel_for_task = cancel_state.clone();
+    let request_id_for_task = request_id.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        classical_orpam::reconstruct_classical_orpam(
+            &request,
+            |progress| {
+                app.emit(
+                    "pa-classical-progress",
+                    ClassicalOrpamProgressEvent {
+                        request_id: request_id_for_task.clone(),
+                        source_frame_count: progress.source_frame_count,
+                        valid_frame_count: progress.valid_frame_count,
+                        completed_rows: progress.completed_rows,
+                        total_rows: progress.total_rows,
+                        elapsed_ms: progress.elapsed_ms,
+                        estimated_remaining_ms: progress.estimated_remaining_ms,
+                        stage: progress.stage,
+                        warning_count: progress.warning_count,
+                    },
+                )
+                .map_err(|err| format!("emit classical OR-PAM progress failed: {err}"))
+            },
+            || cancel_for_task.is_cancelled(&request_id_for_task),
+        )
+    })
+    .await
+    .map_err(|err| format!("classical OR-PAM task failed: {err}"))?;
+    cancel_state.clear(&request_id);
+    result
+}
+
+#[tauri::command]
+fn pa_classical_cancel_reconstruction(
+    cancel_state: tauri::State<'_, ClassicalOrpamCancelState>,
+    request_id: String,
+) -> Result<(), String> {
+    cancel_state.request_cancel(&request_id);
+    Ok(())
+}
+
+#[tauri::command]
+fn pa_classical_load_volume_slice(
+    envelope_path: String,
+    data_offset: u64,
+    shape_yxz: [usize; 3],
+    view: String,
+    slice_index: usize,
+    x_range_um: [f64; 2],
+    y_range_um: [f64; 2],
+    z_range_um: [f64; 2],
+) -> Result<classical_orpam::ClassicalVolumeSlice, String> {
+    classical_orpam::load_classical_volume_slice(
+        std::path::Path::new(&envelope_path),
+        data_offset,
+        shape_yxz,
+        &view,
+        slice_index,
+        x_range_um,
+        y_range_um,
+        z_range_um,
+    )
+}
 #[tauri::command]
 fn pa_image_cancel_build(
     cancel_state: tauri::State<'_, PaImageBuildCancelState>,
@@ -167,6 +336,7 @@ fn pa_image_cancel_build(
 fn main() {
     tauri::Builder::default()
         .manage(PaImageBuildCancelState::default())
+        .manage(ClassicalOrpamCancelState::default())
         .invoke_handler(tauri::generate_handler![
             save_binary_file,
             pa_image_pick_file,
@@ -174,6 +344,13 @@ fn main() {
             pa_image_read_frame_path,
             pa_image_build_path_streamed,
             pa_image_cancel_build,
+            pa_classical_load_adjacent_metadata,
+            pa_classical_pick_output_directory,
+            pa_classical_preview_config,
+            pa_classical_load_pixel_traces,
+            pa_classical_reconstruct_path_streamed,
+            pa_classical_cancel_reconstruction,
+            pa_classical_load_volume_slice,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PA Image Post-Processor");
