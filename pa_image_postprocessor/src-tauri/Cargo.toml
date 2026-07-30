@@ -1,0 +1,17 @@
+[package]
+name = "pa_image_postprocessor"
+version = "0.1.0"
+description = "Standalone PA image reconstruction and post-processing desktop app"
+authors = ["Kria Photonics Lab"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+rfd = "0.15"
+serde = { version = "1", features = ["derive"] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
