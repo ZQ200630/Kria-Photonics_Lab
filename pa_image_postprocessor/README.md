@@ -65,6 +65,16 @@ Pearson correlation between the classical envelope MAP and the matching PTP
 reference values. Correlation is diagnostic only; parameters are never tuned
 to maximize it automatically.
 
+## Scientific A-line figures
+
+`Save Scientific PNG` delegates drawing to Python/Matplotlib rather than
+capturing the GUI canvas. The export uses a white 8 × 5 inch canvas at 300 DPI,
+Nature-style spines and palette, 26 pt bold axis labels, an 18 pt legend above
+the data region, and calibrated `Time (µs)` / `Current (µA)` axes. The selected
+curves and current visible zoom range are preserved.
+
+The renderer requires Python with Matplotlib. Set `PA_IMAGE_PYTHON` to a Python
+executable when it is not discoverable automatically.
 The saved volume remains linear. Colormap, percentile enhancement and dB
 dynamic range affect display only. Depth uses `z = c × (t - t0)` with no
 factor of `1/2`; until `t0` is calibrated, use relative-depth mode.

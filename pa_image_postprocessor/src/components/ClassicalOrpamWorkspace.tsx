@@ -145,6 +145,7 @@ export default function ClassicalOrpamWorkspace({
   const [showCorrected, setShowCorrected] = useState(true);
   const [showFiltered, setShowFiltered] = useState(true);
   const [showEnvelope, setShowEnvelope] = useState(true);
+  const [savingScientificFigure, setSavingScientificFigure] = useState(false);
   const [alineSelectionMode, setAlineSelectionMode] = useState<AlineSelectionMode>("zoom");
   const [alineZoom, setAlineZoom] = useState<PlotXDomain | undefined>();
   const [result, setResult] = useState<ClassicalOrpamResult | null>(null);
@@ -423,13 +424,13 @@ export default function ClassicalOrpamWorkspace({
   const scientificTraceSeries = useMemo<ScientificAlineSeriesInput[]>(() => {
     if (!aline) return [];
     const series: ScientificAlineSeriesInput[] = [];
-    if (showRaw) series.push({ label: "Raw current", color: "#2563eb", values: aline.raw_current_ua });
-    if (showCorrected) series.push({ label: "Baseline-corrected", color: "#0ea5e9", values: aline.baseline_corrected_ua });
-    if (showFiltered) series.push({ label: "Filtered RF", color: "#7c3aed", values: aline.filtered_rf_ua, xOffset: aline.processing_offset });
+    if (showRaw) series.push({ label: "Raw current", color: "#0F4D92", values: aline.raw_current_ua });
+    if (showCorrected) series.push({ label: "Baseline-corrected", color: "#42949E", values: aline.baseline_corrected_ua });
+    if (showFiltered) series.push({ label: "Filtered RF", color: "#9A4D8E", values: aline.filtered_rf_ua, xOffset: aline.processing_offset });
     if (showEnvelope) {
       series.push({
         label: config.pipeline.hilbertEnvelopeEnabled ? "Hilbert envelope" : "Pipeline output",
-        color: "#f59e0b",
+        color: "#B64342",
         values: aline.envelope_ua,
         xOffset: aline.processing_offset,
       });
@@ -524,7 +525,8 @@ export default function ClassicalOrpamWorkspace({
   };
 
   const saveScientificAlinePng = async () => {
-    if (!aline || scientificTraceSeries.length === 0) return;
+    if (!aline || scientificTraceSeries.length === 0 || savingScientificFigure) return;
+    setSavingScientificFigure(true);
     try {
       const bytes = await scientificAlinePngBytes({
         timeNs: aline.valid_time_ns,
@@ -541,6 +543,8 @@ export default function ClassicalOrpamWorkspace({
       onMessage(saved ? `Saved scientific A-line figure to ${saved}.` : "Save scientific A-line figure cancelled.");
     } catch (error) {
       onMessage(`Save scientific A-line figure failed: ${formatUnknownError(error)}`);
+    } finally {
+      setSavingScientificFigure(false);
     }
   };
 
@@ -577,7 +581,7 @@ export default function ClassicalOrpamWorkspace({
             <button type="button" className="command compact" onClick={() => void applyMetadata(path, Boolean(result))} disabled={!path}>Reset from Metadata</button>
             <button type="button" className="command compact" onClick={loadLocalPreset}>Load Preset</button>
             <button type="button" className="command compact" onClick={saveLocalPreset}>Save Preset</button>
-            <button type="button" className="command compact" onClick={() => void saveScientificAlinePng()} disabled={!aline || scientificTraceSeries.length === 0}>Save Scientific PNG</button>
+            <button type="button" className="command compact" onClick={() => void saveScientificAlinePng()} disabled={!aline || scientificTraceSeries.length === 0 || savingScientificFigure}>{savingScientificFigure ? "Rendering…" : "Save Scientific PNG"}</button>
           </div>
         </div>
 
@@ -626,7 +630,7 @@ export default function ClassicalOrpamWorkspace({
           <label><input type="checkbox" checked={showFiltered} onChange={(event) => setShowFiltered(event.target.checked)} /> Filtered RF</label>
           <label><input type="checkbox" checked={showEnvelope} onChange={(event) => setShowEnvelope(event.target.checked)} /> {config.pipeline.hilbertEnvelopeEnabled ? "Envelope" : "Pipeline output"}</label>
         </div>
-        <span className="classical-subtitle">Time (µs) · Current (µA) · Scientific export redraws the selected curves and visible range at 2400 × 1500 px.</span>
+        <span className="classical-subtitle">Time (µs) · Current (µA) · Python/Matplotlib · 26 pt axis labels · 18 pt legend · 2400 × 1500 px.</span>
         <PlotCanvas
           values={traceValues}
           xDomain={alineZoom}

@@ -33,6 +33,7 @@ describe("classical OR-PAM GUI integration", () => {
     expect(html).toContain("Save Preset");
     expect(html).toContain("Save Scientific PNG");
     expect(html).toContain("Time (µs) · Current (µA)");
+    expect(html).toContain("Python/Matplotlib");
   });
 
   it("renders MAP, both B-scans and C-scan with numerical and PNG saves separated", () => {

@@ -9,8 +9,9 @@ mod classical_orpam;
 mod classical_orpam_qc;
 mod npy;
 mod pa_image;
+mod scientific_plot;
 
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -316,6 +317,37 @@ fn pa_classical_load_volume_slice(
     )
 }
 #[tauri::command]
+async fn pa_classical_render_scientific_aline(
+    app: tauri::AppHandle,
+    request: scientific_plot::ScientificAlinePlotRequest,
+) -> Result<Vec<u8>, String> {
+    let bundled_path = || -> Result<std::path::PathBuf, String> {
+        Ok(app
+            .path()
+            .resource_dir()
+            .map_err(|err| format!("resolve application resource directory failed: {err}"))?
+            .join("python")
+            .join("scientific_aline_plot.py"))
+    };
+    #[cfg(debug_assertions)]
+    let script_path = {
+        let development_path = scientific_plot::development_script_path();
+        if development_path.is_file() {
+            development_path
+        } else {
+            bundled_path()?
+        }
+    };
+    #[cfg(not(debug_assertions))]
+    let script_path = bundled_path()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        scientific_plot::render_scientific_aline_png(&request, &script_path)
+    })
+    .await
+    .map_err(|err| format!("Python scientific rendering task failed: {err}"))?
+}
+
+#[tauri::command]
 fn pa_image_cancel_build(
     cancel_state: tauri::State<'_, PaImageBuildCancelState>,
     request_id: String,
@@ -341,6 +373,7 @@ fn main() {
             pa_classical_reconstruct_path_streamed,
             pa_classical_cancel_reconstruction,
             pa_classical_load_volume_slice,
+            pa_classical_render_scientific_aline,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PA Image Post-Processor");
