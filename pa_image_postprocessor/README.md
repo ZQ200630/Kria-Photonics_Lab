@@ -69,7 +69,7 @@ to maximize it automatically.
 
 `Save Scientific PNG` delegates drawing to Python/Matplotlib rather than
 capturing the GUI canvas. The export uses a white 8 × 4 inch canvas at 300 DPI,
-Nature-style spines and palette, 26 pt bold axis labels, a 13 pt legend above
+Nature-style spines and palette, 22 pt bold axis labels, an 11 pt legend above
 the data region, and calibrated `Time (µs)` / `Current (µA)` axes. The selected
 curves and current visible zoom range are preserved.
 

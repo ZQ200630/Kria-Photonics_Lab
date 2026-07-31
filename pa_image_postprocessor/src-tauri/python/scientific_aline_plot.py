@@ -15,10 +15,10 @@ import matplotlib.pyplot as plt
 
 FIGURE_SIZE_INCHES = (8.0, 4.0)
 PNG_DPI = 300
-AXIS_LABEL_SIZE = 26
-LEGEND_SIZE = 13
-TICK_SIZE = 15
-TITLE_SIZE = 18
+AXIS_LABEL_SIZE = 22
+LEGEND_SIZE = 11
+TICK_SIZE = 12
+TITLE_SIZE = 16
 
 mpl.rcParams.update(
     {
