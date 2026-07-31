@@ -13,7 +13,7 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt
 
 
-FIGURE_SIZE_INCHES = (8.0, 5.0)
+FIGURE_SIZE_INCHES = (8.0, 4.0)
 PNG_DPI = 300
 AXIS_LABEL_SIZE = 26
 LEGEND_SIZE = 18

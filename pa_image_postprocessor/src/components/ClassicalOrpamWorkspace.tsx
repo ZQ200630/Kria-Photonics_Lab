@@ -630,7 +630,7 @@ export default function ClassicalOrpamWorkspace({
           <label><input type="checkbox" checked={showFiltered} onChange={(event) => setShowFiltered(event.target.checked)} /> Filtered RF</label>
           <label><input type="checkbox" checked={showEnvelope} onChange={(event) => setShowEnvelope(event.target.checked)} /> {config.pipeline.hilbertEnvelopeEnabled ? "Envelope" : "Pipeline output"}</label>
         </div>
-        <span className="classical-subtitle">Time (µs) · Current (µA) · Python/Matplotlib · 26 pt axis labels · 18 pt legend · 2400 × 1500 px.</span>
+        <span className="classical-subtitle">Time (µs) · Current (µA) · Python/Matplotlib · 26 pt axis labels · 18 pt legend · 2400 × 1200 px.</span>
         <PlotCanvas
           values={traceValues}
           xDomain={alineZoom}

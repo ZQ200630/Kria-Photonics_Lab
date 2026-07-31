@@ -371,7 +371,7 @@ mod tests {
 
         assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
         assert_eq!(u32::from_be_bytes(png[16..20].try_into().expect("width")), 2400);
-        assert_eq!(u32::from_be_bytes(png[20..24].try_into().expect("height")), 1500);
+        assert_eq!(u32::from_be_bytes(png[20..24].try_into().expect("height")), 1200);
     }
 
     #[test]

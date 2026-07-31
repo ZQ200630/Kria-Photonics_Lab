@@ -30,7 +30,7 @@ class ScientificAlinePlotTests(unittest.TestCase):
         figure, axis = build_figure(PAYLOAD)
         self.addCleanup(figure.clear)
 
-        self.assertEqual(figure.get_size_inches().tolist(), [8.0, 5.0])
+        self.assertEqual(figure.get_size_inches().tolist(), [8.0, 4.0])
         self.assertEqual(axis.get_xlabel(), "Time (µs)")
         self.assertEqual(axis.get_ylabel(), "Current (µA)")
         self.assertGreaterEqual(axis.xaxis.label.get_fontsize(), 24)
@@ -45,12 +45,12 @@ class ScientificAlinePlotTests(unittest.TestCase):
         self.assertEqual(axis.lines[0].get_xdata().tolist(), [1.0, 2.0])
         self.assertEqual(axis.lines[1].get_xdata().tolist(), [1.0, 2.0])
 
-    def test_renders_a_real_2400_by_1500_png(self):
+    def test_renders_a_real_2400_by_1200_png(self):
         png = render_png(PAYLOAD)
 
         self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
         self.assertEqual(int.from_bytes(png[16:20], "big"), 2400)
-        self.assertEqual(int.from_bytes(png[20:24], "big"), 1500)
+        self.assertEqual(int.from_bytes(png[20:24], "big"), 1200)
         self.assertGreater(len(png), 10_000)
 
     def test_preserves_visible_time_range_when_only_offset_series_is_selected(self):

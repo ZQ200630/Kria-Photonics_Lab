@@ -68,7 +68,7 @@ to maximize it automatically.
 ## Scientific A-line figures
 
 `Save Scientific PNG` delegates drawing to Python/Matplotlib rather than
-capturing the GUI canvas. The export uses a white 8 × 5 inch canvas at 300 DPI,
+capturing the GUI canvas. The export uses a white 8 × 4 inch canvas at 300 DPI,
 Nature-style spines and palette, 26 pt bold axis labels, an 18 pt legend above
 the data region, and calibrated `Time (µs)` / `Current (µA)` axes. The selected
 curves and current visible zoom range are preserved.
