@@ -21,6 +21,7 @@ import {
   plotVerticalMarkersOrEmpty,
   resolvePlotDomainWindowRect,
   plotXFromIndex,
+  plotXFromDomainIndex,
   resolvePlotRange,
   resolvePlotRangeForPlot,
   shouldCompletePlotSelection,
@@ -283,6 +284,20 @@ describe("indexFromCanvasX", () => {
 
     expect(decimated.every((point) => point.xIndex >= 999_900 && point.xIndex <= 999_999)).toBe(true);
     expect(decimated.some((point) => point.xIndex === 999_950 && point.value === 10_000)).toBe(true);
+  });
+
+  it("clips and maps a zoomed value series to the same domain as its time ticks", () => {
+    const domain = { startIndex: 100, endIndex: 200 };
+    const points = downsampleValueSeriesForPixels(
+      Array.from({ length: 300 }, (_, index) => index),
+      500,
+      { visibleStartIndex: domain.startIndex, visibleEndIndex: domain.endIndex },
+    );
+
+    expect(points[0].xIndex).toBe(100);
+    expect(points.at(-1)?.xIndex).toBe(200);
+    expect(plotXFromDomainIndex(points[0].xIndex, 420, domain)).toBeCloseTo(72);
+    expect(plotXFromDomainIndex(points.at(-1)?.xIndex ?? 0, 420, domain)).toBeCloseTo(334);
   });
 
   it("stacks nearby plot text labels and clamps labels inside the plot", () => {

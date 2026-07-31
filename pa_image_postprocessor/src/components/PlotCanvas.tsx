@@ -391,7 +391,7 @@ export function plotXFromIndex(index: number, width: number, count: number): num
   return PLOT_LEFT + ((width - PLOT_LEFT - PLOT_RIGHT_PADDING) * index) / Math.max(1, count - 1);
 }
 
-function plotXFromDomainIndex(index: number, width: number, domain: PlotXDomain): number {
+export function plotXFromDomainIndex(index: number, width: number, domain: PlotXDomain): number {
   const plotWidth = Math.max(1, width - PLOT_LEFT - PLOT_RIGHT_PADDING);
   const span = Math.max(1, domain.endIndex - domain.startIndex);
   const ratio = Math.max(0, Math.min(1, (index - domain.startIndex) / span));
@@ -683,6 +683,7 @@ type Props = {
   crossings?: LevelCrossing[];
   onCrossingClick?: (crossing: LevelCrossing, crossingIndex: number) => void;
   yTickFormatter?: (value: number) => string;
+  xTickFormatter?: (index: number) => string;
   rightTickFormatter?: (value: number) => string;
   rightAxisLabel?: string;
   thresholdFormatter?: (value: number) => string;
@@ -715,6 +716,7 @@ export default function PlotCanvas({
   crossings,
   onCrossingClick,
   yTickFormatter,
+  xTickFormatter,
   rightTickFormatter,
   rightAxisLabel,
   thresholdFormatter,
@@ -830,14 +832,38 @@ export default function PlotCanvas({
         ctx.fillText(rightTickFormatter(tickValue), rect.width - PLOT_RIGHT_PADDING + 10, y + 4);
       }
     }
+    if (xTickFormatter) {
+      const startIndex = Math.min(plotDomain.startIndex, plotDomain.endIndex);
+      const endIndex = Math.max(plotDomain.startIndex, plotDomain.endIndex);
+      const plotBottom = height - PLOT_BOTTOM_PADDING;
+      ctx.font = "12px Segoe UI, sans-serif";
+      for (let i = 0; i <= 5; i += 1) {
+        const index = startIndex + ((endIndex - startIndex) * i) / 5;
+        const x = plotXFromDomainIndex(index, rect.width, plotDomain);
+        ctx.strokeStyle = "#eef2f7";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, PLOT_TOP);
+        ctx.lineTo(x, plotBottom);
+        ctx.stroke();
+        ctx.fillStyle = "#5b708f";
+        ctx.textAlign = "center";
+        ctx.fillText(xTickFormatter(index), x, plotBottom + 20);
+      }
+      ctx.strokeStyle = "#94a3b8";
+      ctx.beginPath();
+      ctx.moveTo(PLOT_LEFT, plotBottom);
+      ctx.lineTo(rect.width - PLOT_RIGHT_PADDING, plotBottom);
+      ctx.stroke();
+    }
     const drawSeries = (series: number[], seriesColor: string, lineWidth = 2, alpha = 1, xOffset = 0, maxIndex?: number) => {
       if (series.length === 0) return;
       const plotWidth = Math.max(1, rect.width - PLOT_LEFT - PLOT_RIGHT_PADDING);
       const drawableSeries = downsampleValueSeriesForPixels(series, plotWidth, {
         xOffset,
         maxIndex,
-        visibleStartIndex: 0,
-        visibleEndIndex: values.length - 1,
+        visibleStartIndex: plotDomain.startIndex,
+        visibleEndIndex: plotDomain.endIndex,
       });
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -847,7 +873,7 @@ export default function PlotCanvas({
       let hasPoint = false;
       drawableSeries.forEach((point) => {
         const y = valueToCanvasY(point.value, range, height);
-        const x = plotXFromIndex(point.xIndex, rect.width, values.length);
+        const x = plotXFromDomainIndex(point.xIndex, rect.width, plotDomain);
         if (!hasPoint) {
           ctx.moveTo(x, y);
           hasPoint = true;
@@ -1039,7 +1065,11 @@ export default function PlotCanvas({
     }
     ctx.font = "12px Segoe UI, sans-serif";
     ctx.fillStyle = "#64748b";
-    if (xLabel) ctx.fillText(xLabel, PLOT_LEFT, height - 8);
+    if (xLabel) {
+      ctx.textAlign = xTickFormatter ? "center" : "left";
+      ctx.fillText(xLabel, xTickFormatter ? (PLOT_LEFT + rect.width - PLOT_RIGHT_PADDING) / 2 : PLOT_LEFT, height - 8);
+      ctx.textAlign = "left";
+    }
 
     const baseCanvas = baseCanvasRef.current ?? document.createElement("canvas");
     baseCanvasRef.current = baseCanvas;
@@ -1074,6 +1104,7 @@ export default function PlotCanvas({
     threshold,
     stableCrossings,
     yTickFormatter,
+    xTickFormatter,
     rightTickFormatter,
     rightAxisLabel,
     thresholdFormatter,

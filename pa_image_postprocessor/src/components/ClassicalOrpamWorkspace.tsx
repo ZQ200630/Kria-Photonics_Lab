@@ -25,6 +25,11 @@ import { formatUnknownError, type PaSeverity } from "../utils/paImage";
 import type { PaFileSummary, PaImageBuildResult } from "../utils/paImageTauri";
 import { paImagePngBytes } from "../utils/paImagePng";
 import { saveBinaryFile } from "../utils/saveBinary";
+import {
+  scientificAlinePngBytes,
+  scientificAlinePngDefaultFilename,
+  type ScientificAlineSeriesInput,
+} from "../utils/scientificAlinePng";
 import PaImageHeatmap, {
   type PaImageColormap,
   type PaImageEnhancement,
@@ -415,6 +420,22 @@ export default function ClassicalOrpamWorkspace({
     if (showEnvelope) overlays.push({ values: aline.envelope_ua, xOffset: aline.processing_offset, color: "#f59e0b", label: config.pipeline.hilbertEnvelopeEnabled ? "Hilbert envelope" : "pipeline output", lineWidth: 2 });
     return overlays;
   }, [aline, config.pipeline.hilbertEnvelopeEnabled, showCorrected, showEnvelope, showFiltered]);
+  const scientificTraceSeries = useMemo<ScientificAlineSeriesInput[]>(() => {
+    if (!aline) return [];
+    const series: ScientificAlineSeriesInput[] = [];
+    if (showRaw) series.push({ label: "Raw current", color: "#2563eb", values: aline.raw_current_ua });
+    if (showCorrected) series.push({ label: "Baseline-corrected", color: "#0ea5e9", values: aline.baseline_corrected_ua });
+    if (showFiltered) series.push({ label: "Filtered RF", color: "#7c3aed", values: aline.filtered_rf_ua, xOffset: aline.processing_offset });
+    if (showEnvelope) {
+      series.push({
+        label: config.pipeline.hilbertEnvelopeEnabled ? "Hilbert envelope" : "Pipeline output",
+        color: "#f59e0b",
+        values: aline.envelope_ua,
+        xOffset: aline.processing_offset,
+      });
+    }
+    return series;
+  }, [aline, config.pipeline.hilbertEnvelopeEnabled, showCorrected, showEnvelope, showFiltered, showRaw]);
   const traceValues = aline
     ? showRaw
       ? aline.raw_current_ua
@@ -502,6 +523,27 @@ export default function ClassicalOrpamWorkspace({
     }
   };
 
+  const saveScientificAlinePng = async () => {
+    if (!aline || scientificTraceSeries.length === 0) return;
+    try {
+      const bytes = await scientificAlinePngBytes({
+        timeNs: aline.valid_time_ns,
+        series: scientificTraceSeries,
+        visibleDomain: alineZoom,
+        frameIndex: aline.frame_index,
+      });
+      const saved = await saveBinaryFile({
+        defaultFilename: scientificAlinePngDefaultFilename(path, aline.frame_index),
+        bytes,
+        mime: "image/png",
+        filters: [{ name: "Scientific PNG", extensions: ["png"] }],
+      });
+      onMessage(saved ? `Saved scientific A-line figure to ${saved}.` : "Save scientific A-line figure cancelled.");
+    } catch (error) {
+      onMessage(`Save scientific A-line figure failed: ${formatUnknownError(error)}`);
+    }
+  };
+
   const progressPercent = progress && progress.totalRows > 0
     ? Math.min(100, Math.max(0, progress.completedRows / progress.totalRows * 100))
     : 0;
@@ -535,6 +577,7 @@ export default function ClassicalOrpamWorkspace({
             <button type="button" className="command compact" onClick={() => void applyMetadata(path, Boolean(result))} disabled={!path}>Reset from Metadata</button>
             <button type="button" className="command compact" onClick={loadLocalPreset}>Load Preset</button>
             <button type="button" className="command compact" onClick={saveLocalPreset}>Save Preset</button>
+            <button type="button" className="command compact" onClick={() => void saveScientificAlinePng()} disabled={!aline || scientificTraceSeries.length === 0}>Save Scientific PNG</button>
           </div>
         </div>
 
@@ -583,6 +626,7 @@ export default function ClassicalOrpamWorkspace({
           <label><input type="checkbox" checked={showFiltered} onChange={(event) => setShowFiltered(event.target.checked)} /> Filtered RF</label>
           <label><input type="checkbox" checked={showEnvelope} onChange={(event) => setShowEnvelope(event.target.checked)} /> {config.pipeline.hilbertEnvelopeEnabled ? "Envelope" : "Pipeline output"}</label>
         </div>
+        <span className="classical-subtitle">Time (µs) · Current (µA) · Scientific export redraws the selected curves and visible range at 2400 × 1500 px.</span>
         <PlotCanvas
           values={traceValues}
           xDomain={alineZoom}
@@ -590,7 +634,12 @@ export default function ClassicalOrpamWorkspace({
           label={showRaw ? "raw current" : "baseline-corrected"}
           overlays={traceOverlays}
           domainWindows={traceWindows}
-          xLabel="valid trace sample index"
+          xLabel="Time from valid trace start (µs)"
+          xTickFormatter={(index) => {
+            const timeIndex = Math.max(0, Math.min((aline?.valid_time_ns.length ?? 1) - 1, Math.round(index)));
+            const timeNs = aline?.valid_time_ns[timeIndex];
+            return Number.isFinite(timeNs) ? formatNumber((timeNs as number) / 1000, 3) : "--";
+          }}
           ariaLabel="Processed PA A-line"
           title={selectedFrameIndex === null
             ? "Click a PTP or volume pixel to load its processed A-line."
