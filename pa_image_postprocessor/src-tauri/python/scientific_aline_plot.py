@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 FIGURE_SIZE_INCHES = (8.0, 4.0)
 PNG_DPI = 300
 AXIS_LABEL_SIZE = 26
-LEGEND_SIZE = 18
+LEGEND_SIZE = 13
 TICK_SIZE = 15
 TITLE_SIZE = 18
 
@@ -119,7 +119,7 @@ def build_figure(payload: Mapping[str, Any]):
             y_ua,
             label=label,
             color=color,
-            linewidth=2.4,
+            linewidth=1.5,
             alpha=0.96,
             solid_capstyle="round",
             solid_joinstyle="round",
@@ -170,15 +170,16 @@ def build_figure(payload: Mapping[str, Any]):
     axis.spines["bottom"].set_linewidth(1.4)
     axis.grid(False)
 
-    legend = axis.legend(
-        loc="lower center",
-        bbox_to_anchor=(0.5, 1.02),
+    legend = figure.legend(
+        loc="lower left",
+        bbox_to_anchor=(0.04, 0.76, 0.92, 0.08),
+        mode="expand",
         fontsize=LEGEND_SIZE,
         frameon=False,
-        handlelength=2.2,
-        handletextpad=0.7,
-        borderaxespad=0.4,
-        labelspacing=0.5,
+        handlelength=1.8,
+        handletextpad=0.5,
+        columnspacing=1.0,
+        borderaxespad=0.0,
         ncol=min(4, len(visible)),
     )
     for text in legend.get_texts():
