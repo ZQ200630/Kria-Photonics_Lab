@@ -4,6 +4,8 @@ import PlotCanvas from "./PlotCanvas";
 import { fmtInt, fmtNumber, inputInt, inputNumber, parseNumber } from "../utils/format";
 import { classifyLaserStatus, lockStopStaticCh1Code, scanFrequencyHz } from "../utils/laser";
 import {
+  acquireSearchHalfspanFromReadback,
+  effectiveAcquireSearchHalfspan,
   estimateSlidingFrameMatch,
   findLevelCrossings,
   inferPolarityInvertForMarker,
@@ -20,6 +22,7 @@ import {
   type SlidingFrameMatch,
 } from "../utils/lockSpectrum";
 import { buildAcquireTemplate, type AcquireTemplate } from "../utils/acquireTemplate";
+import { boardAcquireClickBlocked, boardAcquirePhaseLabel, runBoardAcquireWorkflow } from "../utils/boardAcquireWorkflow";
 import { makeTecRampPayload, rampEnabledInput } from "../utils/tecRamp";
 import { useSyncedInput } from "../utils/syncedInput";
 import { isTecRunning } from "../utils/tec";
@@ -205,10 +208,11 @@ export default function LockPanel({
     typeof lock?.ch1_min_internal === "number" && typeof lock?.ch1_max_internal === "number"
       ? Math.round((lock.ch1_max_internal - lock.ch1_min_internal) / 2)
       : undefined;
-  const acquireSearchHalfspan =
-    typeof laser?.acquire?.search_min === "number" && typeof laser?.acquire?.search_max === "number"
-      ? Math.round((laser.acquire.search_max - laser.acquire.search_min) / 2)
-      : undefined;
+  const acquireSearchHalfspan = acquireSearchHalfspanFromReadback(
+    laser?.acquire?.search_min,
+    laser?.acquire?.search_max,
+    1000,
+  );
   const targetReadback = tec?.ramp?.active ? tec.ramp.target_celsius : tec?.target_celsius;
   const targetTemp = useSyncedInput(inputNumber(targetReadback, 3), "31.000");
   const rampEnabled = useSyncedInput(rampEnabledInput(tec?.ramp?.enabled), "yes");
@@ -262,6 +266,7 @@ export default function LockPanel({
   const trendRef = useRef(monitorSamples);
   const lockSnapshotRef = useRef<LockAcquisitionSnapshot | null>(null);
   const spectrumRecordingSaving = useRef(false);
+  const markerLockRequestInFlight = useRef(false);
 
   const liveFrame = useMemo(() => (state.lastSpectrum ? spectrumToFrame(state.lastSpectrum) : null), [state.lastSpectrum]);
   const spectrumValues = liveFrame?.values ?? frameHistory.current?.values ?? [];
@@ -277,6 +282,7 @@ export default function LockPanel({
   const scanStopCode = numberFromInput(scanStop.value);
   const spectrumRecordTarget = Math.max(1, Math.floor(numberFromInput(spectrumRecordCount)));
   const lockingActive = laserStatus.mode === "lock";
+  const acquirePhase = boardAcquirePhaseLabel(laser?.acquire, lockingActive);
   const pdMonitorActive = pdMonitorStartTime !== null;
   const relativeTickToCurrentLabel = useCallback(
     (value: number) => `${formatMicroamp(relativeIntensityToCurrentMicroamp(value, tzOhm, pdZeroAdcCode))} uA`,
@@ -287,8 +293,12 @@ export default function LockPanel({
     (value: number) => String(inputCurrentMicroampToSignedAdcCode(value, tzOhm, pdZeroAdcCode)),
     [pdZeroAdcCode, tzOhm],
   );
-  const searchWindowIndexSpan = searchHalfspanToIndexSpan(
+  const effectiveSearchHalfspan = effectiveAcquireSearchHalfspan(
     numberFromInput(searchHalfspan.value),
+    numberFromInput(scanStep.value),
+  );
+  const searchWindowIndexSpan = searchHalfspanToIndexSpan(
+    effectiveSearchHalfspan,
     scanStartCode,
     scanStopCode,
     spectrumValues.length,
@@ -689,7 +699,7 @@ export default function LockPanel({
               reference_frame_counter: snapshot.reference.frameCounter,
               locked_frame_counter: snapshot.current.frameCounter,
               sliding_match: snapshot.match,
-              search_halfspan_code: numberFromInput(searchHalfspan.value),
+              search_halfspan_code: effectiveSearchHalfspan,
               threshold,
             }),
             null,
@@ -712,7 +722,7 @@ export default function LockPanel({
         },
       ],
     });
-  }, [lockSnapshot, lockSpectrumName, pdZeroAdcCode, recordingMetadata, saveBundle, scanStartCode, scanStopCode, searchHalfspan.value, threshold, tzOhm]);
+  }, [effectiveSearchHalfspan, lockSnapshot, lockSpectrumName, pdZeroAdcCode, recordingMetadata, saveBundle, scanStartCode, scanStopCode, threshold, tzOhm]);
 
   const togglePdMonitorRecording = useCallback(async () => {
     if (pdMonitorStartTime === null) {
@@ -847,7 +857,7 @@ export default function LockPanel({
       ch1StartCode: scanStartCode,
       ch1StopCode: scanStopCode,
       lookbehindPoints: 64,
-      searchHalfspanCode: numberFromInput(searchHalfspan.value),
+      searchHalfspanCode: effectiveSearchHalfspan,
     });
     const body = lockBody({
       target_adc: nextTargetAdc,
@@ -870,18 +880,19 @@ export default function LockPanel({
       polarity_invert: template.polarityInvert,
     }),
     marker_ch1_code: template.markerCh1Code,
-    search_halfspan_code: numberFromInput(searchHalfspan.value),
+    search_halfspan_code: effectiveSearchHalfspan,
     search_min_code: template.searchMinCode,
     search_max_code: template.searchMaxCode,
     acquire_threshold: numberFromInput(lockedThreshold.value),
     template_points: template.points,
   });
 
-  const startLockFromMarker = async (crossing: LevelCrossing) => {
+  const performLockFromMarker = async (crossing: LevelCrossing) => {
     if (lockBlockedByTec) {
       throw new Error("TEC must be On before side-fringe locking.");
     }
     const selection = buildMarkerLockSelection(crossing);
+    searchHalfspan.setDraftValue(String(effectiveSearchHalfspan));
     setSelectedAcquireTemplate(selection.template);
     targetAdc.setDraftValue(String(selection.targetAdc));
     biasCh1.setDraftValue(String(selection.biasCh1));
@@ -898,15 +909,32 @@ export default function LockPanel({
       if (!boardAcquireSupported) {
         throw new Error("Board Match Lock requires updated laser-current HDL support.");
       }
-      await client.acquireTemplate(acquireTemplateBody(selection.template));
-      await client.acquireArm({});
-      if (!monitoringOn) {
-        await startMonitoring();
-      }
+      await runBoardAcquireWorkflow({
+        monitoringOn,
+        startMonitoring,
+        uploadTemplate: () => client.acquireTemplate(acquireTemplateBody(selection.template)),
+        armAcquire: () => client.acquireArm({}),
+      });
       releaseDrafts();
     }
   };
 
+  const startLockFromMarker = async (crossing: LevelCrossing) => {
+    if (
+      boardAcquireClickBlocked({
+        requestInFlight: markerLockRequestInFlight.current,
+        acquireActive: lockMethod === "board" && Boolean(laser?.acquire?.active),
+      })
+    ) {
+      return;
+    }
+    markerLockRequestInFlight.current = true;
+    try {
+      await performLockFromMarker(crossing);
+    } finally {
+      markerLockRequestInFlight.current = false;
+    }
+  };
   const showLockAcquisition = laserStatus.mode === "lock" && lockSnapshot !== null;
   const livePdSamples = useMemo(
     () => deriveLockLivePdSamples(active, monitorSamples),
@@ -1378,6 +1406,13 @@ export default function LockPanel({
           </div>
 
           <div className="readouts lock-readouts">
+            <div className="readout">
+              <span>Acquire State</span>
+              <strong>{acquirePhase}</strong>
+              <div className="muted">
+                {laser?.acquire?.matched ? `match code ${fmtInt(laser.acquire.match_code)}` : `search ${fmtInt(laser?.acquire?.search_min)} to ${fmtInt(laser?.acquire?.search_max)}`}
+              </div>
+            </div>
             <div className="readout">
               <span>Selected Marker</span>
               <strong>{selectedAcquireTemplate ? fmtInt(selectedAcquireTemplate.displayMarkerIndex) : "--"}</strong>

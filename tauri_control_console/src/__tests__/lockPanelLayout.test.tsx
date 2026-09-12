@@ -34,7 +34,7 @@ const state: AppState = {
         ch1_min_internal: 20000,
         ch1_max_internal: 30000,
       },
-      acquire: { supported: true, search_min: 24000, search_max: 26000 },
+      acquire: { supported: true, search_min: 0, search_max: 0 },
     },
     ada4355: {},
   },
@@ -86,6 +86,9 @@ describe("LockPanel layout", () => {
     expect(html).toContain("Saves PD and temperature from 50 Hz SSE status");
     expect(html).toContain("<strong>Global Data Root</strong>");
     expect(html).toContain("Stop Locking");
+    expect(html).toContain("Acquire State");
+    expect(html).toContain("Idle");
+    expect(html).toContain('<label>Board Search Halfspan<input value="1000"/></label>');
     expect(html).not.toContain("Record Lock Data");
 
     const spectrumViewIndex = html.indexOf("<h3>Spectrum View</h3>");

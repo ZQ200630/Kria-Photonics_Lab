@@ -144,6 +144,30 @@ export function searchHalfspanToIndexSpan(halfspanCode: number, startCode: numbe
   return Math.round((halfspan / codeSpan) * (safeCount - 1));
 }
 
+export function acquireSearchHalfspanFromReadback(
+  searchMin: number | undefined,
+  searchMax: number | undefined,
+  fallback: number,
+): number {
+  const safeFallback = Math.max(0, Math.round(Number.isFinite(fallback) ? fallback : 0));
+  if (!Number.isFinite(searchMin) || !Number.isFinite(searchMax)) return safeFallback;
+
+  const halfspan = Math.round(Math.abs((searchMax as number) - (searchMin as number)) / 2);
+  return halfspan > 0 ? halfspan : safeFallback;
+}
+
+export function effectiveAcquireSearchHalfspan(requestedHalfspan: number, scanStep: number): number {
+  const safeStep = Math.max(
+    1,
+    Math.round(Math.abs(Number.isFinite(scanStep) ? scanStep : 1)),
+  );
+  const requested = Math.max(
+    0,
+    Math.round(Math.abs(Number.isFinite(requestedHalfspan) ? requestedHalfspan : 0)),
+  );
+  return Math.max(requested, safeStep * 2);
+}
+
 export function paddedRangeForSeries(series: number[][], marginFraction = 0.1): PlotRange {
   return paddedRangeFromStats(finiteStatsForSeries(series), marginFraction);
 }

@@ -20,6 +20,8 @@ import {
   plotOverlaysOrEmpty,
   plotVerticalMarkersOrEmpty,
   resolvePlotDomainWindowRect,
+  resolveCrossingAtPointer,
+  reconcileHoveredCrossing,
   plotXFromIndex,
   resolvePlotRange,
   resolvePlotRangeForPlot,
@@ -180,25 +182,84 @@ describe("indexFromCanvasX", () => {
     expect(findHoveredCrossingIndex(crossings, markerX + 40, 103, width, 10, 100, 12)).toBeUndefined();
   });
 
-  it("limits hover marker selection to the search window and chooses the nearest crossing", () => {
+  it("resolves a clicked crossing directly from the pointer position", () => {
+    const crossings = [
+      { index: 2, leftIndex: 1, rightIndex: 2, value: 100 },
+      { index: 6, leftIndex: 5, rightIndex: 6, value: 100 },
+    ];
+    const width = 420;
+    const markerX = plotXFromIndex(6, width, 10);
+
+    expect(resolveCrossingAtPointer(crossings, markerX, 100, width, 10, 100, 12)).toEqual({
+      crossing: crossings[1],
+      crossingIndex: 1,
+    });
+  });
+
+  it("limits hover marker selection to both the search window and marker hit radius", () => {
     const crossings = [
       { index: 2, leftIndex: 1, rightIndex: 2, value: 100 },
       { index: 6, leftIndex: 5, rightIndex: 6, value: 100 },
       { index: 8, leftIndex: 7, rightIndex: 8, value: 100 },
     ];
-    const nearOutsideWindowX = plotXFromIndex(2, 240, 10);
+    const insideWindowX = plotXFromIndex(6, 240, 10);
+    const outsideWindowX = plotXFromIndex(2, 240, 10);
     expect(
-      findHoveredCrossingIndex(crossings, nearOutsideWindowX, 100, 240, 10, 100, 12, {
+      findHoveredCrossingIndex(crossings, insideWindowX, 100, 240, 10, 100, 12, {
         searchCenterIndex: 7,
         searchHalfspan: 1.5,
       }),
     ).toBe(1);
     expect(
-      findHoveredCrossingIndex(crossings, nearOutsideWindowX, 100, 240, 10, 100, 12, {
+      findHoveredCrossingIndex(crossings, outsideWindowX, 100, 240, 10, 100, 12, {
         searchCenterIndex: 4,
         searchHalfspan: 0.5,
       }),
     ).toBeUndefined();
+  });
+
+  it("keeps live hover attached to the same crossing when earlier candidates appear", () => {
+    const crossing = (index: number) => ({ index, leftIndex: index - 1, rightIndex: index, value: 100 });
+    const hovered = crossing(200);
+    const nextCrossings = [crossing(50), crossing(100), crossing(200), crossing(300)];
+
+    expect(reconcileHoveredCrossing(nextCrossings, hovered, 640, 1000, 16)).toEqual(nextCrossings[2]);
+  });
+
+  it("requires the pointer to hit a marker even when the search window is enabled", () => {
+    const crossings = [
+      { index: 2, leftIndex: 1, rightIndex: 2, value: 100 },
+      { index: 6, leftIndex: 5, rightIndex: 6, value: 100 },
+      { index: 8, leftIndex: 7, rightIndex: 8, value: 100 },
+    ];
+    const pointerX = plotXFromIndex(2, 240, 10);
+
+    expect(
+      findHoveredCrossingIndex(crossings, pointerX, 100, 240, 10, 100, 12, {
+        searchCenterIndex: 7,
+        searchHalfspan: 1.5,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("uses hysteresis before switching between adjacent modes", () => {
+    const crossing = (index: number) => ({ index, leftIndex: index - 1, rightIndex: index, value: 100 });
+    const width = 640;
+    const count = 1000;
+    const pointerX = plotXFromIndex(200, width, count);
+
+    expect(
+      findHoveredCrossingIndex(
+        [crossing(189), crossing(210)],
+        pointerX,
+        100,
+        width,
+        count,
+        100,
+        16,
+        { preferredCrossingIndex: 190, switchHysteresisPx: 4 },
+      ),
+    ).toBe(0);
   });
 
   it("limits threshold dragging to the right-side handle", () => {

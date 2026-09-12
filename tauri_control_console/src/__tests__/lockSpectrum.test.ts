@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  acquireSearchHalfspanFromReadback,
+  effectiveAcquireSearchHalfspan,
   estimateSlidingFrameMatch,
   findLevelCrossings,
   inferPolarityInvertForMarker,
@@ -14,6 +16,18 @@ import {
 } from "../utils/lockSpectrum";
 
 describe("lock spectrum helpers", () => {
+  it("uses the configured default when the board acquire range is still unconfigured", () => {
+    expect(acquireSearchHalfspanFromReadback(0, 0, 1000)).toBe(1000);
+    expect(acquireSearchHalfspanFromReadback(undefined, undefined, 1000)).toBe(1000);
+    expect(acquireSearchHalfspanFromReadback(24000, 26000, 1000)).toBe(1000);
+  });
+
+  it("keeps a marker search window wide enough to include adjacent scan samples", () => {
+    expect(effectiveAcquireSearchHalfspan(0, 10)).toBe(20);
+    expect(effectiveAcquireSearchHalfspan(5, 10)).toBe(20);
+    expect(effectiveAcquireSearchHalfspan(1000, 10)).toBe(1000);
+  });
+
   it("finds fractional crossing positions against a horizontal threshold", () => {
     expect(findLevelCrossings([0, 10, 0], 5).map((item) => item.index)).toEqual([0.5, 1.5]);
   });

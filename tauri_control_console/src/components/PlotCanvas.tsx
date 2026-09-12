@@ -418,6 +418,13 @@ export function resolvePlotDomainWindowRect(
   };
 }
 
+export type PlotCrossingHitOptions = {
+  searchCenterIndex?: number;
+  searchHalfspan?: number;
+  preferredCrossingIndex?: number;
+  switchHysteresisPx?: number;
+};
+
 export function findHoveredCrossingIndex(
   crossings: LevelCrossing[],
   x: number,
@@ -426,13 +433,13 @@ export function findHoveredCrossingIndex(
   count: number,
   markerY: number,
   radius: number,
-  options: {
-    searchCenterIndex?: number;
-    searchHalfspan?: number;
-  } = {},
+  options: PlotCrossingHitOptions = {},
 ): number | undefined {
   let bestIndex: number | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
+  let preferredCandidateIndex: number | undefined;
+  let preferredCandidateDistance = Number.POSITIVE_INFINITY;
+  let preferredAnchorDistance = Number.POSITIVE_INFINITY;
   const hasSearchWindow =
     typeof options.searchCenterIndex === "number" &&
     Number.isFinite(options.searchCenterIndex) &&
@@ -444,13 +451,69 @@ export function findHoveredCrossingIndex(
   crossings.forEach((crossing, index) => {
     if (crossing.index < searchMin || crossing.index > searchMax) return;
     const markerX = plotXFromIndex(crossing.index, width, count);
-    const distance = hasSearchWindow ? Math.abs(x - markerX) : Math.hypot(x - markerX, y - markerY);
-    if ((hasSearchWindow || distance <= radius) && distance < bestDistance) {
+    const distance = Math.hypot(x - markerX, y - markerY);
+    if (distance > radius) return;
+    if (distance < bestDistance) {
       bestIndex = index;
       bestDistance = distance;
     }
+    if (typeof options.preferredCrossingIndex === "number" && Number.isFinite(options.preferredCrossingIndex)) {
+      const anchorDistance = Math.abs(crossing.index - options.preferredCrossingIndex);
+      if (anchorDistance < preferredAnchorDistance) {
+        preferredCandidateIndex = index;
+        preferredCandidateDistance = distance;
+        preferredAnchorDistance = anchorDistance;
+      }
+    }
   });
+  const hysteresis = Math.max(0, options.switchHysteresisPx ?? 0);
+  if (preferredCandidateIndex !== undefined && preferredCandidateDistance <= bestDistance + hysteresis) {
+    return preferredCandidateIndex;
+  }
   return bestIndex;
+}
+
+export type PlotCrossingHit = {
+  crossing: LevelCrossing;
+  crossingIndex: number;
+};
+
+export function resolveCrossingAtPointer(
+  crossings: LevelCrossing[],
+  x: number,
+  y: number,
+  width: number,
+  count: number,
+  markerY: number,
+  radius: number,
+  options: PlotCrossingHitOptions = {},
+): PlotCrossingHit | undefined {
+  const crossingIndex = findHoveredCrossingIndex(crossings, x, y, width, count, markerY, radius, options);
+  if (crossingIndex === undefined) return undefined;
+  const crossing = crossings[crossingIndex];
+  if (!crossing) return undefined;
+  return { crossing, crossingIndex };
+}
+
+export function reconcileHoveredCrossing(
+  crossings: LevelCrossing[],
+  hoveredCrossing: LevelCrossing | undefined,
+  width: number,
+  count: number,
+  maxDistancePx: number,
+): LevelCrossing | undefined {
+  if (!hoveredCrossing || crossings.length === 0 || width <= 0 || count <= 0) return undefined;
+  const hoveredX = plotXFromIndex(hoveredCrossing.index, width, count);
+  let bestCrossing: LevelCrossing | undefined;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  crossings.forEach((crossing) => {
+    const distance = Math.abs(plotXFromIndex(crossing.index, width, count) - hoveredX);
+    if (distance < bestDistance) {
+      bestCrossing = crossing;
+      bestDistance = distance;
+    }
+  });
+  return bestDistance <= Math.max(0, maxDistancePx) ? bestCrossing : undefined;
 }
 
 export function thresholdHandleX(width: number): number {
@@ -557,10 +620,9 @@ export function drawPlotInteractiveOverlays(
     hoveredPlotIndex?: number;
     searchWindowHalfspan?: number;
     threshold?: number;
-    hoveredCrossing?: number;
+    hoveredCrossing?: LevelCrossing;
     hoveredThresholdHandle?: boolean;
     thresholdEditable?: boolean;
-    crossings?: LevelCrossing[];
   } = {},
 ): boolean {
   const ctx = canvas.getContext("2d");
@@ -596,30 +658,26 @@ export function drawPlotInteractiveOverlays(
 
   if (typeof options.threshold !== "number" || !Number.isFinite(options.threshold)) return true;
   const thresholdY = valueToCanvasY(options.threshold, cached.range, cached.cssHeight);
-  const crossings = options.crossings ?? EMPTY_PLOT_CROSSINGS;
-  if (options.hoveredCrossing !== undefined) {
-    const crossing = crossings[options.hoveredCrossing];
-    if (crossing) {
-      const x = plotXFromIndex(crossing.index, cached.cssWidth, cached.valuesLength);
-      const radius = 11;
-      const innerGap = 5;
-      const tickLength = 18;
-      ctx.strokeStyle = "#16a34a";
-      ctx.lineWidth = 2.75;
-      ctx.beginPath();
-      ctx.arc(x, thresholdY, radius, 0, Math.PI * 2);
-      ctx.moveTo(x - tickLength, thresholdY);
-      ctx.lineTo(x - innerGap, thresholdY);
-      ctx.moveTo(x + innerGap, thresholdY);
-      ctx.lineTo(x + tickLength, thresholdY);
-      ctx.moveTo(x, thresholdY - tickLength);
-      ctx.lineTo(x, thresholdY - innerGap);
-      ctx.moveTo(x, thresholdY + innerGap);
-      ctx.lineTo(x, thresholdY + tickLength);
-      ctx.stroke();
-    }
+  const crossing = options.hoveredCrossing;
+  if (crossing) {
+    const x = plotXFromIndex(crossing.index, cached.cssWidth, cached.valuesLength);
+    const radius = 11;
+    const innerGap = 5;
+    const tickLength = 18;
+    ctx.strokeStyle = "#16a34a";
+    ctx.lineWidth = 2.75;
+    ctx.beginPath();
+    ctx.arc(x, thresholdY, radius, 0, Math.PI * 2);
+    ctx.moveTo(x - tickLength, thresholdY);
+    ctx.lineTo(x - innerGap, thresholdY);
+    ctx.moveTo(x + innerGap, thresholdY);
+    ctx.lineTo(x + tickLength, thresholdY);
+    ctx.moveTo(x, thresholdY - tickLength);
+    ctx.lineTo(x, thresholdY - innerGap);
+    ctx.moveTo(x, thresholdY + innerGap);
+    ctx.lineTo(x, thresholdY + tickLength);
+    ctx.stroke();
   }
-
   if (options.thresholdEditable && options.hoveredThresholdHandle) {
     const handleX = thresholdHandleX(cached.cssWidth);
     const handleRadius = 11;
@@ -726,7 +784,7 @@ export default function PlotCanvas({
   const thresholdGeometry = useRef<PlotThresholdDragGeometry | undefined>(undefined);
   const pendingSelectionWindow = useRef<{ startIndex: number; endIndex: number } | undefined>(undefined);
   const selectionAnimationFrame = useRef<number | null>(null);
-  const [hoveredCrossing, setHoveredCrossing] = useState<number | undefined>(undefined);
+  const [hoveredCrossing, setHoveredCrossing] = useState<LevelCrossing | undefined>(undefined);
   const [hoveredThresholdHandle, setHoveredThresholdHandle] = useState(false);
   const [hoveredPlotIndex, setHoveredPlotIndex] = useState<number | undefined>(undefined);
   const plotDomain = xDomain ?? { startIndex: 0, endIndex: Math.max(0, values.length - 1) };
@@ -745,6 +803,16 @@ export default function PlotCanvas({
     },
     [],
   );
+
+  useEffect(() => {
+    setHoveredCrossing((current) => {
+      if (!current) return current;
+      const width = cachedRenderRef.current?.cssWidth ?? ref.current?.getBoundingClientRect().width ?? 0;
+      const next = reconcileHoveredCrossing(stableCrossings, current, width, values.length, 16);
+      if (!next) return undefined;
+      return next.index === current.index ? current : next;
+    });
+  }, [stableCrossings, values.length]);
 
   const restoreCachedPlot = () => {
     const canvas = ref.current;
@@ -1086,7 +1154,6 @@ export default function PlotCanvas({
       hoveredCrossing,
       hoveredThresholdHandle,
       thresholdEditable: Boolean(onThresholdChange),
-      crossings: stableCrossings,
     });
   }, [
     active,
@@ -1245,9 +1312,12 @@ export default function PlotCanvas({
           {
             searchCenterIndex: nextPlotIndex,
             searchHalfspan: searchWindowHalfspan,
+            preferredCrossingIndex: hoveredCrossing?.index,
+            switchHysteresisPx: 4,
           },
         );
-        if (nextHovered !== hoveredCrossing) setHoveredCrossing(nextHovered);
+        const nextCrossing = nextHovered === undefined ? undefined : stableCrossings[nextHovered];
+        if (nextCrossing?.index !== hoveredCrossing?.index) setHoveredCrossing(nextCrossing);
       }}
       onPointerUp={(event) => {
         if (
@@ -1296,9 +1366,33 @@ export default function PlotCanvas({
         setHoveredPlotIndex(undefined);
       }}
       onClick={(event) => {
-        if (onCrossingClick && hoveredCrossing !== undefined && !hoveredThresholdHandle) {
-          onCrossingClick(stableCrossings[hoveredCrossing], hoveredCrossing);
-          return;
+        if (onCrossingClick && !hoveredThresholdHandle && typeof threshold === "number" && Number.isFinite(threshold)) {
+          const geometry = pointerGeometry.current ?? plotPointerGeometryFromCanvas(event.currentTarget);
+          const localPoint = plotLocalPointFromClient({ clientX: event.clientX, clientY: event.clientY, geometry });
+          const localX = localPoint.x - PLOT_LEFT;
+          const plotWidth = geometry.rectWidth - PLOT_LEFT - PLOT_RIGHT_PADDING;
+          const nextPlotIndex = indexFromCanvasX(localX, plotWidth, values.length);
+          const range = cachedRenderRef.current?.range ?? resolvePlotRangeForPlot(values, points, yRange, plotDomain);
+          const thresholdY = valueToCanvasY(threshold, range, height);
+          const hit = resolveCrossingAtPointer(
+            stableCrossings,
+            localPoint.x,
+            localPoint.y,
+            geometry.rectWidth,
+            values.length,
+            thresholdY,
+            16,
+            {
+              searchCenterIndex: nextPlotIndex,
+              searchHalfspan: searchWindowHalfspan,
+              preferredCrossingIndex: hoveredCrossing?.index,
+              switchHysteresisPx: 4,
+            },
+          );
+          if (hit) {
+            onCrossingClick(hit.crossing, hit.crossingIndex);
+            return;
+          }
         }
         if (onThresholdChange) return;
         const rect = event.currentTarget.getBoundingClientRect();
