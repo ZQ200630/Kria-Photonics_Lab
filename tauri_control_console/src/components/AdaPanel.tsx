@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AdaAnalogConfig, AdaAnalogConfigUpdate, RawCapture } from "../api/types";
 import type { PanelProps } from "./types";
 import PlotCanvas from "./PlotCanvas";
@@ -76,6 +76,8 @@ export default function AdaPanel({
   const [rawFilterDirty, setRawFilterDirty] = useState(false);
   const [rawName, setRawName] = useState("raw_adc");
   const [rawMessage, setRawMessage] = useState("No raw ADC capture yet.");
+  const rawPending = useRef(false);
+  const [rawBusy, setRawBusy] = useState(false);
   const [raw, setRaw] = useState<RawCapture | null>(null);
   const [rawAutoY, setRawAutoY] = useState(true);
   const [rawYMin, setRawYMin] = useState("");
@@ -197,29 +199,36 @@ export default function AdaPanel({
     );
     releaseDrafts();
   };
-  const captureRaw = async () => {
+  const acquireRaw = async (calibrate = false) => {
+    if (rawPending.current) return;
+    rawPending.current = true;
+    setRawBusy(true);
     const length = clampNumber(numberFromInput(rawLength.value), 1, 524288);
     const decim = Math.max(1, numberFromInput(rawDecim.value));
-    await updateParameters();
-    const response = await client.rawCapture(length, decim);
-    setRaw(response.raw);
-    setRawZoomRange(undefined);
-    setRawZoomHistory([]);
-    setRawMessage(`Captured ${response.raw.count ?? response.raw.samples.length} raw ADC samples.`);
+    setRawMessage(`Capturing ${length} samples (decim ${decim}); waiting for board…`);
+    try {
+      const response = await client.rawCapture(length, decim);
+      setRaw(response.raw);
+      setRawZoomRange(undefined);
+      setRawZoomHistory([]);
+      if (calibrate) {
+        const nextZero = averageSignedAdcCode(response.raw.samples);
+        if (nextZero === undefined) throw new Error("Raw ADC capture returned no samples.");
+        setPdZeroAdcCodeText?.(String(nextZero));
+        setRawMessage(`Calibrated PD zero ADC code ${nextZero} from ${response.raw.count ?? response.raw.samples.length} raw ADC samples.`);
+      } else {
+        setRawMessage(`Captured ${response.raw.count ?? response.raw.samples.length} raw ADC samples.`);
+      }
+    } catch (error) {
+      setRawMessage(`Capture failed: ${error instanceof Error ? error.message : String(error)}. Any existing plot is from the previous capture.`);
+      throw error;
+    } finally {
+      rawPending.current = false;
+      setRawBusy(false);
+    }
   };
-  const calibrateZeroAdcCode = async () => {
-    const length = clampNumber(numberFromInput(rawLength.value), 1, 524288);
-    const decim = Math.max(1, numberFromInput(rawDecim.value));
-    await updateParameters();
-    const response = await client.rawCapture(length, decim);
-    const nextZero = averageSignedAdcCode(response.raw.samples);
-    if (nextZero === undefined) throw new Error("Raw ADC capture returned no samples.");
-    setRaw(response.raw);
-    setRawZoomRange(undefined);
-    setRawZoomHistory([]);
-    setPdZeroAdcCodeText?.(String(nextZero));
-    setRawMessage(`Calibrated PD zero ADC code ${nextZero} from ${response.raw.count ?? response.raw.samples.length} raw ADC samples.`);
-  };
+  const captureRaw = () => acquireRaw();
+  const calibrateZeroAdcCode = () => acquireRaw(true);
   const saveRaw = async () => {
     if (!raw) throw new Error("No raw ADC capture available.");
     const decim = Math.max(1, raw.decim ?? numberFromInput(rawDecim.value));
@@ -333,6 +342,7 @@ export default function AdaPanel({
                   <button
                     type="button"
                     className="command compact zero-calibrate-button"
+                    disabled={rawBusy}
                     onClick={() => command("Calibrate PD Zero ADC Code", calibrateZeroAdcCode)}
                   >
                     Calibrate Zero
@@ -468,13 +478,13 @@ export default function AdaPanel({
               Raw Name
               <input value={rawName} onChange={(event) => setRawName(event.target.value)} />
             </label>
-            <button className="command" onClick={() => command("Capture Raw ADC", captureRaw)}>
-              Capture Raw ADC
+            <button className="command" disabled={rawBusy} onClick={() => command("Capture Raw ADC", captureRaw)}>
+              {rawBusy ? "Capturing…" : "Capture Raw ADC"}
             </button>
             <button className="command primary" disabled={!raw} onClick={() => command("Save Raw ADC", saveRaw)}>
               Save Raw
             </button>
-            <span className={`recording-status ${raw ? "active" : ""}`}>{rawMessage}</span>
+            <span role="status" aria-live="polite" className={`recording-status ${raw ? "active" : ""}`}>{rawMessage}</span>
           </div>
         </>
       )}
@@ -484,13 +494,13 @@ export default function AdaPanel({
           <button className="command primary" onClick={() => command("Update ADA Parameters", updateParameters)}>
             Update Parameters
           </button>
-          <button className="command" onClick={() => command("Capture Raw ADC", captureRaw)}>
-            Capture Raw ADC
+          <button className="command" disabled={rawBusy} onClick={() => command("Capture Raw ADC", captureRaw)}>
+            {rawBusy ? "Capturing…" : "Capture Raw ADC"}
           </button>
           <button className="command" disabled={!raw} onClick={() => command("Save Raw ADC", saveRaw)}>
             Save Raw
           </button>
-          <span className={`recording-status ${raw ? "active" : ""}`}>{rawMessage}</span>
+          <span role="status" aria-live="polite" className={`recording-status ${raw ? "active" : ""}`}>{rawMessage}</span>
         </div>
       )}
     </section>

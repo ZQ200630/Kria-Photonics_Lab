@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAcquireTemplate } from "../utils/acquireTemplate";
+import { buildAcquireTemplate, acquireThresholdPayload } from "../utils/acquireTemplate";
 
 describe("buildAcquireTemplate", () => {
   it("builds a causal CH1-code-domain template ending at the selected marker", () => {
@@ -35,4 +35,10 @@ describe("buildAcquireTemplate", () => {
     expect(template.markerCh1Code).toBe(22500);
     expect(template.points.map((point) => point.codeOffset)).toEqual([5000, 2500, 0]);
   });
+});
+
+it("omits the rejected threshold for the current board and preserves older boards", () => {
+  expect(acquireThresholdPayload(1000, false)).toEqual({});
+  expect(acquireThresholdPayload(1000, true)).toEqual({ acquire_threshold: 1000 });
+  expect(acquireThresholdPayload(1000, undefined)).toEqual({ acquire_threshold: 1000 });
 });

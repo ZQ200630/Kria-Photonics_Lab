@@ -62,3 +62,11 @@ describe("Laser helpers", () => {
     expect(lockStopStaticCh1Code(undefined, 20000)).toBe(20000);
   });
 });
+
+it("shows optical lock loss as static output, with current scan state taking priority", () => {
+  const lock = { status_flags: ["lock_lost", "hold"] };
+  expect(classifyLaserStatus({ status_flags: ["laser_enable"], lock })).toMatchObject({
+    mode: "static", level: "warn", label: "Static",
+  });
+  expect(classifyLaserStatus({ status_flags: ["laser_enable", "scan_active"], lock })).toMatchObject({ mode: "scan" });
+});

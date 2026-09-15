@@ -121,7 +121,8 @@ export type LaserAcquireStatus = {
   cancelled?: boolean;
   search_min?: number;
   search_max?: number;
-  threshold?: number;
+  threshold?: number | null;
+  threshold_supported?: boolean;
   status_hex?: string;
   match_code?: number;
   match_adc?: number;

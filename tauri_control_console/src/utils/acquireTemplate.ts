@@ -79,3 +79,7 @@ export function buildAcquireTemplate({
     points,
   };
 }
+
+export function acquireThresholdPayload(value: number, supported?: boolean): { acquire_threshold?: number } {
+  return supported === false ? {} : { acquire_threshold: value };
+}

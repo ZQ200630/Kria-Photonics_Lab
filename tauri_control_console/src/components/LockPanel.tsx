@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PanelProps } from "./types";
 import PlotCanvas from "./PlotCanvas";
 import { fmtInt, fmtNumber, inputInt, inputNumber, parseNumber } from "../utils/format";
-import { classifyLaserStatus, lockStopStaticCh1Code, scanFrequencyHz } from "../utils/laser";
+import { classifyLaserStatus, scanFrequencyHz } from "../utils/laser";
 import {
   acquireSearchHalfspanFromReadback,
   effectiveAcquireSearchHalfspan,
@@ -21,7 +21,7 @@ import {
   type PlotRange,
   type SlidingFrameMatch,
 } from "../utils/lockSpectrum";
-import { buildAcquireTemplate, type AcquireTemplate } from "../utils/acquireTemplate";
+import { acquireThresholdPayload, buildAcquireTemplate, type AcquireTemplate } from "../utils/acquireTemplate";
 import { boardAcquireClickBlocked, boardAcquirePhaseLabel, runBoardAcquireWorkflow } from "../utils/boardAcquireWorkflow";
 import { makeTecRampPayload, rampEnabledInput } from "../utils/tecRamp";
 import { useSyncedInput } from "../utils/syncedInput";
@@ -219,12 +219,12 @@ export default function LockPanel({
   const rampRate = useSyncedInput(inputNumber(tec?.ramp?.rate_c_per_s, 3), "0.050");
   const rampInterval = useSyncedInput(inputInt(tec?.ramp?.interval_ms), "200");
 
-  const scanCh0 = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.ch0_internal), "26000");
+  const scanCh0 = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.ch0_internal), "24000");
   const scanStart = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.ch1_start_internal), "20000");
   const scanStop = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.ch1_stop_internal), "30000");
-  const scanStep = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.ch1_step_internal), "10");
-  const dwell = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.dwell_ticks), "100");
-  const settle = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.settle_ticks), "100");
+  const scanStep = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.ch1_step_internal), "1");
+  const dwell = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.dwell_ticks), "10");
+  const settle = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.settle_ticks), "10");
   const frames = useSyncedInput(inputInt(laser?.fine_scan_setpoint?.frames), "1");
   const liveSpectrumLpShift = useSyncedInput(inputInt(ada?.filter?.lp_shift), "13");
 
@@ -247,6 +247,7 @@ export default function LockPanel({
   const [scanStopStep, setScanStopStep] = useState("100");
   const [threshold, setThreshold] = useState<number | undefined>(undefined);
   const [selectedAcquireTemplate, setSelectedAcquireTemplate] = useState<AcquireTemplate | null>(null);
+  const [markerError, setMarkerError] = useState<string | null>(null);
   const [lockMethod, setLockMethod] = useState<LockMethod>("board");
   const [frameHistory, setFrameHistory] = useState<FrameHistory>({ previous: null, current: null });
   const [lockSnapshot, setLockSnapshot] = useState<LockAcquisitionSnapshot | null>(null);
@@ -414,18 +415,9 @@ export default function LockPanel({
   );
 
   const stopMonitoring = useCallback(async () => {
-    if (lockBlockedByTec) {
-      await client.post("/api/laser/off");
-      releaseDrafts();
-      return;
-    }
-    await client.post("/api/laser/static", {
-      ch0: numberFromInput(scanCh0.value),
-      ch1: numberFromInput(scanStart.value),
-      ...safety(),
-    });
+    await client.post("/api/laser/stop-scan");
     releaseDrafts();
-  }, [client, lockBlockedByTec, scanCh0.value, scanStart.value, safety, releaseDrafts]);
+  }, [client, releaseDrafts]);
 
   const toggleMonitoring = () => {
     if (monitoringOn) return stopMonitoring();
@@ -830,13 +822,7 @@ export default function LockPanel({
   };
 
   const stopLockingAtCurrentPoint = async () => {
-    await client.post("/api/laser/static", {
-      ch0: laser?.static_setpoint?.ch0_internal ?? numberFromInput(scanCh0.value),
-      ch1: lockStopStaticCh1Code(lock, numberFromInput(biasCh1.value)),
-      ...safety(),
-    });
-    setLockSnapshot(null);
-    setSelectedAcquireTemplate(null);
+    await client.post("/api/laser/lock-hold");
     releaseDrafts();
   };
 
@@ -869,7 +855,7 @@ export default function LockPanel({
       biasCh1: nextBiasCh1,
       polarityInvert: nextPolarityInvert,
       template,
-      body,
+      body: { ...body, preserve_ch0: true },
     };
   };
 
@@ -879,17 +865,21 @@ export default function LockPanel({
       bias_ch1: template.markerCh1Code,
       polarity_invert: template.polarityInvert,
     }),
+    preserve_ch0: true,
     marker_ch1_code: template.markerCh1Code,
     search_halfspan_code: effectiveSearchHalfspan,
     search_min_code: template.searchMinCode,
     search_max_code: template.searchMaxCode,
-    acquire_threshold: numberFromInput(lockedThreshold.value),
+    ...acquireThresholdPayload(numberFromInput(lockedThreshold.value), laser?.acquire?.threshold_supported),
     template_points: template.points,
   });
 
   const performLockFromMarker = async (crossing: LevelCrossing) => {
     if (lockBlockedByTec) {
       throw new Error("TEC must be On before side-fringe locking.");
+    }
+    if (!laser?.status_flags?.includes("laser_enable")) {
+      throw new Error("Start monitoring before selecting a locking point.");
     }
     const selection = buildMarkerLockSelection(crossing);
     searchHalfspan.setDraftValue(String(effectiveSearchHalfspan));
@@ -929,8 +919,12 @@ export default function LockPanel({
       return;
     }
     markerLockRequestInFlight.current = true;
+    setMarkerError(null);
     try {
       await performLockFromMarker(crossing);
+    } catch (error) {
+      setMarkerError(error instanceof Error ? error.message : String(error));
+      throw error;
     } finally {
       markerLockRequestInFlight.current = false;
     }
@@ -1155,6 +1149,7 @@ export default function LockPanel({
               </div>
             </div>
           </div>
+          {markerError && <p role="alert">Lock request failed: {markerError}</p>}
           {showLockAcquisition && lockSnapshot ? (
             <div className="lock-acquisition-grid">
               <div>

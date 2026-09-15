@@ -41,7 +41,7 @@ export function lockStopStaticCh1Code(
   return u16Code(lock?.output_ch1_internal) ?? u16Code(lock?.bias_ch1_internal) ?? u16Code(fallbackCh1) ?? 0;
 }
 
-export function classifyLaserStatus(laser?: Pick<LaserStatus, "status_flags" | "fault_flags">): LaserStatusSummary {
+export function classifyLaserStatus(laser?: Pick<LaserStatus, "status_flags" | "fault_flags" | "lock">): LaserStatusSummary {
   const flags = new Set(laser?.status_flags ?? []);
   const faultFlags = laser?.fault_flags ?? [];
 
@@ -58,6 +58,9 @@ export function classifyLaserStatus(laser?: Pick<LaserStatus, "status_flags" | "
   }
 
   if (flags.has("laser_enable")) {
+    if (laser?.lock?.status_flags?.includes("lock_lost")) {
+      return { mode: "static", level: "warn", label: "Static", detail: "Lock lost; static output holds the last CH0/CH1 values" };
+    }
     return { mode: "static", level: "ok", label: "Static", detail: "Static current output" };
   }
 
